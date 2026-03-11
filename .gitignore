@@ -1,0 +1,69 @@
+# ─── Dépendances ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build / dist ─────────────────────────────────────────────────────────────
+apps/web/dist/
+apps/web/build/
+
+# ─── Base de données SQLite ───────────────────────────────────────────────────
+apps/api/data/*.db
+apps/api/data/*.db-shm
+apps/api/data/*.db-wal
+
+# ─── Variables d'environnement ────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+apps/api/.env
+apps/web/.env
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# ─── Coverage / Tests ─────────────────────────────────────────────────────────
+apps/api/coverage/
+apps/web/coverage/
+.nyc_output/
+
+# ─── Caches ───────────────────────────────────────────────────────────────────
+.cache/
+.parcel-cache/
+.eslintcache
+.jest-cache/
+
+# ─── IDEs & Éditeurs ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.DS_Store
+Thumbs.db
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+ehthumbs.db
+Desktop.ini
+
+# ─── Secrets & Clés ──────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+*.p12
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+.docker/
+
+# ─── Temp ─────────────────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
