@@ -1,21 +1,15 @@
 'use strict';
 
-/**
- * Détection de Fraude — Règles configurables + blacklist + score de risque
- */
-
 const db = require('./db');
 
-// ─── Types de règles supportés ────────────────────────────────────────────────
 const RULE_TYPES = {
-  MAX_AMOUNT_PER_TX: 'max_amount_per_tx',       // Montant max par transaction
-  MAX_TX_PER_HOUR:   'max_tx_per_hour',          // Nb max de transactions par client/heure
-  MAX_TX_PER_DAY:    'max_tx_per_day',           // Nb max de transactions par client/jour
-  MAX_AMOUNT_PER_DAY:'max_amount_per_day',       // Volume max par client/jour
-  MAX_FAILED_ATTEMPTS: 'max_failed_attempts',    // Nb tentatives échouées avant blocage
+  MAX_AMOUNT_PER_TX:   'max_amount_per_tx',
+  MAX_TX_PER_HOUR:     'max_tx_per_hour',
+  MAX_TX_PER_DAY:      'max_tx_per_day',
+  MAX_AMOUNT_PER_DAY:  'max_amount_per_day',
+  MAX_FAILED_ATTEMPTS: 'max_failed_attempts',
 };
 
-// Règles par défaut (appliquées si aucune règle en DB)
 const DEFAULT_RULES = {
   [RULE_TYPES.MAX_AMOUNT_PER_TX]:    { value: 5000000,  desc: '5 000 000 XOF par transaction' },
   [RULE_TYPES.MAX_TX_PER_HOUR]:      { value: 10,       desc: '10 transactions par heure' },
@@ -24,13 +18,11 @@ const DEFAULT_RULES = {
   [RULE_TYPES.MAX_FAILED_ATTEMPTS]:  { value: 5,        desc: '5 tentatives échouées' },
 };
 
-// ─── Chargement des règles actives ────────────────────────────────────────────
-
-function getActiveRules() {
+async function getActiveRules() {
   try {
-    const dbRules = db.prepare("SELECT rule_type, value FROM fraud_rules WHERE is_active = 1").all();
+    const res = await db.query('SELECT rule_type, value FROM fraud_rules WHERE is_active = TRUE');
     const rules = { ...Object.fromEntries(Object.entries(DEFAULT_RULES).map(([k, v]) => [k, v.value])) };
-    for (const r of dbRules) {
+    for (const r of res.rows) {
       rules[r.rule_type] = parseFloat(r.value);
     }
     return rules;
@@ -39,25 +31,21 @@ function getActiveRules() {
   }
 }
 
-// ─── Vérification de la blacklist ─────────────────────────────────────────────
-
-function isPhoneBlocked(phone) {
+async function isPhoneBlocked(phone) {
   if (!phone) return false;
   try {
-    return !!db.prepare('SELECT 1 FROM blocked_phones WHERE phone = ?').get(phone);
+    const res = await db.query('SELECT 1 FROM blocked_phones WHERE phone = $1', [phone]);
+    return res.rows.length > 0;
   } catch {
     return false;
   }
 }
 
-// ─── Calcul du score de risque ────────────────────────────────────────────────
-
-function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
+async function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
   let score = 0;
   const reasons = [];
-  const rules = getActiveRules();
+  const rules = await getActiveRules();
 
-  // Règle 1: montant élevé
   const maxAmount = rules[RULE_TYPES.MAX_AMOUNT_PER_TX] || DEFAULT_RULES[RULE_TYPES.MAX_AMOUNT_PER_TX].value;
   if (amount > maxAmount * 0.8) { score += 20; reasons.push('Montant proche ou au-dessus du seuil max'); }
   if (amount > maxAmount)       { score += 40; reasons.push('Montant dépasse le seuil max'); }
@@ -67,127 +55,104 @@ function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
     const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
     const oneDayAgo  = new Date(Date.now() - 86400_000).toISOString();
 
-    // Règle 2: fréquence horaire
-    const txLastHour = db.prepare(`
-      SELECT COUNT(*) as c FROM transactions
-      WHERE client_id = ? AND initiated_at >= ? AND initiated_at <= ?
-    `).get(clientId, oneHourAgo, now).c;
+    const hourRes = await db.query(
+      `SELECT COUNT(*) as c FROM transactions WHERE client_id = $1 AND initiated_at >= $2 AND initiated_at <= $3`,
+      [clientId, oneHourAgo, now]
+    );
+    const txLastHour = parseInt(hourRes.rows[0].c);
     const maxPerHour = rules[RULE_TYPES.MAX_TX_PER_HOUR];
     if (txLastHour >= maxPerHour * 0.8) { score += 15; reasons.push(`${txLastHour} transactions cette heure`); }
     if (txLastHour >= maxPerHour)        { score += 35; reasons.push(`Limite horaire dépassée (${txLastHour})`); }
 
-    // Règle 3: volume journalier
-    const dayStats = db.prepare(`
-      SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-      FROM transactions
-      WHERE client_id = ? AND initiated_at >= ? AND initiated_at <= ?
-    `).get(clientId, oneDayAgo, now);
+    const dayRes = await db.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+       FROM transactions WHERE client_id = $1 AND initiated_at >= $2 AND initiated_at <= $3`,
+      [clientId, oneDayAgo, now]
+    );
+    const dayStats = { count: parseInt(dayRes.rows[0].count), total: parseFloat(dayRes.rows[0].total) };
     const maxPerDay    = rules[RULE_TYPES.MAX_TX_PER_DAY];
     const maxAmountDay = rules[RULE_TYPES.MAX_AMOUNT_PER_DAY];
-    if (dayStats.count >= maxPerDay)        { score += 25; reasons.push(`Limite quotidienne de transactions dépassée (${dayStats.count})`); }
-    if (dayStats.total >= maxAmountDay)     { score += 25; reasons.push(`Volume journalier dépassé (${dayStats.total})`); }
+    if (dayStats.count >= maxPerDay)    { score += 25; reasons.push(`Limite quotidienne de transactions dépassée (${dayStats.count})`); }
+    if (dayStats.total >= maxAmountDay) { score += 25; reasons.push(`Volume journalier dépassé (${dayStats.total})`); }
 
-    // Règle 4: tentatives échouées récentes
-    const failedRecent = db.prepare(`
-      SELECT COUNT(*) as c FROM transactions
-      WHERE client_id = ? AND status = 'failed' AND initiated_at >= ?
-    `).get(clientId, oneDayAgo).c;
+    const failRes = await db.query(
+      `SELECT COUNT(*) as c FROM transactions WHERE client_id = $1 AND status = 'failed' AND initiated_at >= $2`,
+      [clientId, oneDayAgo]
+    );
+    const failedRecent = parseInt(failRes.rows[0].c);
     const maxFailed = rules[RULE_TYPES.MAX_FAILED_ATTEMPTS];
     if (failedRecent >= maxFailed) { score += 30; reasons.push(`${failedRecent} tentatives échouées aujourd'hui`); }
   }
 
-  // Score cappé à 100
   return { score: Math.min(score, 100), reasons };
 }
 
-// ─── API principale: vérification complète ────────────────────────────────────
-
-/**
- * Vérifie si une transaction doit être bloquée.
- * @returns {{ blocked: boolean, reason: string|null, riskScore: number, reasons: string[] }}
- */
-function checkTransaction({ amount, clientId, clientPhone, merchantId }) {
-  // 1. Blacklist téléphone
-  if (clientPhone && isPhoneBlocked(clientPhone)) {
-    return {
-      blocked: true,
-      reason: 'Numéro de téléphone sur liste noire',
-      riskScore: 100,
-      reasons: ['Numéro blacklisté'],
-    };
+async function checkTransaction({ amount, clientId, clientPhone, merchantId }) {
+  if (clientPhone && await isPhoneBlocked(clientPhone)) {
+    return { blocked: true, reason: 'Numéro de téléphone sur liste noire', riskScore: 100, reasons: ['Numéro blacklisté'] };
   }
 
-  const rules = getActiveRules();
-
-  // 2. Montant max absolu
+  const rules = await getActiveRules();
   const maxAmount = rules[RULE_TYPES.MAX_AMOUNT_PER_TX];
   if (amount > maxAmount) {
-    return {
-      blocked: true,
-      reason: `Montant ${amount} dépasse le seuil maximum autorisé (${maxAmount})`,
-      riskScore: 100,
-      reasons: ['Montant dépasse le seuil max'],
-    };
+    return { blocked: true, reason: `Montant ${amount} dépasse le seuil maximum autorisé (${maxAmount})`, riskScore: 100, reasons: ['Montant dépasse le seuil max'] };
   }
 
-  // 3. Score de risque
-  const { score, reasons } = computeRiskScore({ amount, clientId, clientPhone, merchantId });
+  const { score, reasons } = await computeRiskScore({ amount, clientId, clientPhone, merchantId });
 
-  // Bloquer si score >= 70
   if (score >= 70) {
-    return {
-      blocked: true,
-      reason: `Score de risque élevé (${score}/100): ${reasons.join(', ')}`,
-      riskScore: score,
-      reasons,
-    };
+    return { blocked: true, reason: `Score de risque élevé (${score}/100): ${reasons.join(', ')}`, riskScore: score, reasons };
   }
 
   return { blocked: false, reason: null, riskScore: score, reasons };
 }
 
-// ─── Administration ───────────────────────────────────────────────────────────
-
-function getAllRules() {
+async function getAllRules() {
   try {
-    return db.prepare('SELECT * FROM fraud_rules ORDER BY created_at DESC').all();
+    const res = await db.query('SELECT * FROM fraud_rules ORDER BY created_at DESC');
+    return res.rows;
   } catch {
     return [];
   }
 }
 
-function createRule({ name, rule_type, value }) {
+async function createRule({ name, rule_type, value }) {
   const { v4: uuidv4 } = require('uuid');
   if (!RULE_TYPES[rule_type.toUpperCase()] && !Object.values(RULE_TYPES).includes(rule_type)) {
     throw new Error(`Type de règle invalide: ${rule_type}`);
   }
   const id = uuidv4();
-  db.prepare('INSERT INTO fraud_rules (id, name, rule_type, value) VALUES (?, ?, ?, ?)').run(id, name, rule_type, String(value));
-  return db.prepare('SELECT * FROM fraud_rules WHERE id = ?').get(id);
+  await db.query('INSERT INTO fraud_rules (id, name, rule_type, value) VALUES ($1, $2, $3, $4)', [id, name, rule_type, String(value)]);
+  const res = await db.query('SELECT * FROM fraud_rules WHERE id = $1', [id]);
+  return res.rows[0];
 }
 
-function toggleRule(id, isActive) {
-  const result = db.prepare('UPDATE fraud_rules SET is_active = ? WHERE id = ?').run(isActive ? 1 : 0, id);
-  return result.changes > 0;
+async function toggleRule(id, isActive) {
+  const res = await db.query('UPDATE fraud_rules SET is_active = $1 WHERE id = $2', [isActive, id]);
+  return res.rowCount > 0;
 }
 
-function deleteRule(id) {
-  const result = db.prepare('DELETE FROM fraud_rules WHERE id = ?').run(id);
-  return result.changes > 0;
+async function deleteRule(id) {
+  const res = await db.query('DELETE FROM fraud_rules WHERE id = $1', [id]);
+  return res.rowCount > 0;
 }
 
-function blockPhone(phone, reason, blockedBy) {
-  db.prepare('INSERT OR REPLACE INTO blocked_phones (phone, reason, blocked_by) VALUES (?, ?, ?)').run(phone, reason || null, blockedBy || null);
+async function blockPhone(phone, reason, blockedBy) {
+  await db.query(
+    'INSERT INTO blocked_phones (phone, reason, blocked_by) VALUES ($1, $2, $3) ON CONFLICT (phone) DO UPDATE SET reason = EXCLUDED.reason, blocked_by = EXCLUDED.blocked_by',
+    [phone, reason || null, blockedBy || null]
+  );
 }
 
-function unblockPhone(phone) {
-  const result = db.prepare('DELETE FROM blocked_phones WHERE phone = ?').run(phone);
-  return result.changes > 0;
+async function unblockPhone(phone) {
+  const res = await db.query('DELETE FROM blocked_phones WHERE phone = $1', [phone]);
+  return res.rowCount > 0;
 }
 
-function getBlockedPhones() {
+async function getBlockedPhones() {
   try {
-    return db.prepare('SELECT * FROM blocked_phones ORDER BY blocked_at DESC').all();
+    const res = await db.query('SELECT * FROM blocked_phones ORDER BY blocked_at DESC');
+    return res.rows;
   } catch {
     return [];
   }

@@ -23,7 +23,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ─── Migrations au démarrage ────────────────────────────────────────────────
-runMigrations();
+runMigrations().catch(err => { console.error('[FATAL] Migration failed:', err.message); process.exit(1); });
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -55,17 +55,17 @@ app.use('/api/v1/fraud', require('./routes/fraud'));
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();
 
-app.get('/api/v1/health', (req, res) => {
+app.get('/api/v1/health', async (req, res) => {
   const db = require('./lib/db');
   let dbStatus = 'ok';
   let dbLatencyMs = null;
 
   try {
     const t0 = Date.now();
-    const merchantCount = db.prepare('SELECT COUNT(*) as c FROM merchants').get().c;
-    const clientCount = db.prepare('SELECT COUNT(*) as c FROM clients').get().c;
-    const txCount = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
-    const pendingWebhooks = db.prepare("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')").get().c;
+    const merchantCount = parseInt((await db.query('SELECT COUNT(*) as c FROM merchants')).rows[0].c);
+    const clientCount = parseInt((await db.query('SELECT COUNT(*) as c FROM clients')).rows[0].c);
+    const txCount = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions')).rows[0].c);
+    const pendingWebhooks = parseInt((await db.query("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')")).rows[0].c);
     dbLatencyMs = Date.now() - t0;
 
     res.json({
@@ -120,22 +120,23 @@ app.use((req, res, next) => {
 // Exposer un compteur depuis les routes paiements
 app.set('metrics', _metrics);
 
-app.get('/api/v1/metrics', (req, res) => {
+app.get('/api/v1/metrics', async (req, res) => {
   const db = require('./lib/db');
   const uptimeSeconds = Math.floor((Date.now() - _startTime) / 1000);
 
   let txStats = { completed: 0, failed: 0, pending: 0, total_volume: 0 };
   let pendingWebhooks = 0;
   try {
-    txStats = db.prepare(`
+    const txRes = await db.query(`
       SELECT
         COUNT(CASE WHEN status='completed' THEN 1 END) as completed,
         COUNT(CASE WHEN status='failed'    THEN 1 END) as failed,
         COUNT(CASE WHEN status='pending'   THEN 1 END) as pending,
         COALESCE(SUM(CASE WHEN status='completed' THEN gross_amount ELSE 0 END), 0) as total_volume
       FROM transactions
-    `).get();
-    pendingWebhooks = db.prepare("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')").get().c;
+    `);
+    txStats = txRes.rows[0];
+    pendingWebhooks = parseInt((await db.query("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')")).rows[0].c);
   } catch (_) { /* db not ready */ }
 
   const lines = [
@@ -177,7 +178,7 @@ app.post('/api/v1/sandbox/auto-confirm', async (req, res) => {
   const db = require('./lib/db');
   const { processCompletedPayment } = require('./routes/payments');
 
-  const tx = db.prepare("SELECT * FROM transactions WHERE id = ? AND status = 'pending'").get(transaction_id);
+  const tx = (await db.query("SELECT * FROM transactions WHERE id = $1 AND status = 'pending'", [transaction_id])).rows[0];
   if (!tx) return res.status(404).json({ error: 'Transaction en attente non trouvée' });
 
   await processCompletedPayment(tx);
@@ -193,14 +194,13 @@ app.use(errorHandler);
 // ─── Crons (désactivés en test) ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
   // Batch fidélité: tous les jours à 2h (heure Abidjan)
-  new CronJob('0 2 * * *', () => {
+  new CronJob('0 2 * * *', async () => {
     console.log('🔄 Exécution du batch de fidélité...');
     const db = require('./lib/db');
-    const results = runLoyaltyBatch();
+    const results = await runLoyaltyBatch();
     for (const r of results) {
-      // Notify only on upgrades (not downgrades)
       if (r.changed && r.newStatus !== 'OPEN') {
-        const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(r.clientId);
+        const client = (await db.query('SELECT * FROM clients WHERE id = $1', [r.clientId])).rows[0];
         if (client) notifyLoyaltyUpgrade({ client, oldStatus: r.currentStatus, newStatus: r.newStatus });
       }
     }

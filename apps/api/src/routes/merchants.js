@@ -18,8 +18,8 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
     password,
   } = req.body;
 
-  const existing = db.prepare('SELECT id FROM merchants WHERE email = ?').get(email);
-  if (existing) return res.status(409).json({ error: 'Email déjà utilisé' });
+  const existing = await db.query('SELECT id FROM merchants WHERE email = $1', [email]);
+  if (existing.rows[0]) return res.status(409).json({ error: 'Email déjà utilisé' });
 
   const id = uuidv4();
   const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
@@ -28,7 +28,7 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
   const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
-  db.prepare(`
+  await db.query(`
     INSERT INTO merchants (
       id, name, email, phone, country_id, category,
       rebate_percent, rebate_mode, business_registration, address, website,
@@ -37,59 +37,60 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
       webhook_url, settlement_frequency, password_hash,
       status, kyc_status
     ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?,
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11,
+      $12, $13, $14, $15,
+      $16, $17, $18, $19,
+      $20, $21, $22,
       'pending', 'pending'
     )
-  `).run(
+  `, [
     id, name, email, phone || null, country_id || null, category || 'general',
     rebate_percent, rebate_mode, business_registration || null, address || null, website || null,
     mm_operator || null, mm_phone || null, bank_name || null, bank_account || null,
     apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
-    webhook_url || null, settlement_frequency, passwordHash
-  );
+    webhook_url || null, settlement_frequency, passwordHash,
+  ]);
 
-  const merchant = db.prepare('SELECT * FROM merchants WHERE id = ?').get(id);
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [id])).rows[0];
   res.status(201).json({ merchant: sanitizeMerchant(merchant, true) });
 });
 
 // GET /api/v1/merchants (admin)
-router.get('/', requireAdmin, (req, res) => {
+router.get('/', requireAdmin, async (req, res) => {
   const { status, country_id, page = 1, limit = 20, q } = req.query;
-  let query = 'SELECT m.*, c.name as country_name, c.currency FROM merchants m LEFT JOIN countries c ON m.country_id = c.id WHERE 1=1';
+  let sql = 'SELECT m.*, c.name as country_name, c.currency FROM merchants m LEFT JOIN countries c ON m.country_id = c.id WHERE 1=1';
   const params = [];
+  let idx = 1;
 
-  if (status) { query += ' AND m.status = ?'; params.push(status); }
-  if (country_id) { query += ' AND m.country_id = ?'; params.push(country_id); }
-  if (q) { query += ' AND (m.name LIKE ? OR m.email LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
+  if (status) { sql += ` AND m.status = $${idx++}`; params.push(status); }
+  if (country_id) { sql += ` AND m.country_id = $${idx++}`; params.push(country_id); }
+  if (q) { sql += ` AND (m.name ILIKE $${idx++} OR m.email ILIKE $${idx++})`; params.push(`%${q}%`, `%${q}%`); }
 
-  query += ' ORDER BY m.created_at DESC LIMIT ? OFFSET ?';
-  const offset = (page - 1) * limit;
-  params.push(parseInt(limit), offset);
+  sql += ` ORDER BY m.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (page - 1) * limit);
 
-  const merchants = db.prepare(query).all(...params);
-  const total = db.prepare("SELECT COUNT(*) as c FROM merchants WHERE 1=1").get().c;
+  const merchants = (await db.query(sql, params)).rows;
+  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM merchants')).rows[0].c);
 
   res.json({ merchants: merchants.map(m => sanitizeMerchant(m, false)), total, page: parseInt(page), limit: parseInt(limit) });
 });
 
 // GET /api/v1/merchants/:id (admin)
-router.get('/:id', requireAdmin, (req, res) => {
-  const merchant = db.prepare(`
+router.get('/:id', requireAdmin, async (req, res) => {
+  const result = await db.query(`
     SELECT m.*, c.name as country_name, c.currency
     FROM merchants m LEFT JOIN countries c ON m.country_id = c.id
-    WHERE m.id = ?
-  `).get(req.params.id);
+    WHERE m.id = $1
+  `, [req.params.id]);
+  const merchant = result.rows[0];
 
   if (!merchant) return res.status(404).json({ error: 'Marchand non trouvé' });
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
 
 // PATCH /api/v1/merchants/:id (admin)
-router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), (req, res) => {
+router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
   const allowed = ['name', 'phone', 'rebate_percent', 'rebate_mode', 'status', 'kyc_status',
     'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name', 'bank_account',
     'category', 'address'];
@@ -102,57 +103,58 @@ router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), (req, res) =>
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'Aucune donnée à mettre à jour' });
 
   updates.updated_at = new Date().toISOString();
-  const setClause = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-  db.prepare(`UPDATE merchants SET ${setClause} WHERE id = ?`).run(...Object.values(updates), req.params.id);
+  const keys = Object.keys(updates);
+  const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+  await db.query(`UPDATE merchants SET ${setClause} WHERE id = $${keys.length + 1}`, [...Object.values(updates), req.params.id]);
 
-  const merchant = db.prepare('SELECT * FROM merchants WHERE id = ?').get(req.params.id);
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
 
-// GET /api/v1/merchants/:id/balance (admin ou marchand)
-router.get('/:id/balance', requireAdmin, (req, res) => {
-  const stats = db.prepare(`
+// GET /api/v1/merchants/:id/balance (admin)
+router.get('/:id/balance', requireAdmin, async (req, res) => {
+  const result = await db.query(`
     SELECT
       COALESCE(SUM(CASE WHEN status = 'completed' THEN merchant_receives ELSE 0 END), 0) as total_earned,
       COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
       COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count
-    FROM transactions WHERE merchant_id = ?
-  `).get(req.params.id);
+    FROM transactions WHERE merchant_id = $1
+  `, [req.params.id]);
 
-  res.json({ balance: stats });
+  res.json({ balance: result.rows[0] });
 });
 
-// GET /api/v1/merchants/:id/transactions (admin ou marchand)
-router.get('/:id/transactions', requireAdmin, (req, res) => {
+// GET /api/v1/merchants/:id/transactions (admin)
+router.get('/:id/transactions', requireAdmin, async (req, res) => {
   const { page = 1, limit = 20, status, from, to } = req.query;
-  let query = `
+  let sql = `
     SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as current_client_status
     FROM transactions t
     LEFT JOIN clients c ON t.client_id = c.id
-    WHERE t.merchant_id = ?
+    WHERE t.merchant_id = $1
   `;
   const params = [req.params.id];
+  let idx = 2;
 
-  if (status) { query += ' AND t.status = ?'; params.push(status); }
-  if (from) { query += ' AND t.initiated_at >= ?'; params.push(from); }
-  if (to) { query += ' AND t.initiated_at <= ?'; params.push(to); }
+  if (status) { sql += ` AND t.status = $${idx++}`; params.push(status); }
+  if (from) { sql += ` AND t.initiated_at >= $${idx++}`; params.push(from); }
+  if (to) { sql += ` AND t.initiated_at <= $${idx++}`; params.push(to); }
 
-  query += ' ORDER BY t.initiated_at DESC LIMIT ? OFFSET ?';
+  sql += ` ORDER BY t.initiated_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (page - 1) * limit);
 
-  const transactions = db.prepare(query).all(...params);
-  const total = db.prepare('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = ?').get(req.params.id).c;
+  const transactions = (await db.query(sql, params)).rows;
+  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = $1', [req.params.id])).rows[0].c);
 
   res.json({ transactions, total });
 });
-
-// ─── Auth marchand ────────────────────────────────────────────────────────────
 
 // POST /api/v1/merchants/auth/login
 router.post('/auth/login', validate(MerchantLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
-  const merchant = db.prepare('SELECT * FROM merchants WHERE email = ? AND is_active = 1').get(email);
+  const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);
+  const merchant = result.rows[0];
   if (!merchant || !merchant.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
 
   const valid = await bcrypt.compare(password, merchant.password_hash);
@@ -162,40 +164,41 @@ router.post('/auth/login', validate(MerchantLoginSchema), async (req, res) => {
   res.json({ ...tokens, merchant: sanitizeMerchant(merchant, true) });
 });
 
-// GET /api/v1/merchants/me (marchand connecté)
-router.get('/me/profile', requireMerchant, (req, res) => {
-  const merchant = db.prepare(`
+// GET /api/v1/merchants/me/profile (marchand connecté)
+router.get('/me/profile', requireMerchant, async (req, res) => {
+  const result = await db.query(`
     SELECT m.*, c.name as country_name, c.currency
     FROM merchants m LEFT JOIN countries c ON m.country_id = c.id
-    WHERE m.id = ?
-  `).get(req.merchant.id);
+    WHERE m.id = $1
+  `, [req.merchant.id]);
 
-  res.json({ merchant: sanitizeMerchant(merchant, true) });
+  res.json({ merchant: sanitizeMerchant(result.rows[0], true) });
 });
 
 // GET /api/v1/merchants/me/transactions (marchand connecté)
-router.get('/me/transactions', requireMerchant, (req, res) => {
+router.get('/me/transactions', requireMerchant, async (req, res) => {
   const { page = 1, limit = 20, status } = req.query;
-  let query = `
+  let sql = `
     SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as client_current_status
     FROM transactions t
     LEFT JOIN clients c ON t.client_id = c.id
-    WHERE t.merchant_id = ?
+    WHERE t.merchant_id = $1
   `;
   const params = [req.merchant.id];
-  if (status) { query += ' AND t.status = ?'; params.push(status); }
-  query += ' ORDER BY t.initiated_at DESC LIMIT ? OFFSET ?';
+  let idx = 2;
+  if (status) { sql += ` AND t.status = $${idx++}`; params.push(status); }
+  sql += ` ORDER BY t.initiated_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (page - 1) * limit);
 
-  const transactions = db.prepare(query).all(...params);
-  const total = db.prepare('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = ?').get(req.merchant.id).c;
+  const transactions = (await db.query(sql, params)).rows;
+  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = $1', [req.merchant.id])).rows[0].c);
   res.json({ transactions, total });
 });
 
 // GET /api/v1/merchants/me/stats (marchand connecté)
-router.get('/me/stats', requireMerchant, (req, res) => {
+router.get('/me/stats', requireMerchant, async (req, res) => {
   const mid = req.merchant.id;
-  const stats = db.prepare(`
+  const statsRes = await db.query(`
     SELECT
       COUNT(*) as total_transactions,
       COALESCE(SUM(CASE WHEN status = 'completed' THEN gross_amount ELSE 0 END), 0) as total_volume,
@@ -204,16 +207,61 @@ router.get('/me/stats', requireMerchant, (req, res) => {
       COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
       COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count,
       COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count
-    FROM transactions WHERE merchant_id = ?
-  `).get(mid);
+    FROM transactions WHERE merchant_id = $1
+  `, [mid]);
 
-  const byStatus = db.prepare(`
+  const byStatusRes = await db.query(`
     SELECT client_loyalty_status, COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as volume
-    FROM transactions WHERE merchant_id = ? AND status = 'completed'
+    FROM transactions WHERE merchant_id = $1 AND status = 'completed'
     GROUP BY client_loyalty_status
-  `).all(mid);
+  `, [mid]);
 
-  res.json({ stats, byLoyaltyStatus: byStatus });
+  res.json({ stats: statsRes.rows[0], byLoyaltyStatus: byStatusRes.rows });
+});
+
+// POST /api/v1/merchants/register (self-service)
+router.post('/register', async (req, res) => {
+  const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;
+
+  if (!name || !email || !phone || !country_id || !password) {
+    return res.status(400).json({ error: 'name, email, phone, country_id et password sont requis' });
+  }
+  if (!email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
+  if (password.length < 8) return res.status(400).json({ error: 'Mot de passe: minimum 8 caractères' });
+
+  const existing = await db.query('SELECT id FROM merchants WHERE email = $1', [email]);
+  if (existing.rows[0]) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
+
+  const id = uuidv4();
+  const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
+  const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
+  const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
+  const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  try {
+    await db.query(`
+      INSERT INTO merchants (
+        id, name, email, phone, country_id, category,
+        rebate_percent, rebate_mode, website,
+        api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
+        webhook_url, password_hash, status, kyc_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'pending', 'pending')
+    `, [
+      id, name, email, phone, country_id, category || 'general',
+      parseFloat(rebate_percent) || 5, rebate_mode || 'cashback', website || null,
+      apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
+      webhook_url || null, passwordHash,
+    ]);
+  } catch (e) {
+    if (e.message?.includes('unique') || e.code === '23505') return res.status(409).json({ error: 'Email déjà utilisé' });
+    throw e;
+  }
+
+  res.status(201).json({
+    message: "Demande d'inscription reçue. Notre équipe validera votre compte sous 24-48h.",
+    id,
+  });
 });
 
 function sanitizeMerchant(m, includeKeys = false) {
@@ -231,51 +279,5 @@ function sanitizeMerchant(m, includeKeys = false) {
   }
   return base;
 }
-
-// POST /api/v1/merchants/register (self-service — crée un compte en attente)
-router.post('/register', async (req, res) => {
-  const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;
-
-  // Validation basique
-  if (!name || !email || !phone || !country_id || !password) {
-    return res.status(400).json({ error: 'name, email, phone, country_id et password sont requis' });
-  }
-  if (!email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
-  if (password.length < 8) return res.status(400).json({ error: 'Mot de passe: minimum 8 caractères' });
-
-  const existing = db.prepare('SELECT id FROM merchants WHERE email = ?').get(email);
-  if (existing) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
-
-  const id = uuidv4();
-  const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
-  const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
-  const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
-  const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  try {
-    db.prepare(`
-      INSERT INTO merchants (
-        id, name, email, phone, country_id, category,
-        rebate_percent, rebate_mode, website,
-        api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
-        webhook_url, password_hash, status, kyc_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')
-    `).run(
-      id, name, email, phone, country_id, category || 'general',
-      parseFloat(rebate_percent) || 5, rebate_mode || 'cashback', website || null,
-      apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
-      webhook_url || null, passwordHash
-    );
-  } catch (e) {
-    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Email déjà utilisé' });
-    throw e;
-  }
-
-  res.status(201).json({
-    message: 'Demande d\'inscription reçue. Notre équipe validera votre compte sous 24-48h.',
-    id,
-  });
-});
 
 module.exports = router;

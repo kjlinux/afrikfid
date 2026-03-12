@@ -4,13 +4,13 @@
   "description": "Passerelle de Paiement Afrik'Fid - API Backend",
   "main": "src/index.js",
   "scripts": {
-    "start": "node --experimental-sqlite src/index.js",
-    "dev": "nodemon --exec \"node --experimental-sqlite\" src/index.js",
-    "seed": "node --experimental-sqlite src/seed.js",
-    "reset": "node --experimental-sqlite src/resetDb.js",
-    "test": "NODE_OPTIONS=\"--experimental-sqlite --experimental-vm-modules\" NODE_ENV=test npx jest --forceExit --runInBand",
-    "test:watch": "NODE_OPTIONS=\"--experimental-sqlite --experimental-vm-modules\" NODE_ENV=test npx jest --watch --runInBand",
-    "test:coverage": "NODE_OPTIONS=\"--experimental-sqlite --experimental-vm-modules\" NODE_ENV=test npx jest --coverage --forceExit --runInBand"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed": "node src/seed.js",
+    "reset": "node src/resetDb.js",
+    "test": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --forceExit --runInBand",
+    "test:watch": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --watch --runInBand",
+    "test:coverage": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --coverage --forceExit --runInBand"
   },
   "jest": {
     "testEnvironment": "node",
@@ -43,6 +43,7 @@
     "helmet": "^7.1.0",
     "js-yaml": "^4.1.1",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.20.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.0",
     "zod": "^3.22.4"

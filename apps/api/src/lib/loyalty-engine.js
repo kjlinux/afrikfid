@@ -5,42 +5,26 @@
 
 const db = require('./db');
 
-/**
- * Récupère la config de fidélité depuis la DB
- */
-function getLoyaltyConfig() {
-  return db.prepare('SELECT * FROM loyalty_config ORDER BY sort_order').all();
+async function getLoyaltyConfig() {
+  const res = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order');
+  return res.rows;
 }
 
-/**
- * Récupère le taux Y% pour un statut donné
- */
-function getClientRebatePercent(loyaltyStatus) {
-  const config = db.prepare('SELECT client_rebate_percent FROM loyalty_config WHERE status = ?').get(loyaltyStatus);
-  return config ? config.client_rebate_percent : 0;
+async function getClientRebatePercent(loyaltyStatus) {
+  const res = await db.query('SELECT client_rebate_percent FROM loyalty_config WHERE status = $1', [loyaltyStatus]);
+  return res.rows[0] ? parseFloat(res.rows[0].client_rebate_percent) : 0;
 }
 
-/**
- * Calcule la distribution X/Y/Z pour une transaction
- *
- * @param {number} grossAmount - Montant brut de la transaction
- * @param {number} merchantRebatePercent - X% négocié avec le marchand
- * @param {string} clientLoyaltyStatus - Statut de fidélité du client (OPEN, LIVE, GOLD, ROYAL)
- * @returns {object} Distribution complète
- */
-function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN') {
-  const X = merchantRebatePercent;                        // Remise marchand
-  const Y = getClientRebatePercent(clientLoyaltyStatus);  // Remise client
+async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN') {
+  const X = merchantRebatePercent;
+  const Y = await getClientRebatePercent(clientLoyaltyStatus);
 
-  // Règle fondamentale: Y ne peut pas dépasser X
   const effectiveY = Math.min(Y, X);
-  const Z = X - effectiveY;  // Commission Afrik'Fid
+  const Z = X - effectiveY;
 
   const merchantRebateAmount = (grossAmount * X) / 100;
   const clientRebateAmount = (grossAmount * effectiveY) / 100;
   const platformCommissionAmount = (grossAmount * Z) / 100;
-
-  // Le marchand reçoit: montant brut - remise accordée (X%)
   const merchantReceives = grossAmount - merchantRebateAmount;
 
   return {
@@ -52,69 +36,59 @@ function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyalty
     clientRebateAmount: round2(clientRebateAmount),
     platformCommissionAmount: round2(platformCommissionAmount),
     merchantReceives: round2(merchantReceives),
-    // Validation
     isValid: effectiveY <= X,
     yExceedsX: Y > X,
   };
 }
 
-/**
- * Évalue le nouveau statut d'un client basé sur son activité
- */
-function evaluateClientStatus(clientId) {
-  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
+async function evaluateClientStatus(clientId) {
+  const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [clientId]);
+  const client = clientRes.rows[0];
   if (!client) return null;
 
-  const configs = db.prepare('SELECT * FROM loyalty_config ORDER BY sort_order DESC').all();
+  const configsRes = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order DESC');
+  const configs = configsRes.rows;
 
-  // Calculer les achats récents
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-  const recentStats = db.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-    FROM transactions
-    WHERE client_id = ? AND status = 'completed'
-    AND initiated_at >= ?
-  `).get(clientId, threeMonthsAgo.toISOString());
+  const recentRes = await db.query(
+    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+     FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
+    [clientId, threeMonthsAgo.toISOString()]
+  );
+  const recentStats = { count: parseInt(recentRes.rows[0].count), total: parseFloat(recentRes.rows[0].total) };
 
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  const sixMonthStats = db.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-    FROM transactions
-    WHERE client_id = ? AND status = 'completed'
-    AND initiated_at >= ?
-  `).get(clientId, sixMonthsAgo.toISOString());
+  const sixRes = await db.query(
+    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+     FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
+    [clientId, sixMonthsAgo.toISOString()]
+  );
+  const sixMonthStats = { count: parseInt(sixRes.rows[0].count), total: parseFloat(sixRes.rows[0].total) };
 
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const twelveMonthStats = db.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-    FROM transactions
-    WHERE client_id = ? AND status = 'completed'
-    AND initiated_at >= ?
-  `).get(clientId, twelveMonthsAgo.toISOString());
+  const twelveRes = await db.query(
+    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+     FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
+    [clientId, twelveMonthsAgo.toISOString()]
+  );
+  const twelveMonthStats = { count: parseInt(twelveRes.rows[0].count), total: parseFloat(twelveRes.rows[0].total) };
 
-  // Logique de statut (du plus élevé au plus bas)
   const currentStatus = client.loyalty_status;
   let newStatus = 'OPEN';
 
-  // ROYAL: critères sur 12 mois
   const royalConfig = configs.find(c => c.status === 'ROYAL');
   if (royalConfig && twelveMonthStats.count >= royalConfig.min_purchases &&
       twelveMonthStats.total >= royalConfig.min_cumulative_amount) {
     newStatus = 'ROYAL';
-  }
-  // GOLD: critères sur 6 mois
-  else {
+  } else {
     const goldConfig = configs.find(c => c.status === 'GOLD');
     if (goldConfig && sixMonthStats.count >= goldConfig.min_purchases &&
         sixMonthStats.total >= goldConfig.min_cumulative_amount) {
       newStatus = 'GOLD';
-    }
-    // LIVE: critères sur 3 mois
-    else {
+    } else {
       const liveConfig = configs.find(c => c.status === 'LIVE');
       if (liveConfig && recentStats.count >= liveConfig.min_purchases &&
           recentStats.total >= liveConfig.min_cumulative_amount) {
@@ -128,31 +102,25 @@ function evaluateClientStatus(clientId) {
     currentStatus,
     newStatus,
     changed: currentStatus !== newStatus,
-    stats: { recentStats, sixMonthStats, twelveMonthStats }
+    stats: { recentStats, sixMonthStats, twelveMonthStats },
   };
 }
 
-/**
- * Applique un changement de statut de fidélité
- */
-function applyStatusChange(clientId, newStatus) {
-  db.prepare(`
-    UPDATE clients SET loyalty_status = ?, status_since = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
-  `).run(newStatus, clientId);
+async function applyStatusChange(clientId, newStatus) {
+  await db.query(
+    `UPDATE clients SET loyalty_status = $1, status_since = NOW(), updated_at = NOW() WHERE id = $2`,
+    [newStatus, clientId]
+  );
 }
 
-/**
- * Batch quotidien d'évaluation des statuts
- */
-function runLoyaltyBatch() {
-  const clients = db.prepare("SELECT id FROM clients WHERE is_active = 1").all();
+async function runLoyaltyBatch() {
+  const clientsRes = await db.query('SELECT id FROM clients WHERE is_active = TRUE');
   const results = [];
 
-  for (const client of clients) {
-    const evaluation = evaluateClientStatus(client.id);
+  for (const client of clientsRes.rows) {
+    const evaluation = await evaluateClientStatus(client.id);
     if (evaluation && evaluation.changed) {
-      applyStatusChange(client.id, evaluation.newStatus);
+      await applyStatusChange(client.id, evaluation.newStatus);
       results.push(evaluation);
     }
   }

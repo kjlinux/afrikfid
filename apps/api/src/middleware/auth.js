@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 /**
  * Middleware d'authentification JWT pour les admins
  */
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
   const token = extractToken(req);
   if (!token) return res.status(401).json({ error: 'Token manquant' });
 
@@ -14,7 +14,8 @@ function requireAdmin(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'admin') return res.status(403).json({ error: 'Accès interdit' });
 
-    const admin = db.prepare('SELECT * FROM admins WHERE id = ? AND is_active = 1').get(decoded.sub);
+    const result = await db.query('SELECT * FROM admins WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+    const admin = result.rows[0];
     if (!admin) return res.status(401).json({ error: 'Session invalide' });
 
     req.admin = admin;
@@ -28,18 +29,19 @@ function requireAdmin(req, res, next) {
 /**
  * Middleware d'authentification par clé API pour les marchands
  */
-function requireApiKey(req, res, next) {
+async function requireApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
   if (!apiKey) return res.status(401).json({ error: 'Clé API manquante' });
 
   const isSandbox = req.headers['x-sandbox'] === 'true' || process.env.SANDBOX_MODE === 'true';
 
-  let merchant;
+  let result;
   if (isSandbox) {
-    merchant = db.prepare('SELECT * FROM merchants WHERE sandbox_key_public = ? AND is_active = 1').get(apiKey);
+    result = await db.query('SELECT * FROM merchants WHERE sandbox_key_public = $1 AND is_active = TRUE', [apiKey]);
   } else {
-    merchant = db.prepare('SELECT * FROM merchants WHERE api_key_public = ? AND is_active = 1').get(apiKey);
+    result = await db.query('SELECT * FROM merchants WHERE api_key_public = $1 AND is_active = TRUE', [apiKey]);
   }
+  const merchant = result.rows[0];
 
   if (!merchant) return res.status(401).json({ error: 'Clé API invalide' });
   if (merchant.status !== 'active') return res.status(403).json({ error: 'Compte marchand inactif ou suspendu' });
@@ -54,7 +56,7 @@ function requireApiKey(req, res, next) {
 /**
  * Middleware d'authentification JWT pour les marchands (dashboard)
  */
-function requireMerchant(req, res, next) {
+async function requireMerchant(req, res, next) {
   const token = extractToken(req);
   if (!token) return res.status(401).json({ error: 'Token manquant' });
 
@@ -62,7 +64,8 @@ function requireMerchant(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'merchant') return res.status(403).json({ error: 'Accès interdit' });
 
-    const merchant = db.prepare('SELECT * FROM merchants WHERE id = ? AND is_active = 1').get(decoded.sub);
+    const result = await db.query('SELECT * FROM merchants WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+    const merchant = result.rows[0];
     if (!merchant) return res.status(401).json({ error: 'Session invalide' });
 
     req.merchant = merchant;
@@ -76,7 +79,7 @@ function requireMerchant(req, res, next) {
 /**
  * Admin ou Merchant (pour les routes communes)
  */
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const token = extractToken(req);
   if (!token) return res.status(401).json({ error: 'Token manquant' });
 
@@ -85,11 +88,13 @@ function requireAuth(req, res, next) {
     req.user = decoded;
 
     if (decoded.role === 'admin') {
-      const admin = db.prepare('SELECT * FROM admins WHERE id = ? AND is_active = 1').get(decoded.sub);
+      const result = await db.query('SELECT * FROM admins WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+      const admin = result.rows[0];
       if (!admin) return res.status(401).json({ error: 'Session invalide' });
       req.admin = admin;
     } else if (decoded.role === 'merchant') {
-      const merchant = db.prepare('SELECT * FROM merchants WHERE id = ? AND is_active = 1').get(decoded.sub);
+      const result = await db.query('SELECT * FROM merchants WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+      const merchant = result.rows[0];
       if (!merchant) return res.status(401).json({ error: 'Session invalide' });
       req.merchant = merchant;
     }

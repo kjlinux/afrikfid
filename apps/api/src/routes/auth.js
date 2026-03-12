@@ -10,13 +10,14 @@ const { AdminLoginSchema, MerchantLoginSchema } = require('../config/schemas');
 router.post('/admin/login', validate(AdminLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
-  const admin = db.prepare('SELECT * FROM admins WHERE email = ? AND is_active = 1').get(email);
+  const result = await db.query('SELECT * FROM admins WHERE email = $1 AND is_active = TRUE', [email]);
+  const admin = result.rows[0];
   if (!admin) return res.status(401).json({ error: 'Identifiants invalides' });
 
   const valid = await bcrypt.compare(password, admin.password_hash);
   if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
 
-  db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
+  await db.query('UPDATE admins SET last_login = NOW() WHERE id = $1', [admin.id]);
 
   const tokens = generateTokens({ sub: admin.id, role: 'admin', email: admin.email });
   res.json({
@@ -29,7 +30,8 @@ router.post('/admin/login', validate(AdminLoginSchema), async (req, res) => {
 router.post('/merchant/login', validate(MerchantLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
-  const merchant = db.prepare('SELECT * FROM merchants WHERE email = ? AND is_active = 1').get(email);
+  const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);
+  const merchant = result.rows[0];
   if (!merchant || !merchant.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
 
   const valid = await bcrypt.compare(password, merchant.password_hash);
