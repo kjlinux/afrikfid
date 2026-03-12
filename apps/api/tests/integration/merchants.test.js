@@ -84,7 +84,7 @@ describe('Marchands — Admin CRUD', () => {
       .send({ name: 'X', email: 'not-an-email', phone: '+2250702001', country_id: 'CI', rebate_percent: 5 });
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error).toBe('VALIDATION_ERROR');
   });
 
   test('POST /merchants — 409 si email déjà utilisé', async () => {

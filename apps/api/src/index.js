@@ -41,19 +41,109 @@ app.use('/api/v1/reports', require('./routes/reports'));
 app.use('/api/v1/fraud', require('./routes/fraud'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
+const _startTime = Date.now();
+
 app.get('/api/v1/health', (req, res) => {
   const db = require('./lib/db');
-  const merchantCount = db.prepare('SELECT COUNT(*) as c FROM merchants').get().c;
-  const clientCount = db.prepare('SELECT COUNT(*) as c FROM clients').get().c;
-  const txCount = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
+  let dbStatus = 'ok';
+  let dbLatencyMs = null;
 
-  res.json({
-    status: 'ok',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-    sandbox: process.env.SANDBOX_MODE === 'true',
-    stats: { merchants: merchantCount, clients: clientCount, transactions: txCount },
-  });
+  try {
+    const t0 = Date.now();
+    const merchantCount = db.prepare('SELECT COUNT(*) as c FROM merchants').get().c;
+    const clientCount = db.prepare('SELECT COUNT(*) as c FROM clients').get().c;
+    const txCount = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
+    const pendingWebhooks = db.prepare("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')").get().c;
+    dbLatencyMs = Date.now() - t0;
+
+    res.json({
+      status: 'ok',
+      version: process.env.npm_package_version || '1.0.0',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor((Date.now() - _startTime) / 1000),
+      sandbox: process.env.SANDBOX_MODE !== 'false',
+      db: { status: dbStatus, latencyMs: dbLatencyMs },
+      queue: { pendingWebhooks },
+      stats: { merchants: merchantCount, clients: clientCount, transactions: txCount },
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'degraded',
+      timestamp: new Date().toISOString(),
+      db: { status: 'error', error: err.message },
+    });
+  }
+});
+
+// ─── Prometheus Metrics ────────────────────────────────────────────────────
+// Compteurs en mémoire (remis à zéro au redémarrage du processus)
+const _metrics = {
+  http_requests_total: 0,
+  http_errors_total: 0,
+  payment_initiated_total: 0,
+  payment_completed_total: 0,
+  payment_failed_total: 0,
+};
+
+// Middleware de comptage des requêtes
+app.use((req, res, next) => {
+  _metrics.http_requests_total++;
+  res.on('finish', () => { if (res.statusCode >= 500) _metrics.http_errors_total++; });
+  next();
+});
+
+// Exposer un compteur depuis les routes paiements
+app.set('metrics', _metrics);
+
+app.get('/api/v1/metrics', (req, res) => {
+  const db = require('./lib/db');
+  const uptimeSeconds = Math.floor((Date.now() - _startTime) / 1000);
+
+  let txStats = { completed: 0, failed: 0, pending: 0, total_volume: 0 };
+  let pendingWebhooks = 0;
+  try {
+    txStats = db.prepare(`
+      SELECT
+        COUNT(CASE WHEN status='completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN status='failed'    THEN 1 END) as failed,
+        COUNT(CASE WHEN status='pending'   THEN 1 END) as pending,
+        COALESCE(SUM(CASE WHEN status='completed' THEN gross_amount ELSE 0 END), 0) as total_volume
+      FROM transactions
+    `).get();
+    pendingWebhooks = db.prepare("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')").get().c;
+  } catch (_) { /* db not ready */ }
+
+  const lines = [
+    '# HELP afrikfid_uptime_seconds Uptime du processus en secondes',
+    '# TYPE afrikfid_uptime_seconds gauge',
+    `afrikfid_uptime_seconds ${uptimeSeconds}`,
+    '',
+    '# HELP afrikfid_http_requests_total Nombre total de requêtes HTTP reçues',
+    '# TYPE afrikfid_http_requests_total counter',
+    `afrikfid_http_requests_total ${_metrics.http_requests_total}`,
+    '',
+    '# HELP afrikfid_http_errors_total Nombre de réponses HTTP 5xx',
+    '# TYPE afrikfid_http_errors_total counter',
+    `afrikfid_http_errors_total ${_metrics.http_errors_total}`,
+    '',
+    '# HELP afrikfid_transactions_total Transactions par statut',
+    '# TYPE afrikfid_transactions_total gauge',
+    `afrikfid_transactions_total{status="completed"} ${txStats.completed}`,
+    `afrikfid_transactions_total{status="failed"} ${txStats.failed}`,
+    `afrikfid_transactions_total{status="pending"} ${txStats.pending}`,
+    '',
+    '# HELP afrikfid_total_volume_xof Volume total traité (transactions complétées) en XOF',
+    '# TYPE afrikfid_total_volume_xof counter',
+    `afrikfid_total_volume_xof ${txStats.total_volume}`,
+    '',
+    '# HELP afrikfid_webhook_queue_depth Webhooks en attente ou en retry',
+    '# TYPE afrikfid_webhook_queue_depth gauge',
+    `afrikfid_webhook_queue_depth ${pendingWebhooks}`,
+    '',
+  ];
+
+  res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(lines.join('\n'));
 });
 
 // ─── Sandbox: Confirmer un paiement automatiquement ───────────────────────

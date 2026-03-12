@@ -1,0 +1,50 @@
+{
+  "title": "Afrik'Fid — Vue d'ensemble",
+  "uid": "afrikfid-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Uptime",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "afrikfid_uptime_seconds", "legendFormat": "Uptime"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "unit": "s"}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Requêtes HTTP totales",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{"expr": "afrikfid_http_requests_total", "legendFormat": "Requêtes"}]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Transactions complétées",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{"expr": "afrikfid_transactions_total{status=\"completed\"}", "legendFormat": "Complétées"}]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Transactions échouées",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "afrikfid_transactions_total{status=\"failed\"}", "legendFormat": "Échouées"}]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Volume total (XOF)",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "afrikfid_total_volume_xof", "legendFormat": "Volume XOF"}]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Webhooks en attente",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"expr": "afrikfid_webhook_queue_depth", "legendFormat": "Webhooks"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Taux de requêtes HTTP (par minute)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"expr": "rate(afrikfid_http_requests_total[1m]) * 60", "legendFormat": "req/min"}]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Taux d'erreurs 5xx (par minute)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"expr": "rate(afrikfid_http_errors_total[1m]) * 60", "legendFormat": "erreurs/min"}]
+    }
+  ]
+}

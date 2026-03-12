@@ -1,0 +1,160 @@
+# docker-compose.prod.yml — Déploiement production Afrik'Fid
+#
+# Usage:
+#   cp .env.example .env && nano .env
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Prérequis: Docker 24+, Compose v2, domaine DNS configuré
+
+version: '3.9'
+
+services:
+
+  # ─── API Node.js ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: afrikfid/api:${APP_VERSION:-latest}
+    container_name: afrikfid_api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SANDBOX_MODE: "false"
+      DB_PATH: /data/afrikfid.db
+      # SMS
+      AT_USERNAME: ${AT_USERNAME}
+      AT_API_KEY: ${AT_API_KEY}
+      AT_SENDER_ID: ${AT_SENDER_ID:-AfrikFid}
+      # Email
+      MAILGUN_API_KEY: ${MAILGUN_API_KEY}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN}
+      MAILGUN_FROM: ${MAILGUN_FROM:-noreply@afrikfid.com}
+      # CinetPay
+      CINETPAY_SITE_ID: ${CINETPAY_SITE_ID}
+      CINETPAY_API_KEY: ${CINETPAY_API_KEY}
+      CINETPAY_NOTIFY_URL: https://${DOMAIN}/api/v1/webhooks/cinetpay
+      CINETPAY_RETURN_URL: https://${DOMAIN}/pay/return
+      # Rate limiting
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 200
+    volumes:
+      - afrikfid_data:/data
+    expose:
+      - "4001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=4001"
+
+  # ─── Frontend React (Nginx) ─────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    image: afrikfid/web:${APP_VERSION:-latest}
+    container_name: afrikfid_web
+    restart: always
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+      # Redirect HTTP → HTTPS
+      - "traefik.http.routers.web-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.web-http.entrypoints=web"
+      - "traefik.http.routers.web-http.middlewares=redirect-https"
+      - "traefik.http.middlewares.redirect-https.redirectscheme.scheme=https"
+
+  # ─── Traefik (reverse proxy + TLS automatique) ──────────────────────────
+  traefik:
+    image: traefik:v3.1
+    container_name: afrikfid_traefik
+    restart: always
+    command:
+      - "--api.dashboard=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/certs/acme.json"
+      - "--log.level=WARN"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/certs
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: afrikfid_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    expose:
+      - "9090"
+    depends_on:
+      - api
+
+  # ─── Grafana ────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: afrikfid_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-afrikfid_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    expose:
+      - "3000"
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${DOMAIN}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+volumes:
+  afrikfid_data:
+    driver: local
+  traefik_certs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

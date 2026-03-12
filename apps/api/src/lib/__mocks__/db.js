@@ -60,6 +60,7 @@ testDb.exec(`
     sandbox_key_public TEXT UNIQUE, sandbox_key_secret TEXT,
     webhook_url TEXT, status TEXT DEFAULT 'pending', kyc_status TEXT DEFAULT 'pending',
     password_hash TEXT, is_active INTEGER DEFAULT 1,
+    currency TEXT DEFAULT 'XOF',
     created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS clients (
