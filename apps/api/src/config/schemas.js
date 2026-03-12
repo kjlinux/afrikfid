@@ -22,7 +22,7 @@ const InitiatePaymentSchema = z.object({
   currency: z.enum(CURRENCIES).default('XOF'),
   client_phone: phoneNumber.optional(),
   client_afrikfid_id: z.string().optional(),
-  payment_method: z.string().min(1, 'payment_method requis'),
+  payment_method: z.enum(['mobile_money', 'card', 'payment_link'], { errorMap: () => ({ message: "payment_method doit être 'mobile_money', 'card' ou 'payment_link'" }) }),
   payment_operator: z.enum(MM_OPERATORS).optional(),
   description: z.string().max(255).optional(),
   idempotency_key: z.string().max(100).optional(),

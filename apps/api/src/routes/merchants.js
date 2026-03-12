@@ -232,4 +232,50 @@ function sanitizeMerchant(m, includeKeys = false) {
   return base;
 }
 
+// POST /api/v1/merchants/register (self-service — crée un compte en attente)
+router.post('/register', async (req, res) => {
+  const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;
+
+  // Validation basique
+  if (!name || !email || !phone || !country_id || !password) {
+    return res.status(400).json({ error: 'name, email, phone, country_id et password sont requis' });
+  }
+  if (!email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
+  if (password.length < 8) return res.status(400).json({ error: 'Mot de passe: minimum 8 caractères' });
+
+  const existing = db.prepare('SELECT id FROM merchants WHERE email = ?').get(email);
+  if (existing) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
+
+  const id = uuidv4();
+  const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
+  const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
+  const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
+  const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  try {
+    db.prepare(`
+      INSERT INTO merchants (
+        id, name, email, phone, country_id, category,
+        rebate_percent, rebate_mode, website,
+        api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
+        webhook_url, password_hash, status, kyc_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')
+    `).run(
+      id, name, email, phone, country_id, category || 'general',
+      parseFloat(rebate_percent) || 5, rebate_mode || 'cashback', website || null,
+      apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
+      webhook_url || null, passwordHash
+    );
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Email déjà utilisé' });
+    throw e;
+  }
+
+  res.status(201).json({
+    message: 'Demande d\'inscription reçue. Notre équipe validera votre compte sous 24-48h.',
+    id,
+  });
+});
+
 module.exports = router;

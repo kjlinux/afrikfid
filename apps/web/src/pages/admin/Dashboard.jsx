@@ -1,38 +1,48 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import api from '../../api.js'
+import { fmt, KpiCard, Card, PeriodSelector, Spinner, exportCsv, Alert, Badge } from '../../components/ui.jsx'
 
-const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
-
-function KpiCard({ label, value, sub, color = '#f59e0b', icon }) {
-  return (
-    <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 22 }}>{icon}</span>
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color, marginBottom: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: '#64748b' }}>{sub}</div>}
-    </div>
-  )
-}
-
+const POLL_INTERVAL = 30000 // 30s auto-refresh
 const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null)
   const [period, setPeriod] = useState('30')
   const [loading, setLoading] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState(null)
+  const [alertMsg, setAlertMsg] = useState(null)
+  const timerRef = useRef(null)
+
+  const load = useCallback(() => {
+    return api.get(`/reports/overview?period=${period}d`).then(r => {
+      setData(r.data)
+      setLastUpdate(new Date())
+      setLoading(false)
+    }).catch(() => {
+      setLoading(false)
+    })
+  }, [period])
 
   useEffect(() => {
     setLoading(true)
-    api.get(`/reports/overview?period=${period}d`).then(r => {
-      setData(r.data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [period])
+    load()
+    timerRef.current = setInterval(load, POLL_INTERVAL)
+    return () => clearInterval(timerRef.current)
+  }, [load])
 
-  if (loading) return <div style={{ padding: 40, color: '#64748b', textAlign: 'center', fontSize: 16 }}>Chargement...</div>
+  const handleExportCsv = () => {
+    if (!data?.dailyVolume?.length) return
+    exportCsv(data.dailyVolume, [
+      { label: 'Date', key: 'day' },
+      { label: 'Volume (XOF)', key: 'volume' },
+      { label: 'Transactions', key: 'count' },
+    ], `afrikfid-volume-${period}j.csv`)
+    setAlertMsg({ type: 'success', text: 'Export CSV téléchargé !' })
+    setTimeout(() => setAlertMsg(null), 3000)
+  }
+
+  if (loading && !data) return <Spinner />
   if (!data) return null
 
   const { kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount } = data
@@ -43,40 +53,45 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Dashboard Afrik'Fid</h1>
-          <p style={{ color: '#64748b', fontSize: 14, marginTop: 2 }}>Vue d'ensemble de la plateforme</p>
+          <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>
+            Vue d'ensemble · {lastUpdate ? `Mis à jour ${lastUpdate.toLocaleTimeString('fr-FR')}` : ''} · Rafraîchissement auto 30s
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['7', '30', '90'].map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              style={{ padding: '6px 14px', border: '1px solid #334155', borderRadius: 6, cursor: 'pointer', fontSize: 13, background: period === p ? '#f59e0b' : '#1e293b', color: period === p ? '#0f172a' : '#94a3b8', fontWeight: 600 }}>
-              {p}j
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button onClick={handleExportCsv}
+            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ Export CSV
+          </button>
+          <PeriodSelector value={period} onChange={setPeriod} />
         </div>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+      {alertMsg && <Alert type={alertMsg.type} onClose={() => setAlertMsg(null)}>{alertMsg.text}</Alert>}
+
+      {/* KPIs ligne 1 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
         <KpiCard label="Volume total" value={`${fmt(kpis.total_volume)} XOF`} icon="💰" color="#f59e0b" sub={`${kpis.completed} transactions réussies`} />
         <KpiCard label="Revenus Afrik'Fid" value={`${fmt(kpis.platform_revenue)} XOF`} icon="📈" color="#10b981" sub="Commissions Z%" />
         <KpiCard label="Remises clients" value={`${fmt(kpis.client_rebates)} XOF`} icon="🎁" color="#3b82f6" sub="Cashback distribué (Y%)" />
         <KpiCard label="Taux de succès" value={`${kpis.success_rate || 0}%`} icon="✅" color="#10b981" sub={`${kpis.total_transactions} transactions initiées`} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
+      {/* KPIs ligne 2 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <KpiCard label="Marchands actifs" value={merchantCount} icon="🏪" color="#f59e0b" />
         <KpiCard label="Clients inscrits" value={clientCount} icon="👥" color="#3b82f6" />
-        <KpiCard label="Trans. en attente" value={kpis.total_transactions - kpis.completed} icon="⏳" color="#f59e0b" />
+        <KpiCard label="Trans. non complétées" value={kpis.total_transactions - kpis.completed} icon="⏳" color="#f59e0b" />
       </div>
 
-      {/* Charts */}
+      {/* Graphiques */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 20 }}>
-        {/* Volume chart */}
-        <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 20 }}>Volume quotidien (XOF)</h3>
+        <Card title="Volume quotidien (XOF)" action={
+          <span style={{ fontSize: 11, color: '#64748b' }}>{period}j</span>
+        }>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={dailyVolume}>
               <defs>
@@ -85,25 +100,21 @@ export default function AdminDashboard() {
                   <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} tickFormatter={v => `${Math.round(v/1000)}k`} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} tickFormatter={v => `${Math.round(v / 1000)}k`} />
               <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }}
                 formatter={v => [`${fmt(v)} XOF`]} />
               <Area type="monotone" dataKey="volume" stroke="#f59e0b" strokeWidth={2} fill="url(#vGrad)" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        {/* Loyalty pie */}
-        <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 20 }}>Clients par statut</h3>
+        <Card title="Clients par statut">
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={loyaltyPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value">
-                {loyaltyPieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
+                {loyaltyPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
               <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }} />
             </PieChart>
@@ -116,32 +127,46 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Top Marchands */}
-      <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 16 }}>Top Marchands</h3>
+      <Card title="Top Marchands" style={{ marginBottom: 20 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #334155' }}>
-              {['Marchand', 'Transactions', 'Volume (XOF)'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 12, color: '#64748b', fontWeight: 500 }}>{h}</th>
+              {['#', 'Marchand', 'Transactions', 'Volume (XOF)'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {topMerchants.map((m, i) => (
               <tr key={m.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                <td style={{ padding: '10px 12px', fontSize: 14, color: '#f1f5f9' }}>
-                  <span style={{ marginRight: 8, color: '#64748b' }}>{i + 1}.</span>{m.name}
-                </td>
+                <td style={{ padding: '10px 12px', fontSize: 13, color: '#64748b' }}>{i + 1}</td>
+                <td style={{ padding: '10px 12px', fontSize: 14, color: '#f1f5f9' }}>{m.name}</td>
                 <td style={{ padding: '10px 12px', fontSize: 14, color: '#94a3b8' }}>{m.tx_count}</td>
                 <td style={{ padding: '10px 12px', fontSize: 14, fontWeight: 600, color: '#f59e0b' }}>{fmt(m.volume)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </Card>
+
+      {/* Liens rapides Admin */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {[
+          { label: 'Webhooks', icon: '🔔', desc: 'Gestion des événements', href: '/admin/webhooks', color: '#3b82f6' },
+          { label: 'Fraude', icon: '🛡️', desc: 'Règles & blacklist', href: '/admin/fraud', color: '#ef4444' },
+          { label: 'Taux de change', icon: '💱', desc: 'XOF / XAF / KES / EUR', href: '/admin/exchange-rates', color: '#10b981' },
+        ].map(item => (
+          <a key={item.href} href={item.href}
+            style={{ background: '#1e293b', borderRadius: 12, padding: '16px 20px', border: '1px solid #334155', textDecoration: 'none', display: 'block', transition: 'border-color 0.15s' }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>{item.icon}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: item.color }}>{item.label}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{item.desc}</div>
+          </a>
+        ))}
       </div>
     </div>
   )

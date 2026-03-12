@@ -8,6 +8,10 @@ const mobileMoney = require('../lib/adapters/mobile-money');
 const { validate } = require('../middleware/validate');
 const { InitiatePaymentSchema, RefundSchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
+const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
+const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed } = require('../lib/notifications');
+const { checkTransaction } = require('../lib/fraud');
+const { initiateCardPayment, checkPaymentStatus } = require('../lib/adapters/cinetpay');
 
 // POST /api/v1/payments/initiate
 router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (req, res) => {
@@ -41,6 +45,21 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
   }
 
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
+
+  // Vérification anti-fraude
+  const fraudCheck = checkTransaction({
+    amount,
+    clientId: client ? client.id : null,
+    clientPhone: client_phone || null,
+    merchantId: merchant.id,
+  });
+  if (fraudCheck.blocked) {
+    return res.status(403).json({
+      error: 'FRAUD_BLOCKED',
+      message: fraudCheck.reason,
+      riskScore: fraudCheck.riskScore,
+    });
+  }
 
   // Calcul de la distribution X/Y/Z
   const distribution = calculateDistribution(amount, merchant.rebate_percent, loyaltyStatus);
@@ -86,9 +105,34 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
     currency, description || null, idempotency_key || null, expiresAt
   );
 
-  // Initier le paiement mobile money si applicable
+  // Initier le paiement selon la méthode
   let mmResult = null;
-  if (['ORANGE', 'MTN', 'AIRTEL', 'MPESA', 'WAVE', 'MOOV'].includes((payment_operator || '').toUpperCase())) {
+  let cardResult = null;
+
+  if (payment_method === 'card') {
+    // Paiement par carte via CinetPay
+    cardResult = await initiateCardPayment({
+      transactionId: txId,
+      reference,
+      amount: distribution.grossAmount,
+      currency,
+      customerName: client ? client.full_name : undefined,
+      customerPhone: client_phone || undefined,
+      description,
+    });
+
+    if (!cardResult.success) {
+      db.prepare("UPDATE transactions SET status = 'failed', failure_reason = ? WHERE id = ?")
+        .run(cardResult.message, txId);
+      return res.status(422).json({ error: cardResult.error, message: cardResult.message });
+    }
+
+    // Stocker la ref CinetPay
+    db.prepare("UPDATE transactions SET operator_ref = ? WHERE id = ?")
+      .run(cardResult.cinetpayRef, txId);
+
+  } else if (['ORANGE', 'MTN', 'AIRTEL', 'MPESA', 'WAVE', 'MOOV'].includes((payment_operator || '').toUpperCase())) {
+    // Paiement Mobile Money
     const clientAmount = merchant.rebate_mode === 'immediate'
       ? distribution.grossAmount - distribution.clientRebateAmount
       : distribution.grossAmount;
@@ -105,10 +149,10 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
     if (!mmResult.success) {
       db.prepare("UPDATE transactions SET status = 'failed', failure_reason = ? WHERE id = ?")
         .run(mmResult.message, txId);
+      notifyPaymentFailed({ client, transaction: { gross_amount: amount, currency, merchant_name: merchant.name }, errorMessage: mmResult.message });
       return res.status(422).json({ error: mmResult.error, message: mmResult.message });
     }
 
-    // Mettre à jour la ref opérateur
     db.prepare("UPDATE transactions SET operator_ref = ? WHERE id = ?")
       .run(mmResult.operatorRef, txId);
   }
@@ -127,7 +171,7 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
       mode: merchant.rebate_mode,
     },
     client: client ? { afrikfidId: client.afrikfid_id, loyaltyStatus, fullName: client.full_name } : null,
-    payment: mmResult,
+    payment: mmResult || (cardResult ? { paymentUrl: cardResult.paymentUrl, type: 'card_redirect' } : null),
   });
 });
 
@@ -205,7 +249,38 @@ router.post('/:id/refund', requireApiKey, validate(RefundSchema), async (req, re
   db.prepare("UPDATE transactions SET status = 'refunded' WHERE id = ?").run(tx.id);
   db.prepare("UPDATE refunds SET status = 'completed', processed_at = datetime('now') WHERE id = ?").run(refundId);
 
+  // Webhook marchand (async, non-bloquant)
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount }).catch(() => {});
+
   res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
+});
+
+// POST /api/v1/payments/card/notify (CinetPay webhook — confirmation 3DS)
+// Ce endpoint est appelé par CinetPay après traitement du paiement
+router.post('/card/notify', async (req, res) => {
+  const { cpm_trans_id, cpm_site_id, cpm_amount, cpm_currency } = req.body;
+
+  // Vérifier que c'est bien notre site (protection basique)
+  if (process.env.CINETPAY_SITE_ID && cpm_site_id !== process.env.CINETPAY_SITE_ID) {
+    return res.status(403).json({ error: 'Site ID invalide' });
+  }
+
+  const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(cpm_trans_id);
+  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
+  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
+
+  // Vérifier le statut côté CinetPay
+  const statusCheck = await checkPaymentStatus(cpm_trans_id);
+
+  if (statusCheck.success && statusCheck.status === 'ACCEPTED') {
+    await processCompletedPayment(tx);
+  } else if (statusCheck.status === 'REFUSED' || statusCheck.status === 'CANCELLED') {
+    db.prepare("UPDATE transactions SET status = 'failed', failure_reason = ? WHERE id = ?")
+      .run(`CinetPay: ${statusCheck.status}`, tx.id);
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
+  }
+
+  res.status(200).json({ message: 'OK' });
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -262,6 +337,18 @@ async function processCompletedPayment(tx) {
 
   // Marquer la transaction comme complétée
   db.prepare("UPDATE transactions SET status = 'completed', completed_at = ? WHERE id = ?").run(now, tx.id);
+
+  // Déclencher le webhook marchand (async, non-bloquant)
+  const completedTx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(tx.id);
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
+
+  // Notifications client (SMS/email, fire-and-forget)
+  if (tx.client_id) {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(tx.client_id);
+    const distRow = { client_rebate_amount: tx.client_rebate_amount, client_rebate_percent: tx.client_rebate_percent };
+    notifyPaymentConfirmed({ client, transaction: { ...completedTx, merchant_name: null }, distribution: distRow });
+    notifyCashbackCredit({ client, transaction: completedTx, distribution: distRow });
+  }
 }
 
 function sanitizeTx(tx) {

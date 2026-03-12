@@ -1,0 +1,1 @@
+const fs=require("fs"); const c=fs.readFileSync("c:/laragon/www/afrikid/payment_page_content.txt","utf8"); fs.writeFileSync("c:/laragon/www/afrikid/apps/web/src/pages/pay/PaymentPage.jsx",c); console.log("done",c.length);

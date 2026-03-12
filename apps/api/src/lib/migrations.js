@@ -257,6 +257,52 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status, next_retry_at);
     `,
   },
+  {
+    version: 3,
+    name: '003_multi_currency',
+    up: `
+      CREATE TABLE IF NOT EXISTS exchange_rates (
+        id TEXT PRIMARY KEY,
+        from_currency TEXT NOT NULL,
+        to_currency TEXT NOT NULL,
+        rate REAL NOT NULL,
+        source TEXT DEFAULT 'manual',
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(from_currency, to_currency)
+      );
+
+      -- Taux de référence initiaux (vers EUR pour normalisation des rapports)
+      INSERT OR IGNORE INTO exchange_rates (id, from_currency, to_currency, rate, source)
+      VALUES
+        ('er-xof-eur', 'XOF', 'EUR', 0.001524, 'initial'),
+        ('er-xaf-eur', 'XAF', 'EUR', 0.001524, 'initial'),
+        ('er-kes-eur', 'KES', 'EUR', 0.006897, 'initial'),
+        ('er-eur-xof', 'EUR', 'XOF', 655.957,  'initial'),
+        ('er-eur-xaf', 'EUR', 'XAF', 655.957,  'initial'),
+        ('er-eur-kes', 'EUR', 'KES', 145.0,    'initial'),
+        ('er-xof-xaf', 'XOF', 'XAF', 1.0,      'initial'),
+        ('er-xaf-xof', 'XAF', 'XOF', 1.0,      'initial');
+
+      CREATE INDEX IF NOT EXISTS idx_exchange_rates_pair ON exchange_rates(from_currency, to_currency);
+    `,
+  },
+  {
+    version: 4,
+    name: '004_notifications',
+    up: `
+      CREATE TABLE IF NOT EXISTS notification_log (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        error TEXT,
+        sent_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notif_recipient ON notification_log(recipient, sent_at);
+    `,
+  },
 ];
 
 /**

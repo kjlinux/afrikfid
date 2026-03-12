@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: afrikfid_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      # Copiez .env.example en .env et remplissez les valeurs
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SANDBOX_MODE: ${SANDBOX_MODE:-false}
+      # SMS
+      AT_USERNAME: ${AT_USERNAME:-sandbox}
+      AT_API_KEY: ${AT_API_KEY}
+      AT_SENDER_ID: ${AT_SENDER_ID:-AfrikFid}
+      # Email
+      MAILGUN_API_KEY: ${MAILGUN_API_KEY}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN}
+      # CinetPay
+      CINETPAY_SITE_ID: ${CINETPAY_SITE_ID}
+      CINETPAY_API_KEY: ${CINETPAY_API_KEY}
+      CINETPAY_NOTIFY_URL: ${CINETPAY_NOTIFY_URL}
+      CINETPAY_RETURN_URL: ${CINETPAY_RETURN_URL}
+      # DB path dans le volume
+      DB_PATH: /data/afrikfid.db
+    volumes:
+      - afrikfid_data:/data
+    ports:
+      - "4001:4001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: afrikfid_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  afrikfid_data:
+    driver: local

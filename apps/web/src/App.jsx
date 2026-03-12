@@ -8,10 +8,14 @@ import AdminMerchants from './pages/admin/Merchants.jsx'
 import AdminClients from './pages/admin/Clients.jsx'
 import AdminTransactions from './pages/admin/Transactions.jsx'
 import AdminLoyalty from './pages/admin/Loyalty.jsx'
+import AdminWebhooks from './pages/admin/Webhooks.jsx'
+import AdminFraud from './pages/admin/Fraud.jsx'
+import AdminExchangeRates from './pages/admin/ExchangeRates.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
+import Register from './pages/Register.jsx'
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
 export const AuthContext = createContext(null)
@@ -58,6 +62,9 @@ function AdminLayout({ children }) {
     { path: '/admin/clients', label: 'Clients', icon: '👥' },
     { path: '/admin/transactions', label: 'Transactions', icon: '💳' },
     { path: '/admin/loyalty', label: 'Fidélité', icon: '⭐' },
+    { path: '/admin/webhooks', label: 'Webhooks', icon: '🔔' },
+    { path: '/admin/fraud', label: 'Fraude', icon: '🛡️' },
+    { path: '/admin/exchange-rates', label: 'Taux de change', icon: '💱' },
   ]
 
   return (
@@ -74,12 +81,12 @@ function AdminLayout({ children }) {
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '8px 8px' }}>
+        <nav style={{ flex: 1, padding: '8px 8px', overflowY: 'auto' }}>
           {nav.map(item => (
             <Link key={item.path} to={item.path}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                marginBottom: 2, textDecoration: 'none', fontSize: 14, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8,
+                marginBottom: 2, textDecoration: 'none', fontSize: 13, fontWeight: 500,
                 background: location.pathname === item.path ? 'rgba(245,158,11,0.15)' : 'transparent',
                 color: location.pathname === item.path ? '#f59e0b' : '#94a3b8',
                 transition: 'all 0.15s',
@@ -159,6 +166,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/pay/:code" element={<PaymentPage />} />
 
           {/* Admin */}
@@ -167,6 +175,9 @@ export default function App() {
           <Route path="/admin/clients" element={<Protected role="admin"><AdminLayout><AdminClients /></AdminLayout></Protected>} />
           <Route path="/admin/transactions" element={<Protected role="admin"><AdminLayout><AdminTransactions /></AdminLayout></Protected>} />
           <Route path="/admin/loyalty" element={<Protected role="admin"><AdminLayout><AdminLoyalty /></AdminLayout></Protected>} />
+          <Route path="/admin/webhooks" element={<Protected role="admin"><AdminLayout><AdminWebhooks /></AdminLayout></Protected>} />
+          <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
+          <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
 
           {/* Merchant */}
           <Route path="/merchant" element={<Protected role="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></Protected>} />

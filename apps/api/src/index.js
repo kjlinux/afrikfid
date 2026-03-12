@@ -7,6 +7,8 @@ const { CronJob } = require('cron');
 const { runLoyaltyBatch } = require('./lib/loyalty-engine');
 const { errorHandler } = require('./middleware/error-handler');
 const { runMigrations } = require('./lib/migrations');
+const { processRetryQueue } = require('./workers/webhook-dispatcher');
+const { notifyLoyaltyUpgrade } = require('./lib/notifications');
 
 // ─── Migrations au démarrage ────────────────────────────────────────────────
 runMigrations();
@@ -29,12 +31,14 @@ app.use('/api/', limiter);
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/webhooks', require('./routes/webhooks'));
 app.use('/api/v1/payments', require('./routes/payments'));
 app.use('/api/v1/merchants', require('./routes/merchants'));
 app.use('/api/v1/clients', require('./routes/clients'));
 app.use('/api/v1/loyalty', require('./routes/loyalty'));
 app.use('/api/v1/payment-links', require('./routes/payment-links'));
 app.use('/api/v1/reports', require('./routes/reports'));
+app.use('/api/v1/fraud', require('./routes/fraud'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 app.get('/api/v1/health', (req, res) => {
@@ -71,12 +75,27 @@ app.use('*', (req, res) => res.status(404).json({ error: 'NOT_FOUND', message: `
 // ─── Error Handler centralisé ──────────────────────────────────────────────
 app.use(errorHandler);
 
-// ─── Cron: Batch fidélité quotidien (désactivé en test) ─────────────────────
+// ─── Crons (désactivés en test) ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  const loyaltyBatchJob = new CronJob('0 2 * * *', () => {
+  // Batch fidélité: tous les jours à 2h (heure Abidjan)
+  new CronJob('0 2 * * *', () => {
     console.log('🔄 Exécution du batch de fidélité...');
+    const db = require('./lib/db');
     const results = runLoyaltyBatch();
+    for (const r of results) {
+      // Notify only on upgrades (not downgrades)
+      if (r.changed && r.newStatus !== 'OPEN') {
+        const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(r.clientId);
+        if (client) notifyLoyaltyUpgrade({ client, oldStatus: r.currentStatus, newStatus: r.newStatus });
+      }
+    }
     console.log(`✅ Batch terminé: ${results.length} changements de statut`);
+  }, null, true, 'Africa/Abidjan');
+
+  // File de retry webhooks: toutes les 2 minutes
+  new CronJob('*/2 * * * *', async () => {
+    const count = await processRetryQueue();
+    if (count > 0) console.log(`🔔 Webhooks retry: ${count} traité(s)`);
   }, null, true, 'Africa/Abidjan');
 }
 

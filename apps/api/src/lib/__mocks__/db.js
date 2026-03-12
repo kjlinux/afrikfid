@@ -132,6 +132,22 @@ testDb.exec(`
     action TEXT NOT NULL, resource_type TEXT, resource_id TEXT,
     payload TEXT, ip_address TEXT, created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS fraud_rules (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, rule_type TEXT NOT NULL,
+    value TEXT NOT NULL, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS blocked_phones (
+    phone TEXT PRIMARY KEY, reason TEXT, blocked_at TEXT DEFAULT (datetime('now')), blocked_by TEXT
+  );
+  CREATE TABLE IF NOT EXISTS exchange_rates (
+    id TEXT PRIMARY KEY, from_currency TEXT NOT NULL, to_currency TEXT NOT NULL,
+    rate REAL NOT NULL, source TEXT DEFAULT 'manual', updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(from_currency, to_currency)
+  );
+  CREATE TABLE IF NOT EXISTS notification_log (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, recipient TEXT NOT NULL,
+    channel TEXT NOT NULL, status TEXT DEFAULT 'pending', error TEXT, sent_at TEXT
+  );
 `);
 
 // Seed loyalty config initial
@@ -147,6 +163,18 @@ testDb.exec(`
 testDb.exec(`
   INSERT OR IGNORE INTO countries (id, name, currency, zone)
   VALUES ('CI', 'Côte d''Ivoire', 'XOF', 'UEMOA');
+`);
+
+// Seed taux de change initiaux (migration 003)
+testDb.exec(`
+  INSERT OR IGNORE INTO exchange_rates (id, from_currency, to_currency, rate, source)
+  VALUES
+    ('er-xof-eur', 'XOF', 'EUR', 0.00152449, 'manual'),
+    ('er-xaf-eur', 'XAF', 'EUR', 0.00152449, 'manual'),
+    ('er-kes-eur', 'KES', 'EUR', 0.00694444, 'manual'),
+    ('er-eur-xof', 'EUR', 'XOF', 655.957,    'manual'),
+    ('er-eur-xaf', 'EUR', 'XAF', 655.957,    'manual'),
+    ('er-eur-kes', 'EUR', 'KES', 144.0,      'manual');
 `);
 
 module.exports = testDb;

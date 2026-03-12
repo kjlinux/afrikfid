@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
 import api from '../api.js'
 
@@ -87,6 +87,15 @@ export default function Login() {
             <div>Marchand: supermarche@demo.af / Merchant@2026!</div>
           </div>
         </div>
+
+        {role === 'merchant' && (
+          <p style={{ textAlign: 'center', fontSize: 13, color: '#64748b', marginTop: 16 }}>
+            Pas encore inscrit ?{' '}
+            <Link to="/register" style={{ color: '#f59e0b', fontWeight: 600, textDecoration: 'none' }}>
+              Créer un compte marchand →
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   )

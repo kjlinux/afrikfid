@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../lib/db');
 const { requireAdmin } = require('../middleware/auth');
+const { getAllRates, updateExchangeRate, toEUR } = require('../lib/currency');
 
 // GET /api/v1/reports/daily
 router.get('/daily', requireAdmin, (req, res) => {
@@ -125,6 +126,54 @@ router.get('/transactions', requireAdmin, (req, res) => {
   const total = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
 
   res.json({ transactions, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
+// ─── Devises & Taux de change ────────────────────────────────────────────────
+
+// GET /api/v1/reports/exchange-rates (admin)
+router.get('/exchange-rates', requireAdmin, (req, res) => {
+  res.json({ rates: getAllRates() });
+});
+
+// PUT /api/v1/reports/exchange-rates (admin — mettre à jour un taux)
+router.put('/exchange-rates', requireAdmin, (req, res) => {
+  const { from_currency, to_currency, rate } = req.body;
+  if (!from_currency || !to_currency || !rate) {
+    return res.status(400).json({ error: 'from_currency, to_currency et rate requis' });
+  }
+  if (typeof rate !== 'number' || rate <= 0) {
+    return res.status(400).json({ error: 'rate doit être un nombre positif' });
+  }
+  updateExchangeRate(from_currency.toUpperCase(), to_currency.toUpperCase(), rate);
+  res.json({ message: 'Taux mis à jour', rates: getAllRates() });
+});
+
+// GET /api/v1/reports/overview-normalized (admin — KPIs normalisés en EUR)
+router.get('/overview-normalized', requireAdmin, (req, res) => {
+  const { period = '30d' } = req.query;
+  const days = parseInt(period) || 30;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const fromStr = from.toISOString();
+
+  // Volume par devise
+  const bycurrency = db.prepare(`
+    SELECT currency,
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN gross_amount ELSE 0 END), 0) as volume,
+      COUNT(CASE WHEN status = 'completed' THEN 1 END) as tx_count
+    FROM transactions WHERE initiated_at >= ?
+    GROUP BY currency
+  `).all(fromStr);
+
+  // Normaliser en EUR
+  const normalizedVolume = bycurrency.map(row => ({
+    ...row,
+    volumeEUR: toEUR(row.volume, row.currency),
+  }));
+
+  const totalVolumeEUR = normalizedVolume.reduce((sum, r) => sum + (r.volumeEUR || 0), 0);
+
+  res.json({ bycurrency: normalizedVolume, totalVolumeEUR: Math.round(totalVolumeEUR * 100) / 100, period: `${days}d` });
 });
 
 module.exports = router;
