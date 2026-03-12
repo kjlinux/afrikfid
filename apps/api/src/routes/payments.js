@@ -175,6 +175,34 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
   });
 });
 
+// POST /api/v1/payments/card/notify (CinetPay webhook — confirmation 3DS)
+// Ce endpoint est appelé par CinetPay après traitement du paiement
+router.post('/card/notify', async (req, res) => {
+  const { cpm_trans_id, cpm_site_id, cpm_amount, cpm_currency } = req.body;
+
+  // Vérifier que c'est bien notre site (protection basique)
+  if (process.env.CINETPAY_SITE_ID && cpm_site_id !== process.env.CINETPAY_SITE_ID) {
+    return res.status(403).json({ error: 'Site ID invalide' });
+  }
+
+  const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(cpm_trans_id);
+  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
+  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
+
+  // Vérifier le statut côté CinetPay
+  const statusCheck = await checkPaymentStatus(cpm_trans_id);
+
+  if (statusCheck.success && statusCheck.status === 'ACCEPTED') {
+    await processCompletedPayment(tx);
+  } else if (statusCheck.status === 'REFUSED' || statusCheck.status === 'CANCELLED') {
+    db.prepare("UPDATE transactions SET status = 'failed', failure_reason = ? WHERE id = ?")
+      .run(`CinetPay: ${statusCheck.status}`, tx.id);
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
+  }
+
+  res.status(200).json({ message: 'OK' });
+});
+
 // POST /api/v1/payments/:id/confirm (webhook simulation / sandbox)
 router.post('/:id/confirm', requireApiKey, async (req, res) => {
   const tx = db.prepare('SELECT * FROM transactions WHERE id = ? AND merchant_id = ?')
@@ -253,34 +281,6 @@ router.post('/:id/refund', requireApiKey, validate(RefundSchema), async (req, re
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount }).catch(() => {});
 
   res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
-});
-
-// POST /api/v1/payments/card/notify (CinetPay webhook — confirmation 3DS)
-// Ce endpoint est appelé par CinetPay après traitement du paiement
-router.post('/card/notify', async (req, res) => {
-  const { cpm_trans_id, cpm_site_id, cpm_amount, cpm_currency } = req.body;
-
-  // Vérifier que c'est bien notre site (protection basique)
-  if (process.env.CINETPAY_SITE_ID && cpm_site_id !== process.env.CINETPAY_SITE_ID) {
-    return res.status(403).json({ error: 'Site ID invalide' });
-  }
-
-  const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(cpm_trans_id);
-  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
-
-  // Vérifier le statut côté CinetPay
-  const statusCheck = await checkPaymentStatus(cpm_trans_id);
-
-  if (statusCheck.success && statusCheck.status === 'ACCEPTED') {
-    await processCompletedPayment(tx);
-  } else if (statusCheck.status === 'REFUSED' || statusCheck.status === 'CANCELLED') {
-    db.prepare("UPDATE transactions SET status = 'failed', failure_reason = ? WHERE id = ?")
-      .run(`CinetPay: ${statusCheck.status}`, tx.id);
-    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
-  }
-
-  res.status(200).json({ message: 'OK' });
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

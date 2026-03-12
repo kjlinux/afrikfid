@@ -6,6 +6,7 @@
  */
 
 const db = require('./db');
+const FormData = require('form-data');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,6 @@ async function sendEmail(to, subject, text, html) {
   }
 
   const axios = require('axios');
-  const FormData = require('form-data');
   const form = new FormData();
   form.append('from', process.env.MAILGUN_FROM || `Afrik'Fid <noreply@${process.env.MAILGUN_DOMAIN}>`);
   form.append('to', to);

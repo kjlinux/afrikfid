@@ -14,6 +14,14 @@ const yaml = require('js-yaml');
 const fs = require('fs');
 const path = require('path');
 
+// ─── Vérifications de sécurité au démarrage ─────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const defaultSecret = 'afrikfid-jwt-secret-change-in-production';
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === defaultSecret) {
+    console.warn('[SECURITY WARNING] JWT_SECRET is using the default development value in production! Set a strong secret in your .env file.');
+  }
+}
+
 // ─── Migrations au démarrage ────────────────────────────────────────────────
 runMigrations();
 
@@ -100,10 +108,12 @@ const _metrics = {
   payment_failed_total: 0,
 };
 
-// Middleware de comptage des requêtes
+// Middleware de comptage des requêtes (exclut /health et /metrics)
 app.use((req, res, next) => {
-  _metrics.http_requests_total++;
-  res.on('finish', () => { if (res.statusCode >= 500) _metrics.http_errors_total++; });
+  if (req.path !== '/api/v1/health' && req.path !== '/api/v1/metrics') {
+    _metrics.http_requests_total++;
+    res.on('finish', () => { if (res.statusCode >= 500) _metrics.http_errors_total++; });
+  }
   next();
 });
 

@@ -45,9 +45,9 @@ beforeAll(() => {
   ].join('; '));
 
   db.prepare(
-    'INSERT OR IGNORE INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
+    'INSERT OR IGNORE INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, kyc_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
   ).run('merch-pay', 'Pay Shop', 'pay@test.af', 10, 'cashback',
-    'af_pub_pay_test', 'af_sec_pay_test', SANDBOX_KEY, 'af_sandbox_sec_pay_test', 'active');
+    'af_pub_pay_test', 'af_sec_pay_test', SANDBOX_KEY, 'af_sandbox_sec_pay_test', 'active', 'approved');
 });
 
 // ─── POST /initiate ──────────────────────────────────────────────────────────

@@ -43,6 +43,7 @@ function requireApiKey(req, res, next) {
 
   if (!merchant) return res.status(401).json({ error: 'Clé API invalide' });
   if (merchant.status !== 'active') return res.status(403).json({ error: 'Compte marchand inactif ou suspendu' });
+  if (merchant.kyc_status !== 'approved') return res.status(403).json({ error: 'KYC_PENDING', message: 'Vérification KYC requise avant de pouvoir accepter des paiements' });
 
   req.merchant = merchant;
   req.isSandbox = isSandbox;

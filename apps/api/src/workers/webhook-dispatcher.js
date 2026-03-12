@@ -81,6 +81,9 @@ async function attemptDelivery(eventId) {
   ).get(event.merchant_id);
 
   const secret = merchant ? (merchant.api_key_secret || '') : '';
+  if (!secret) {
+    console.warn(`[webhook] Merchant ${event.merchant_id} has no api_key_secret — signature header will be invalid`);
+  }
   const signature = signPayload(event.payload, secret);
 
   const attempts = event.attempts + 1;
