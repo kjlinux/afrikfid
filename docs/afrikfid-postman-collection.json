@@ -1,0 +1,580 @@
+{
+  "info": {
+    "name": "Afrik'Fid API",
+    "description": "Collection Postman complète pour l'API Afrik'Fid — Passerelle de paiement avec fidélisation intégrée.\n\n## Setup\n1. Importer cette collection dans Postman\n2. Créer un environnement avec les variables ci-dessous\n3. Lancer 'Admin Login' → le token est injecté automatiquement\n\n## Variables d'environnement\n- `base_url` : http://localhost:4001/api/v1\n- `admin_email` : admin@afrikfid.com\n- `admin_password` : Admin@2026!\n- `admin_token` : (auto-injecté)\n- `merchant_token` : (auto-injecté)\n- `api_key` : af_sandbox_pub_xxx\n- `sandbox` : true",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "afrikfid-api-collection-v1"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:4001/api/v1", "type": "string" },
+    { "key": "admin_token", "value": "", "type": "string" },
+    { "key": "merchant_token", "value": "", "type": "string" },
+    { "key": "api_key", "value": "af_sandbox_pub_001", "type": "string" },
+    { "key": "sandbox", "value": "true", "type": "string" },
+    { "key": "transaction_id", "value": "", "type": "string" },
+    { "key": "merchant_id", "value": "", "type": "string" },
+    { "key": "payment_link_code", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health",
+            "description": "Santé de l'API avec latence DB et uptime"
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/metrics",
+            "description": "Métriques au format Prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) {",
+                  "  pm.collectionVariables.set('admin_token', json.accessToken);",
+                  "  console.log('Admin token injecté');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/admin/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@afrikfid.com\",\n  \"password\": \"Admin@2026!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Merchant Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) {",
+                  "  pm.collectionVariables.set('merchant_token', json.accessToken);",
+                  "  console.log('Merchant token injecté');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/merchant/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"marchand@test.ci\",\n  \"password\": \"pass123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Initiate — Mobile Money",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.transaction?.id) {",
+                  "  pm.collectionVariables.set('transaction_id', json.transaction.id);",
+                  "  console.log('Transaction ID:', json.transaction.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payments/initiate",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" },
+              { "key": "X-Sandbox", "value": "{{sandbox}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"currency\": \"XOF\",\n  \"payment_method\": \"MOBILE_MONEY\",\n  \"payment_phone\": \"+2250700123456\",\n  \"payment_operator\": \"ORANGE\",\n  \"client_phone\": \"+2250700123456\",\n  \"description\": \"Commande test Postman\",\n  \"idempotency_key\": \"postman_test_1\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Initiate — Card (CinetPay)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payments/initiate",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" },
+              { "key": "X-Sandbox", "value": "{{sandbox}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25000,\n  \"currency\": \"XOF\",\n  \"payment_method\": \"card\",\n  \"payment_phone\": \"+2250700123456\",\n  \"description\": \"Paiement carte test\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/payments/{{transaction_id}}/status",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" },
+              { "key": "X-Sandbox", "value": "{{sandbox}}" }
+            ]
+          }
+        },
+        {
+          "name": "Confirm Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payments/{{transaction_id}}/confirm",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" },
+              { "key": "X-Sandbox", "value": "{{sandbox}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"operator_ref\": \"ORANGE-TEST-001\" }"
+            }
+          }
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payments/{{transaction_id}}/refund",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"reason\": \"Client insatisfait\" }"
+            }
+          }
+        },
+        {
+          "name": "Sandbox Auto-Confirm",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sandbox/auto-confirm",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"transaction_id\": \"{{transaction_id}}\" }"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Links",
+      "item": [
+        {
+          "name": "Create Payment Link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.link?.code) {",
+                  "  pm.collectionVariables.set('payment_link_code', json.link.code);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payment-links",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{merchant_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000,\n  \"currency\": \"XOF\",\n  \"description\": \"Prestation conseil\",\n  \"expires_in_hours\": 24\n}"
+            }
+          }
+        },
+        {
+          "name": "List My Links",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/payment-links",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchant_token}}" }]
+          }
+        },
+        {
+          "name": "Get Link Info (public)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/payment-links/{{payment_link_code}}/info"
+          }
+        },
+        {
+          "name": "Identify Client via Link",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payment-links/{{payment_link_code}}/identify-client",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"phone\": \"+2250700123456\" }"
+            }
+          }
+        },
+        {
+          "name": "Pay via Link",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/payment-links/{{payment_link_code}}/pay",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+2250700123456\",\n  \"payment_operator\": \"ORANGE\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Merchants",
+      "item": [
+        {
+          "name": "List Merchants",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/merchants?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Create Merchant (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.merchant?.id) pm.collectionVariables.set('merchant_id', json.merchant.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/merchants",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Boutique Test\",\n  \"email\": \"boutique@test.ci\",\n  \"phone\": \"+2250702000\",\n  \"country_id\": \"CI\",\n  \"rebate_percent\": 8,\n  \"rebate_mode\": \"cashback\",\n  \"password\": \"Boutique@2026\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register (Self-Service)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/merchants/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ma Boutique\",\n  \"email\": \"moi@example.com\",\n  \"phone\": \"+2250700000001\",\n  \"country_id\": \"CI\",\n  \"password\": \"MonMotDePasse@2026\",\n  \"category\": \"retail\"\n}"
+            }
+          }
+        },
+        {
+          "name": "My Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/merchants/me/profile",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchant_token}}" }]
+          }
+        },
+        {
+          "name": "My Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/merchants/me/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchant_token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "List Clients (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/clients?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Create Client",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/clients",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+2250700999888\",\n  \"full_name\": \"Kouassi Amani\",\n  \"country_id\": \"CI\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Lookup Client",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/clients/lookup",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"phone\": \"+2250700123456\" }"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Loyalty",
+      "item": [
+        {
+          "name": "Get Config",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/loyalty/config"
+          }
+        },
+        {
+          "name": "Run Batch (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/loyalty/batch",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Get Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/loyalty/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Overview (30d)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/overview?period=30d",
+              "query": [{ "key": "period", "value": "30d" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Daily Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/daily?date=2026-03-12",
+              "query": [{ "key": "date", "value": "2026-03-12" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Export Transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/transactions?page=1&limit=100",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "100" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Exchange Rates",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/reports/exchange-rates",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Update Exchange Rate",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/reports/exchange-rates",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_currency\": \"XOF\",\n  \"to_currency\": \"EUR\",\n  \"rate\": 0.00152449\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fraud",
+      "item": [
+        {
+          "name": "List Rules",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/fraud/rules",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Create Rule",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/fraud/rules",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Montant max 500k\",\n  \"rule_type\": \"max_amount\",\n  \"value\": \"500000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Blocked Phones",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/fraud/blocked-phones",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Block Phone",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/fraud/blocked-phones",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+2250700000000\",\n  \"reason\": \"Fraude confirmée\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/webhooks?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Webhook Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/webhooks/stats/summary",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          }
+        },
+        {
+          "name": "Send Test Webhook",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/webhooks/test",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}

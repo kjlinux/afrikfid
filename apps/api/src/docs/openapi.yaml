@@ -1,0 +1,1709 @@
+openapi: 3.0.3
+
+info:
+  title: "Afrik'Fid API"
+  version: "1.0.0"
+  description: |
+    Passerelle de paiement B2B multi-pays avec fidélisation intégrée pour l'Afrique francophone et anglophone.
+
+    ## Authentification
+
+    L'API supporte deux mécanismes d'authentification :
+
+    **1. JWT Bearer** — Pour le tableau de bord admin et marchand
+    ```
+    Authorization: Bearer <accessToken>
+    ```
+    Obtenir un token via `POST /auth/admin/login` ou `POST /auth/merchant/login`.
+
+    **2. API Key** — Pour les intégrations marchand (paiements, confirmations, statuts)
+    ```
+    X-API-Key: af_pub_xxxxxxxxxxxx
+    ```
+    Ajouter `X-Sandbox: true` pour utiliser les clés sandbox et simuler les paiements.
+
+    ## Modèle de fidélité X/Y/Z
+
+    Chaque paiement est réparti entre trois parties :
+    - **X%** — Commission marchand (remise accordée au client ou gardée)
+    - **Y%** — Rebate client (selon statut loyalty : OPEN=0%, LIVE=5%, GOLD=8%, ROYAL=10%)
+    - **Z%** — Commission plateforme Afrik'Fid
+
+    ## Environnements
+
+    | Environnement | Base URL | Clé |
+    |---|---|---|
+    | Production | `https://api.afrikfid.com/api/v1` | `af_pub_xxx` |
+    | Sandbox | `https://api.afrikfid.com/api/v1` + `X-Sandbox: true` | `af_sandbox_pub_xxx` |
+    | Local | `http://localhost:4001/api/v1` | Clé de test |
+
+  contact:
+    name: "Support Afrik'Fid"
+    email: support@afrikfid.com
+  license:
+    name: Propriétaire
+
+servers:
+  - url: http://localhost:4001/api/v1
+    description: Développement local
+  - url: https://api.afrikfid.com/api/v1
+    description: Production
+
+tags:
+  - name: Auth
+    description: Authentification admin et marchand
+  - name: Payments
+    description: Initiation, confirmation et gestion des transactions
+  - name: Payment Links
+    description: Liens de paiement marchands (sans intégration technique)
+  - name: Merchants
+    description: Gestion des marchands (admin + profil marchand)
+  - name: Clients
+    description: Gestion des clients et portefeuilles de fidélité
+  - name: Loyalty
+    description: Configuration du programme de fidélité
+  - name: Reports
+    description: Rapports et statistiques (admin)
+  - name: Fraud
+    description: Règles anti-fraude et blacklist
+  - name: Webhooks
+    description: Événements webhook vers les marchands
+  - name: System
+    description: Santé et métriques de l'API
+
+# ─── Security Schemes ────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenu via /auth/admin/login ou /auth/merchant/login
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Clé API publique du marchand (af_pub_xxx en prod, af_sandbox_pub_xxx en sandbox)
+
+  # ─── Schemas ───────────────────────────────────────────────────────────────
+  schemas:
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: "Données invalides"
+      required: [error]
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT valide 15 minutes
+        refreshToken:
+          type: string
+          description: JWT valide 7 jours
+
+    Distribution:
+      type: object
+      description: Résultat du calcul de répartition X/Y/Z pour une transaction
+      properties:
+        grossAmount: { type: number, example: 10000 }
+        merchantRebatePercent: { type: number, example: 8 }
+        clientRebatePercent: { type: number, example: 5 }
+        platformCommissionPercent: { type: number, example: 3 }
+        merchantRebateAmount: { type: number, example: 800 }
+        clientRebateAmount: { type: number, example: 500 }
+        platformCommissionAmount: { type: number, example: 300 }
+        merchantReceives: { type: number, example: 9200 }
+        rebateMode: { type: string, enum: [cashback, immediate] }
+
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string, example: "AFD-1710000000-ABC123" }
+        merchantId: { type: string, format: uuid }
+        clientId: { type: string, format: uuid, nullable: true }
+        grossAmount: { type: number, example: 10000 }
+        currency: { type: string, example: XOF }
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+        paymentMethod:
+          type: string
+          enum: [MOBILE_MONEY, card]
+        paymentOperator:
+          type: string
+          example: ORANGE
+          nullable: true
+        operatorRef: { type: string, nullable: true }
+        clientLoyaltyStatus:
+          type: string
+          enum: [OPEN, LIVE, GOLD, ROYAL]
+        merchantRebatePercent: { type: number }
+        clientRebatePercent: { type: number }
+        platformCommissionPercent: { type: number }
+        merchantRebateAmount: { type: number }
+        clientRebateAmount: { type: number }
+        platformCommissionAmount: { type: number }
+        merchantReceives: { type: number }
+        rebateMode: { type: string, enum: [cashback, immediate] }
+        initiatedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        expiresAt: { type: string, format: date-time }
+
+    Merchant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Boutique Koffi" }
+        email: { type: string, format: email }
+        phone: { type: string, example: "+2250701000001" }
+        countryId: { type: string, example: CI }
+        countryName: { type: string, example: "Côte d'Ivoire" }
+        currency: { type: string, example: XOF }
+        category: { type: string, example: retail }
+        rebatePercent: { type: number, example: 8 }
+        rebateMode: { type: string, enum: [cashback, immediate] }
+        settlementFrequency: { type: string, enum: [daily, weekly, monthly] }
+        webhookUrl: { type: string, format: uri, nullable: true }
+        status: { type: string, enum: [pending, active, suspended] }
+        kycStatus: { type: string, enum: [pending, approved, rejected] }
+        isActive: { type: integer, enum: [0, 1] }
+        apiKeyPublic: { type: string, example: "af_pub_abc123" }
+        sandboxKeyPublic: { type: string, example: "af_sandbox_pub_abc123" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Client:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        afrikfidId: { type: string, example: "AFD-CLI-000001" }
+        fullName: { type: string, example: "Jean Dupont" }
+        email: { type: string, format: email, nullable: true }
+        phone: { type: string, example: "+2250700123456" }
+        countryId: { type: string, example: CI }
+        loyaltyStatus: { type: string, enum: [OPEN, LIVE, GOLD, ROYAL] }
+        clientRebatePercent: { type: number, example: 5 }
+        walletBalance: { type: number, example: 2500 }
+        totalPurchases: { type: integer }
+        totalAmount: { type: number }
+        isActive: { type: integer, enum: [0, 1] }
+        createdAt: { type: string, format: date-time }
+
+    PaymentLink:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        merchantId: { type: string, format: uuid }
+        code: { type: string, example: "PL-ABCD-1234" }
+        amount: { type: number, nullable: true, example: 5000 }
+        currency: { type: string, example: XOF }
+        description: { type: string, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        maxUses: { type: integer, example: 1 }
+        usesCount: { type: integer, example: 0 }
+        status: { type: string, enum: [active, used, cancelled, expired] }
+        createdAt: { type: string, format: date-time }
+
+    WebhookEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        merchantId: { type: string, format: uuid }
+        eventType:
+          type: string
+          enum: [payment.completed, payment.failed, payment.refunded, loyalty.status_upgraded, webhook.test]
+        url: { type: string, format: uri }
+        status: { type: string, enum: [pending, delivered, failed, retry] }
+        attempts: { type: integer, example: 1 }
+        lastResponseCode: { type: integer, nullable: true, example: 200 }
+        lastError: { type: string, nullable: true }
+        nextRetryAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+
+    FraudRule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Montant max par transaction" }
+        ruleType:
+          type: string
+          enum: [max_amount, max_daily_count, max_daily_amount, velocity_check, country_block]
+        value: { type: string, example: "500000" }
+        isActive: { type: integer, enum: [0, 1] }
+        createdAt: { type: string, format: date-time }
+
+    LoyaltyConfig:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [OPEN, LIVE, GOLD, ROYAL] }
+        clientRebatePercent: { type: number, example: 5 }
+        label: { type: string, example: Live }
+        color: { type: string, example: "#F59E0B" }
+        sortOrder: { type: integer }
+        minPurchases: { type: integer, example: 3 }
+        minCumulativeAmount: { type: number, example: 50000 }
+        evaluationMonths: { type: integer, example: 3 }
+        inactivityMonths: { type: integer, example: 12 }
+
+  # ─── Responses réutilisables ───────────────────────────────────────────────
+  responses:
+    Unauthorized:
+      description: Token manquant ou invalide
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: "TOKEN_INVALID", message: "Token invalide" }
+    Forbidden:
+      description: Permissions insuffisantes
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Données invalides
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+
+# ─────────────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── SYSTEM ────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [System]
+      summary: Santé de l'API
+      description: Retourne le statut de l'API, la latence DB, l'uptime et la profondeur de la file webhook.
+      responses:
+        '200':
+          description: API opérationnelle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: "1.0.0" }
+                  timestamp: { type: string, format: date-time }
+                  uptimeSeconds: { type: integer }
+                  sandbox: { type: boolean }
+                  db:
+                    type: object
+                    properties:
+                      status: { type: string }
+                      latencyMs: { type: integer }
+                  queue:
+                    type: object
+                    properties:
+                      pendingWebhooks: { type: integer }
+                  stats:
+                    type: object
+                    properties:
+                      merchants: { type: integer }
+                      clients: { type: integer }
+                      transactions: { type: integer }
+        '503':
+          description: API dégradée (DB inaccessible)
+
+  /metrics:
+    get:
+      tags: [System]
+      summary: Métriques Prometheus
+      description: Format texte Prometheus 0.0.4. À scraper par Prometheus toutes les 15s.
+      responses:
+        '200':
+          description: Métriques au format Prometheus
+          content:
+            text/plain:
+              example: |
+                # HELP afrikfid_uptime_seconds Uptime du processus en secondes
+                afrikfid_uptime_seconds 3600
+                afrikfid_http_requests_total 1250
+                afrikfid_transactions_total{status="completed"} 87
+
+  # ── AUTH ──────────────────────────────────────────────────────────────────
+
+  /auth/admin/login:
+    post:
+      tags: [Auth]
+      summary: Connexion administrateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: admin@afrikfid.com }
+                password: { type: string, example: "Admin@2026!" }
+      responses:
+        '200':
+          description: Authentification réussie
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Tokens'
+                  - type: object
+                    properties:
+                      admin:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          email: { type: string }
+                          role: { type: string }
+                          fullName: { type: string }
+        '401':
+          description: Identifiants invalides
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/merchant/login:
+    post:
+      tags: [Auth]
+      summary: Connexion marchand (dashboard)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Authentification réussie
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Tokens'
+                  - type: object
+                    properties:
+                      merchant: { $ref: '#/components/schemas/Merchant' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil de l'utilisateur connecté
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profil admin ou marchand
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── PAYMENTS ──────────────────────────────────────────────────────────────
+
+  /payments/initiate:
+    post:
+      tags: [Payments]
+      summary: Initier un paiement
+      description: |
+        Crée une transaction et déclenche le paiement via Mobile Money ou Carte (CinetPay).
+
+        **Mobile Money:** L'opérateur envoie un OTP au client. Confirmer via `/payments/:id/confirm` ou attendre le webhook de l'opérateur.
+
+        **Carte (CinetPay):** Retourne une `paymentUrl` vers laquelle rediriger le client (3DS v2).
+
+        Utiliser `X-Sandbox: true` + clé sandbox pour simuler des paiements sans argent réel.
+      security:
+        - ApiKeyHeader: []
+      parameters:
+        - in: header
+          name: X-Sandbox
+          schema: { type: string, enum: ["true", "false"] }
+          description: "true = mode sandbox (aucun paiement réel)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency, payment_method, payment_phone]
+              properties:
+                amount:
+                  type: number
+                  description: Montant brut en unité locale
+                  example: 10000
+                currency:
+                  type: string
+                  enum: [XOF, XAF, KES]
+                  example: XOF
+                payment_method:
+                  type: string
+                  enum: [MOBILE_MONEY, card]
+                payment_phone:
+                  type: string
+                  description: Numéro à débiter (Mobile Money) ou numéro client (Carte)
+                  example: "+2250700123456"
+                payment_operator:
+                  type: string
+                  enum: [ORANGE, MTN, WAVE, AIRTEL, MOOV, MPESA]
+                  description: Opérateur Mobile Money (obligatoire si payment_method=MOBILE_MONEY)
+                client_phone:
+                  type: string
+                  description: Téléphone client pour identifier et créditer la fidélité
+                afrikfid_id:
+                  type: string
+                  description: Identifiant Afrik'Fid du client (alternative à client_phone)
+                description:
+                  type: string
+                  example: "Achat en boutique"
+                idempotency_key:
+                  type: string
+                  description: Clé d'idempotence pour éviter les doublons
+                  example: "order_12345_attempt_1"
+            examples:
+              mobile_money:
+                summary: Paiement Orange Money
+                value:
+                  amount: 10000
+                  currency: XOF
+                  payment_method: MOBILE_MONEY
+                  payment_phone: "+2250700123456"
+                  payment_operator: ORANGE
+                  client_phone: "+2250700123456"
+              carte:
+                summary: Paiement par carte (CinetPay)
+                value:
+                  amount: 25000
+                  currency: XOF
+                  payment_method: card
+                  payment_phone: "+2250700123456"
+                  description: "Commande #12345"
+      responses:
+        '201':
+          description: Transaction créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction: { $ref: '#/components/schemas/Transaction' }
+                  distribution: { $ref: '#/components/schemas/Distribution' }
+                  paymentUrl:
+                    type: string
+                    format: uri
+                    description: URL CinetPay (uniquement si payment_method=card)
+                    nullable: true
+                  message: { type: string }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Clé d'idempotence déjà utilisée
+        '422':
+          description: Échec du paiement côté opérateur
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - type: object
+                    properties:
+                      operatorError: { type: string }
+
+  /payments/{id}/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirmer un paiement en attente
+      description: Confirme manuellement une transaction `pending`. En production, les opérateurs confirment via webhook. En sandbox, utilisez cet endpoint ou `/sandbox/auto-confirm`.
+      security:
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operator_ref:
+                  type: string
+                  description: Référence de l'opérateur (optionnel en sandbox)
+      responses:
+        '200':
+          description: Transaction confirmée + distributions créditées
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction: { $ref: '#/components/schemas/Transaction' }
+                  distributions:
+                    type: array
+                    items: { type: object }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/{id}/status:
+    get:
+      tags: [Payments]
+      summary: Statut d'une transaction
+      security:
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+          description: UUID de la transaction OU référence AFD-xxx
+      responses:
+        '200':
+          description: Statut et détails de la transaction
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction: { $ref: '#/components/schemas/Transaction' }
+                  distributions: { type: array, items: { type: object } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/{id}/refund:
+    post:
+      tags: [Payments]
+      summary: Rembourser une transaction
+      security:
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  description: Montant partiel (omis = remboursement total)
+                reason: { type: string }
+      responses:
+        '200':
+          description: Remboursement initié
+        '400':
+          description: Transaction non remboursable
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/card/notify:
+    post:
+      tags: [Payments]
+      summary: Webhook CinetPay (callback 3DS)
+      description: Endpoint appelé par CinetPay après un paiement carte. Ne pas appeler directement.
+      responses:
+        '200':
+          description: Notification reçue
+
+  # ── PAYMENT LINKS ─────────────────────────────────────────────────────────
+
+  /payment-links:
+    post:
+      tags: [Payment Links]
+      summary: Créer un lien de paiement
+      description: Crée un lien partageable permettant à un client de payer sans intégration technique.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  description: Montant fixe (omis = montant libre, le client saisit)
+                  example: 5000
+                currency: { type: string, example: XOF }
+                description: { type: string, example: "Prestation conseil" }
+                expires_in_hours:
+                  type: integer
+                  description: Durée de validité en heures (défaut 24h)
+                  example: 48
+                max_uses:
+                  type: integer
+                  description: Nombre d'utilisations max (défaut 1)
+      responses:
+        '201':
+          description: Lien créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  link: { $ref: '#/components/schemas/PaymentLink' }
+                  payUrl:
+                    type: string
+                    format: uri
+                    description: URL publique à partager
+                    example: "https://afrikfid.com/pay/PL-ABCD-1234"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Payment Links]
+      summary: Lister les liens du marchand connecté
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Liste des liens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  links:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaymentLink' }
+
+  /payment-links/{id}:
+    delete:
+      tags: [Payment Links]
+      summary: Annuler un lien de paiement
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Lien annulé
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payment-links/{code}/info:
+    get:
+      tags: [Payment Links]
+      summary: Informations publiques d'un lien (page de paiement)
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string, example: "PL-ABCD-1234" }
+      responses:
+        '200':
+          description: Détails du lien
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  merchantName: { type: string }
+                  amount: { type: number, nullable: true }
+                  currency: { type: string }
+                  description: { type: string, nullable: true }
+                  expiresAt: { type: string, format: date-time }
+                  rebateMode: { type: string }
+                  operators: { type: array, items: { type: string } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Lien expiré ou épuisé
+
+  /payment-links/{code}/identify-client:
+    post:
+      tags: [Payment Links]
+      summary: Identifier un client avant paiement
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string }
+                afrikfid_id: { type: string }
+      responses:
+        '200':
+          description: Client trouvé ou non
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  found: { type: boolean }
+                  client:
+                    nullable: true
+                    type: object
+                    properties:
+                      afrikfidId: { type: string }
+                      fullName: { type: string }
+                      loyaltyStatus: { type: string }
+                      clientRebatePercent: { type: number }
+                      walletBalance: { type: number }
+
+  /payment-links/{code}/pay:
+    post:
+      tags: [Payment Links]
+      summary: Initier un paiement via lien
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, payment_operator]
+              properties:
+                phone: { type: string, example: "+2250700001" }
+                payment_operator: { type: string, enum: [ORANGE, MTN, WAVE, AIRTEL, MOOV] }
+                afrikfid_id: { type: string, description: "ID client pour créditer la fidélité" }
+                custom_amount: { type: number, description: "Montant si lien à montant libre" }
+      responses:
+        '200':
+          description: Paiement initié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactionId: { type: string }
+                  reference: { type: string }
+                  distribution: { type: object }
+                  message: { type: string }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── MERCHANTS ─────────────────────────────────────────────────────────────
+
+  /merchants:
+    post:
+      tags: [Merchants]
+      summary: Créer un marchand (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, country_id, rebate_percent, rebate_mode]
+              properties:
+                name: { type: string, example: "Boutique Koffi" }
+                email: { type: string, format: email }
+                phone: { type: string }
+                country_id: { type: string, example: CI }
+                category: { type: string, example: retail }
+                rebate_percent:
+                  type: number
+                  minimum: 0
+                  maximum: 50
+                  example: 8
+                rebate_mode: { type: string, enum: [cashback, immediate] }
+                password: { type: string, description: "Mot de passe dashboard marchand" }
+                webhook_url: { type: string, format: uri }
+                settlement_frequency: { type: string, enum: [daily, weekly, monthly] }
+      responses:
+        '201':
+          description: Marchand créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant: { $ref: '#/components/schemas/Merchant' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Email déjà utilisé
+
+    get:
+      tags: [Merchants]
+      summary: Lister les marchands (admin, paginé)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, active, suspended] }
+        - in: query
+          name: country_id
+          schema: { type: string }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Recherche par nom ou email
+      responses:
+        '200':
+          description: Liste paginée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchants:
+                    type: array
+                    items: { $ref: '#/components/schemas/Merchant' }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+
+  /merchants/register:
+    post:
+      tags: [Merchants]
+      summary: Inscription self-service (demande en attente)
+      description: Crée un compte marchand avec statut `pending`. L'équipe Afrik'Fid valide sous 24-48h.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, phone, country_id, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                country_id: { type: string }
+                password: { type: string, minLength: 8 }
+                category: { type: string }
+                rebate_percent: { type: number }
+                rebate_mode: { type: string }
+                webhook_url: { type: string, format: uri }
+                website: { type: string, format: uri }
+      responses:
+        '201':
+          description: Demande enregistrée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  id: { type: string }
+        '409':
+          description: Email déjà utilisé
+
+  /merchants/{id}:
+    get:
+      tags: [Merchants]
+      summary: Détails d'un marchand (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant: { $ref: '#/components/schemas/Merchant' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Merchants]
+      summary: Mettre à jour un marchand (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [pending, active, suspended] }
+                kyc_status: { type: string, enum: [pending, approved, rejected] }
+                rebate_percent: { type: number }
+                rebate_mode: { type: string }
+                webhook_url: { type: string, format: uri }
+                settlement_frequency: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant: { $ref: '#/components/schemas/Merchant' }
+
+  /merchants/me/profile:
+    get:
+      tags: [Merchants]
+      summary: Profil du marchand connecté
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant: { $ref: '#/components/schemas/Merchant' }
+
+  /merchants/me/stats:
+    get:
+      tags: [Merchants]
+      summary: Statistiques du marchand connecté
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      total_transactions: { type: integer }
+                      total_volume: { type: number }
+                      total_received: { type: number }
+                      total_rebate_given: { type: number }
+                      completed_count: { type: integer }
+                      failed_count: { type: integer }
+                      pending_count: { type: integer }
+                  byLoyaltyStatus:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        client_loyalty_status: { type: string }
+                        count: { type: integer }
+                        volume: { type: number }
+
+  /merchants/me/transactions:
+    get:
+      tags: [Merchants]
+      summary: Transactions du marchand connecté
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Transaction' }
+                  total: { type: integer }
+
+  # ── CLIENTS ───────────────────────────────────────────────────────────────
+
+  /clients:
+    post:
+      tags: [Clients]
+      summary: Créer un client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, full_name]
+              properties:
+                phone: { type: string, example: "+2250700123456" }
+                full_name: { type: string, example: "Jean Dupont" }
+                email: { type: string, format: email }
+                country_id: { type: string, example: CI }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client: { $ref: '#/components/schemas/Client' }
+        '409':
+          description: Numéro de téléphone déjà utilisé
+
+    get:
+      tags: [Clients]
+      summary: Lister les clients (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Recherche par nom, téléphone ou afrikfid_id
+        - in: query
+          name: loyalty_status
+          schema: { type: string, enum: [OPEN, LIVE, GOLD, ROYAL] }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clients:
+                    type: array
+                    items: { $ref: '#/components/schemas/Client' }
+                  total: { type: integer }
+
+  /clients/lookup:
+    post:
+      tags: [Clients]
+      summary: Rechercher un client avant paiement
+      description: Retourne le profil et le taux de rebate du client selon son statut de fidélité actuel.
+      security:
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string }
+                afrikfid_id: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  found: { type: boolean }
+                  client:
+                    nullable: true
+                    type: object
+                    properties:
+                      afrikfidId: { type: string }
+                      fullName: { type: string }
+                      loyaltyStatus: { type: string }
+                      clientRebatePercent: { type: number }
+                      walletBalance: { type: number }
+
+  /clients/{id}/profile:
+    get:
+      tags: [Clients]
+      summary: Profil d'un client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client: { $ref: '#/components/schemas/Client' }
+                  wallet: { type: object }
+                  stats: { type: object }
+
+  /clients/{id}/wallet:
+    get:
+      tags: [Clients]
+      summary: Portefeuille de fidélité d'un client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallet: { type: object }
+                  movements:
+                    type: array
+                    items: { type: object }
+
+  # ── LOYALTY ───────────────────────────────────────────────────────────────
+
+  /loyalty/config:
+    get:
+      tags: [Loyalty]
+      summary: Configuration du programme de fidélité
+      description: Retourne les paramètres de chaque statut (seuils, rebate %, conditions).
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config:
+                    type: array
+                    items: { $ref: '#/components/schemas/LoyaltyConfig' }
+
+  /loyalty/config/{status}:
+    put:
+      tags: [Loyalty]
+      summary: Modifier la config d'un statut (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: status
+          required: true
+          schema: { type: string, enum: [OPEN, LIVE, GOLD, ROYAL] }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_rebate_percent: { type: number }
+                min_purchases: { type: integer }
+                min_cumulative_amount: { type: number }
+                evaluation_months: { type: integer }
+                inactivity_months: { type: integer }
+      responses:
+        '200':
+          description: Config mise à jour
+
+  /loyalty/batch:
+    post:
+      tags: [Loyalty]
+      summary: Déclencher le batch de réévaluation
+      description: Évalue tous les clients et met à jour leur statut. S'exécute aussi automatiquement chaque nuit à 2h (heure Abidjan).
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  changed: { type: integer }
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        clientId: { type: string }
+                        oldStatus: { type: string }
+                        newStatus: { type: string }
+                        changed: { type: boolean }
+
+  /loyalty/stats:
+    get:
+      tags: [Loyalty]
+      summary: Statistiques de répartition des statuts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distribution:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        loyalty_status: { type: string }
+                        count: { type: integer }
+
+  # ── REPORTS ───────────────────────────────────────────────────────────────
+
+  /reports/daily:
+    get:
+      tags: [Reports]
+      summary: Rapport journalier
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date, example: "2026-03-12" }
+        - in: query
+          name: merchant_id
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Résumé du jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string }
+                  summary: { type: object }
+                  byMethod: { type: array, items: { type: object } }
+                  byLoyaltyStatus: { type: array, items: { type: object } }
+
+  /reports/overview:
+    get:
+      tags: [Reports]
+      summary: KPIs globaux (30 derniers jours par défaut)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema: { type: string, default: "30d", example: "7d" }
+          description: "Format: Nd (ex: 7d, 30d, 90d)"
+      responses:
+        '200':
+          description: KPIs et métriques globales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kpis: { type: object }
+                  topMerchants: { type: array }
+                  loyaltyDistribution: { type: array }
+                  dailyVolume: { type: array }
+                  merchantCount: { type: integer }
+                  clientCount: { type: integer }
+                  period: { type: string }
+
+  /reports/transactions:
+    get:
+      tags: [Reports]
+      summary: Export des transactions (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: merchant_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, completed, failed, refunded] }
+        - in: query
+          name: loyalty_status
+          schema: { type: string, enum: [OPEN, LIVE, GOLD, ROYAL] }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Transaction' }
+                  total: { type: integer }
+
+  /reports/exchange-rates:
+    get:
+      tags: [Reports]
+      summary: Taux de change (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fromCurrency: { type: string }
+                        toCurrency: { type: string }
+                        rate: { type: number }
+                        source: { type: string }
+                        updatedAt: { type: string }
+
+    put:
+      tags: [Reports]
+      summary: Mettre à jour un taux de change (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from_currency, to_currency, rate]
+              properties:
+                from_currency: { type: string, example: XOF }
+                to_currency: { type: string, example: EUR }
+                rate: { type: number, example: 0.00152 }
+      responses:
+        '200':
+          description: Taux mis à jour
+
+  /reports/overview-normalized:
+    get:
+      tags: [Reports]
+      summary: KPIs normalisés en EUR
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema: { type: string, default: "30d" }
+      responses:
+        '200':
+          description: Volumes normalisés en EUR par devise
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bycurrency:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currency: { type: string }
+                        volume: { type: number }
+                        tx_count: { type: integer }
+                        volumeEUR: { type: number }
+                  totalVolumeEUR: { type: number }
+
+  # ── FRAUD ─────────────────────────────────────────────────────────────────
+
+  /fraud/rules:
+    get:
+      tags: [Fraud]
+      summary: Lister les règles anti-fraude
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rules:
+                    type: array
+                    items: { $ref: '#/components/schemas/FraudRule' }
+                  ruleTypes:
+                    type: array
+                    items: { type: string }
+
+    post:
+      tags: [Fraud]
+      summary: Créer une règle anti-fraude
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, rule_type, value]
+              properties:
+                name: { type: string, example: "Limite 500 000 XOF" }
+                rule_type:
+                  type: string
+                  enum: [max_amount, max_daily_count, max_daily_amount, velocity_check, country_block]
+                value: { type: string, example: "500000" }
+      responses:
+        '201':
+          description: Règle créée
+
+  /fraud/rules/{id}/toggle:
+    patch:
+      tags: [Fraud]
+      summary: Activer / désactiver une règle
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: État modifié
+
+  /fraud/rules/{id}:
+    delete:
+      tags: [Fraud]
+      summary: Supprimer une règle
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Règle supprimée
+
+  /fraud/blocked-phones:
+    get:
+      tags: [Fraud]
+      summary: Numéros blacklistés
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        phone: { type: string }
+                        reason: { type: string }
+                        blockedAt: { type: string }
+                        blockedBy: { type: string }
+
+    post:
+      tags: [Fraud]
+      summary: Blacklister un numéro
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: "+2250700000000" }
+                reason: { type: string }
+      responses:
+        '201':
+          description: Numéro bloqué
+
+  /fraud/blocked-phones/{phone}:
+    delete:
+      tags: [Fraud]
+      summary: Débloquer un numéro
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: phone
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Numéro débloqué
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── WEBHOOKS ──────────────────────────────────────────────────────────────
+
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      summary: Lister les événements webhook (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, delivered, failed, retry] }
+        - in: query
+          name: merchant_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookEvent' }
+                  total: { type: integer }
+
+  /webhooks/{id}:
+    get:
+      tags: [Webhooks]
+      summary: Détails d'un événement webhook
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event: { $ref: '#/components/schemas/WebhookEvent' }
+                  payload: { type: object, description: "Payload décodé (JSON)" }
+
+  /webhooks/{id}/retry:
+    post:
+      tags: [Webhooks]
+      summary: Rejouer un webhook échoué (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Retry déclenché
+
+  /webhooks/test:
+    post:
+      tags: [Webhooks]
+      summary: Envoyer un webhook de test
+      description: Envoie un événement `webhook.test` à l'URL configurée du marchand.
+      security:
+        - ApiKeyHeader: []
+      responses:
+        '200':
+          description: Test envoyé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  responseCode: { type: integer, nullable: true }
+                  message: { type: string }
+
+  /webhooks/stats/summary:
+    get:
+      tags: [Webhooks]
+      summary: Statistiques des webhooks (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  byStatus:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        status: { type: string }
+                        count: { type: integer }
+                  total: { type: integer }
+                  successRate: { type: number }

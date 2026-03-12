@@ -9,6 +9,10 @@ const { errorHandler } = require('./middleware/error-handler');
 const { runMigrations } = require('./lib/migrations');
 const { processRetryQueue } = require('./workers/webhook-dispatcher');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
+const swaggerUi = require('swagger-ui-express');
+const yaml = require('js-yaml');
+const fs = require('fs');
+const path = require('path');
 
 // ─── Migrations au démarrage ────────────────────────────────────────────────
 runMigrations();
@@ -74,6 +78,17 @@ app.get('/api/v1/health', (req, res) => {
     });
   }
 });
+
+// ─── Swagger UI ────────────────────────────────────────────────────────────
+try {
+  const openapiSpec = yaml.load(fs.readFileSync(path.join(__dirname, 'docs/openapi.yaml'), 'utf8'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+    customSiteTitle: "Afrik'Fid API Docs",
+    swaggerOptions: { persistAuthorization: true },
+  }));
+} catch (e) {
+  console.warn('[docs] Swagger UI non disponible:', e.message);
+}
 
 // ─── Prometheus Metrics ────────────────────────────────────────────────────
 // Compteurs en mémoire (remis à zéro au redémarrage du processus)
