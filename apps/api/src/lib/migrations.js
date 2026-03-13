@@ -338,6 +338,24 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_tx_payment_phone_hash ON transactions(payment_phone_hash);
     `,
   },
+  {
+    version: 8,
+    name: '008_transaction_retry_and_kyc_fields',
+    up: `
+      -- Retry opérateur avant expiration finale (CDC §4.1.4)
+      -- retry_until : horodatage jusqu'auquel le worker doit interroger l'opérateur
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS retry_until TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS last_operator_check TIMESTAMPTZ DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_tx_retry_until ON transactions(retry_until) WHERE status = 'pending';
+
+      -- KYC workflow marchand (CDC §6.3)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_rejection_reason TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_documents JSONB DEFAULT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

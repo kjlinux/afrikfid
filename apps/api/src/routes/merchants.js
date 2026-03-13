@@ -219,6 +219,49 @@ router.get('/me/stats', requireMerchant, async (req, res) => {
   res.json({ stats: statsRes.rows[0], byLoyaltyStatus: byStatusRes.rows });
 });
 
+// POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC (CDC §6.3)
+router.post('/me/kyc', requireMerchant, async (req, res) => {
+  const merchant = (await db.query('SELECT kyc_status FROM merchants WHERE id = $1', [req.merchant.id])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand introuvable' });
+  if (merchant.kyc_status === 'approved') return res.status(400).json({ error: 'KYC déjà approuvé' });
+
+  const { documents } = req.body; // JSONB libre : liens, numéros de documents, etc.
+
+  await db.query(
+    `UPDATE merchants SET kyc_status = 'submitted', kyc_submitted_at = NOW(), kyc_documents = $1, updated_at = NOW() WHERE id = $2`,
+    [documents ? JSON.stringify(documents) : null, req.merchant.id]
+  );
+
+  res.json({ message: 'Dossier KYC soumis. Notre équipe le traitera sous 24-48h.', kycStatus: 'submitted' });
+});
+
+// PATCH /api/v1/merchants/:id/kyc/review — Admin approuve ou rejette le KYC
+router.patch('/:id/kyc/review', requireAdmin, async (req, res) => {
+  const { action, reason } = req.body;
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: "action doit être 'approve' ou 'reject'" });
+  }
+
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand introuvable' });
+  if (merchant.kyc_status !== 'submitted') {
+    return res.status(400).json({ error: `Statut KYC actuel: ${merchant.kyc_status}. Seul le statut 'submitted' peut être examiné.` });
+  }
+
+  const newKycStatus = action === 'approve' ? 'approved' : 'rejected';
+  const newMerchantStatus = action === 'approve' ? 'active' : merchant.status;
+
+  await db.query(
+    `UPDATE merchants SET
+       kyc_status = $1, kyc_reviewed_at = NOW(), kyc_reviewed_by = $2, kyc_rejection_reason = $3,
+       status = $4, updated_at = NOW()
+     WHERE id = $5`,
+    [newKycStatus, req.admin.id, reason || null, newMerchantStatus, req.params.id]
+  );
+
+  res.json({ message: `KYC ${action === 'approve' ? 'approuvé' : 'rejeté'}`, kycStatus: newKycStatus, merchantStatus: newMerchantStatus });
+});
+
 // POST /api/v1/merchants/register (self-service)
 router.post('/register', async (req, res) => {
   const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;

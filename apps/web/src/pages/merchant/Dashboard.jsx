@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
 import { fmt, KpiCard, Card, CopyButton, Spinner, PeriodSelector, exportCsv } from '../../components/ui.jsx'
+import { useSSE } from '../../hooks/useSSE.js'
+import { useToast } from '../../components/ToastNotification.jsx'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
@@ -13,17 +15,36 @@ export default function MerchantDashboard() {
   const [daily, setDaily] = useState([])
   const [period, setPeriod] = useState('30')
   const [showKey, setShowKey] = useState(false)
+  const { toast } = useToast()
+
+  const token = localStorage.getItem('accessToken')
 
   useEffect(() => {
     api.get('/merchants/me/profile').then(r => setProfile(r.data.merchant))
   }, [])
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
     api.get(`/merchants/me/stats?period=${period}d`).then(r => {
       setStats(r.data)
       setDaily(r.data.dailyVolume || [])
     })
   }, [period])
+
+  useEffect(() => { loadStats() }, [loadStats])
+
+  // SSE — notifications temps réel
+  useSSE('merchant', token, {
+    'payment.success': (payload) => {
+      toast(`Paiement reçu : ${payload.amount} ${payload.currency}`, 'success')
+      setTimeout(loadStats, 1000)
+    },
+    'payment.failed': (payload) => {
+      toast(`Paiement échoué (${payload.reference || payload.transactionId})`, 'error')
+    },
+    'webhook.failed': (payload) => {
+      toast(`Webhook non livré : ${payload.eventType}`, 'warning', 6000)
+    },
+  }, !!token)
 
   if (!stats || !profile) return <Spinner />
 

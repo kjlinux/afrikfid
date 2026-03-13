@@ -40,10 +40,14 @@ const limiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX) || 200,
   message: { error: 'Trop de requêtes. Réessayez dans quelques minutes.' },
 });
-app.use('/api/', limiter);
+app.use('/api/', (req, res, next) => {
+  if (req.path.startsWith('/v1/sse')) return next(); // SSE: connexions longues, pas de rate limit
+  return limiter(req, res, next);
+});
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/sse', require('./routes/sse'));
 app.use('/api/v1/webhooks', require('./routes/webhooks'));
 app.use('/api/v1/payments', require('./routes/payments'));
 app.use('/api/v1/merchants', require('./routes/merchants'));

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { publicApi as api } from '../../api.js'
+import { useTransactionSSE } from '../../hooks/useSSE.js'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
@@ -26,6 +27,18 @@ export default function PaymentPage() {
   const [result, setResult] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const [transactionId, setTransactionId] = useState(null)
+
+  // SSE : avancer automatiquement quand la TX est confirmée/échouée
+  useTransactionSSE(transactionId, (payload) => {
+    if (payload.status === 'completed') {
+      setResult(prev => prev ? { ...prev, status: 'completed' } : { status: 'completed' })
+      setStep('done')
+    } else if (payload.status === 'failed' || payload.status === 'expired') {
+      setPageError(`Paiement ${payload.status === 'expired' ? 'expiré' : 'refusé'} par l'opérateur.`)
+      setProcessing(false)
+    }
+  })
 
   useEffect(() => {
     api.get('/payment-links/' + code + '/info').then(r => {
@@ -62,6 +75,8 @@ export default function PaymentPage() {
         afrikfid_id: form.afrikfid_id || undefined,
         custom_amount: linkInfo?.amount ? undefined : parseFloat(form.custom_amount),
       })
+      // Stocker l'ID pour écouter le SSE de cette TX
+      if (data.transaction?.id) setTransactionId(data.transaction.id)
       setResult(data); setStep('done')
     } catch (err) {
       setPageError(err.response?.data?.message || err.response?.data?.error || 'Erreur lors du paiement')

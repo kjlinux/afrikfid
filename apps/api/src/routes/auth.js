@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../lib/db');
@@ -10,6 +11,18 @@ const redis = require('../lib/redis');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const REFRESH_TTL = 7 * 24 * 3600; // 7 jours en secondes
+
+// ─── Anti-brute force sur les endpoints de login (CDC §5.4) ──────────────────
+// Blocage après 5 tentatives par email ou par IP
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => (req.body && req.body.email) || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives de connexion. Compte temporairement bloqué (15 minutes).' },
+  skipSuccessfulRequests: true,
+});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -25,7 +38,7 @@ function extractJti(token) {
 }
 
 // ─── POST /api/v1/auth/admin/login ───────────────────────────────────────────
-router.post('/admin/login', validate(AdminLoginSchema), async (req, res) => {
+router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
   const result = await db.query('SELECT * FROM admins WHERE email = $1 AND is_active = TRUE', [email]);
@@ -52,7 +65,7 @@ router.post('/admin/login', validate(AdminLoginSchema), async (req, res) => {
 });
 
 // ─── POST /api/v1/auth/merchant/login ────────────────────────────────────────
-router.post('/merchant/login', validate(MerchantLoginSchema), async (req, res) => {
+router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
   const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);

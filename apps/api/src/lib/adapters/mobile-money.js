@@ -1,16 +1,18 @@
 /**
  * Adapters Mobile Money — Production + Sandbox
  *
- * Opérateurs supportés : Orange Money, MTN MoMo, Airtel Money, M-Pesa, Wave, Moov
+ * Opérateurs supportés : Orange Money, MTN MoMo, Airtel Money, M-Pesa, Wave, Moov Money
  *
  * En production, chaque opérateur utilise sa propre API avec les clés configurées via .env.
  * Si les clés ne sont pas présentes, le mode sandbox (simulation) est utilisé automatiquement.
  *
  * Variables d'environnement par opérateur :
- *   ORANGE_CLIENT_ID, ORANGE_CLIENT_SECRET    — Orange Money API
- *   MTN_SUBSCRIPTION_KEY, MTN_API_USER, MTN_API_KEY  — MTN MoMo API
- *   MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY  — Daraja API
- *   AIRTEL_CLIENT_ID, AIRTEL_CLIENT_SECRET    — Airtel Money API
+ *   ORANGE_CLIENT_ID, ORANGE_CLIENT_SECRET, ORANGE_MERCHANT_KEY  — Orange Money WebPay
+ *   MTN_SUBSCRIPTION_KEY, MTN_API_USER, MTN_API_KEY               — MTN MoMo Collection API
+ *   MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY  — Daraja STK Push
+ *   AIRTEL_CLIENT_ID, AIRTEL_CLIENT_SECRET                        — Airtel Money API
+ *   WAVE_API_KEY                                                  — Wave Business API
+ *   MOOV_CLIENT_ID, MOOV_CLIENT_SECRET                            — Moov Money API
  */
 
 const axios = require('axios');
@@ -262,6 +264,9 @@ const AIRTEL_BASE = process.env.NODE_ENV === 'production'
   ? 'https://openapi.airtel.africa'
   : 'https://openapiuat.airtel.africa';
 
+// Map de devises vers codes pays Airtel
+const AIRTEL_CURRENCY_COUNTRY = { KES: 'KE', XOF: 'BF', XAF: 'TD' };
+
 let _airtelToken = null;
 let _airtelTokenExpiry = 0;
 
@@ -279,15 +284,16 @@ async function getAirtelToken() {
 
 async function airtelInitiatePayment({ phone, amount, currency, reference }) {
   const token = await getAirtelToken();
+  const country = AIRTEL_CURRENCY_COUNTRY[currency] || 'KE';
   const resp = await axios.post(`${AIRTEL_BASE}/merchant/v2/payments/`, {
     reference,
-    subscriber: { country: 'KE', currency, msisdn: phone.replace(/^\+/, '') },
-    transaction: { amount, country: 'KE', currency, id: reference },
+    subscriber: { country, currency, msisdn: phone.replace(/^\+/, '') },
+    transaction: { amount, country, currency, id: reference },
   }, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'X-Country': 'KE',
+      'X-Country': country,
       'X-Currency': currency,
     },
   });
@@ -301,6 +307,127 @@ async function airtelInitiatePayment({ phone, amount, currency, reference }) {
     reference,
     status: 'pending',
     sandbox: AIRTEL_BASE.includes('uat'),
+  };
+}
+
+// ─── Wave Business API ────────────────────────────────────────────────────────
+// Documentation : https://docs.wave.com/business-api/
+// Inscription   : https://business.wave.com/
+
+const WAVE_BASE = 'https://api.wave.com/v1';
+
+async function waveInitiatePayment({ phone, amount, currency, reference, description, notifyUrl }) {
+  const callbackUrl = notifyUrl || process.env.WAVE_CALLBACK_URL || process.env.PAYMENT_CALLBACK_URL;
+  const resp = await axios.post(`${WAVE_BASE}/checkout/sessions`, {
+    amount: String(amount),
+    currency,
+    error_url: callbackUrl,
+    success_url: callbackUrl,
+    client_reference: reference,
+    restrict_mobile: phone ? `+${phone.replace(/^\+/, '')}` : undefined,
+  }, {
+    headers: {
+      'Authorization': `Bearer ${process.env.WAVE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 15000,
+  });
+  return {
+    success: true,
+    operatorRef: resp.data.id,
+    paymentUrl: resp.data.wave_launch_url,
+    operator: 'WAVE',
+    phone,
+    amount,
+    currency,
+    reference,
+    status: 'pending',
+    message: 'Redirection vers Wave pour paiement.',
+    sandbox: false,
+  };
+}
+
+async function waveCheckStatus({ operatorRef }) {
+  const resp = await axios.get(`${WAVE_BASE}/checkout/sessions/${operatorRef}`, {
+    headers: { 'Authorization': `Bearer ${process.env.WAVE_API_KEY}` },
+    timeout: 10000,
+  });
+  // statuts Wave: open | processing | complete | error | cancelled
+  const statusMap = { complete: 'completed', error: 'failed', cancelled: 'failed', processing: 'pending', open: 'pending' };
+  return {
+    operatorRef,
+    status: statusMap[resp.data.payment_status] || 'pending',
+    rawStatus: resp.data.payment_status,
+    sandbox: false,
+  };
+}
+
+// ─── Moov Money API ───────────────────────────────────────────────────────────
+// Documentation : https://developer.moov.africa/
+// Inscription   : https://developer.moov.africa/
+
+const MOOV_BASE = process.env.NODE_ENV === 'production'
+  ? 'https://api.moov.africa'
+  : 'https://sandbox.moov.africa';
+
+let _moovToken = null;
+let _moovTokenExpiry = 0;
+
+async function getMoovToken() {
+  if (_moovToken && Date.now() < _moovTokenExpiry) return _moovToken;
+  const { MOOV_CLIENT_ID, MOOV_CLIENT_SECRET } = process.env;
+  const credentials = Buffer.from(`${MOOV_CLIENT_ID}:${MOOV_CLIENT_SECRET}`).toString('base64');
+  const resp = await axios.post(`${MOOV_BASE}/oauth/token`,
+    'grant_type=client_credentials',
+    { headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
+  _moovToken = resp.data.access_token;
+  _moovTokenExpiry = Date.now() + (resp.data.expires_in - 60) * 1000;
+  return _moovToken;
+}
+
+async function moovInitiatePayment({ phone, amount, currency, reference, description }) {
+  const token = await getMoovToken();
+  const resp = await axios.post(`${MOOV_BASE}/v1/collect`, {
+    amount,
+    currency,
+    externalReference: reference,
+    msisdn: phone.replace(/^\+/, ''),
+    description: description || reference,
+    callbackUrl: process.env.MOOV_CALLBACK_URL || process.env.PAYMENT_CALLBACK_URL,
+  }, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 15000,
+  });
+  return {
+    success: true,
+    operatorRef: resp.data.transactionId || resp.data.id || reference,
+    operator: 'MOOV',
+    phone,
+    amount,
+    currency,
+    reference,
+    status: 'pending',
+    message: 'Demande Moov Money envoyée. En attente de confirmation USSD.',
+    sandbox: MOOV_BASE.includes('sandbox'),
+  };
+}
+
+async function moovCheckStatus({ operatorRef }) {
+  const token = await getMoovToken();
+  const resp = await axios.get(`${MOOV_BASE}/v1/collect/${operatorRef}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    timeout: 10000,
+  });
+  const statusMap = { SUCCESS: 'completed', FAILED: 'failed', PENDING: 'pending', PROCESSING: 'pending' };
+  return {
+    operatorRef,
+    status: statusMap[resp.data.status] || 'pending',
+    rawStatus: resp.data.status,
+    sandbox: MOOV_BASE.includes('sandbox'),
   };
 }
 
@@ -348,6 +475,14 @@ function hasAirtelCredentials() {
   return !!(process.env.AIRTEL_CLIENT_ID && process.env.AIRTEL_CLIENT_SECRET);
 }
 
+function hasWaveCredentials() {
+  return !!(process.env.WAVE_API_KEY);
+}
+
+function hasMoovCredentials() {
+  return !!(process.env.MOOV_CLIENT_ID && process.env.MOOV_CLIENT_SECRET);
+}
+
 /**
  * Lance une demande de paiement vers l'opérateur approprié.
  * Utilise l'API réelle si les credentials sont configurés, sinon le mode sandbox.
@@ -381,7 +516,12 @@ async function initiatePayment({ operator, phone, amount, currency, reference, d
       if (code === 'AIRTEL' && hasAirtelCredentials()) {
         return await airtelInitiatePayment({ phone, amount, currency, reference });
       }
-      // Wave et Moov : pas d'API publique disponible → sandbox
+      if (code === 'WAVE' && hasWaveCredentials()) {
+        return await waveInitiatePayment({ phone, amount, currency, reference, description, notifyUrl });
+      }
+      if (code === 'MOOV' && hasMoovCredentials()) {
+        return await moovInitiatePayment({ phone, amount, currency, reference, description });
+      }
     }
     return await sandboxInitiatePayment({ operator, phone, amount, currency, reference });
   } catch (err) {
@@ -400,8 +540,15 @@ async function initiatePayment({ operator, phone, amount, currency, reference, d
 async function checkPaymentStatus({ operatorRef, operator }) {
   if (!isSandbox()) {
     try {
-      if (operator === 'MTN' && hasMtnCredentials()) {
+      const code = (operator || '').toUpperCase();
+      if (code === 'MTN' && hasMtnCredentials()) {
         return await mtnCheckStatus({ operatorRef });
+      }
+      if (code === 'WAVE' && hasWaveCredentials()) {
+        return await waveCheckStatus({ operatorRef });
+      }
+      if (code === 'MOOV' && hasMoovCredentials()) {
+        return await moovCheckStatus({ operatorRef });
       }
     } catch (err) {
       console.error(`[MobileMoney] checkStatus erreur:`, err.message);

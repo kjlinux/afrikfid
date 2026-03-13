@@ -19,7 +19,9 @@ const CURRENCIES = ['XOF', 'XAF', 'KES'];
 const ZONES = ['UEMOA', 'CEMAC', 'EAST_AFRICA'];
 
 // ─── Durée d'expiration d'une transaction (ms) ───────────────────────────────
-const TX_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
+const TX_EXPIRY_MS = 2 * 60 * 1000; // 120s avant premier retry opérateur (CDC §4.1.4)
+const TX_RETRY_WINDOW_MS = 10 * 60 * 1000; // 10min de fenêtre de retry opérateur
+const TX_RETRY_INTERVAL_MS = 30 * 1000;    // polling opérateur toutes les 30s
 
 // ─── Limites de pagination ───────────────────────────────────────────────────
 const PAGINATION = {
@@ -45,6 +47,8 @@ module.exports = {
   CURRENCIES,
   ZONES,
   TX_EXPIRY_MS,
+  TX_RETRY_WINDOW_MS,
+  TX_RETRY_INTERVAL_MS,
   PAGINATION,
   JWT,
   MERCHANT_STATUSES,

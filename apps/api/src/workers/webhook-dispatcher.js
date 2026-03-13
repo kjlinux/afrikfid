@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
+const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 
 const RETRY_DELAYS_MS = [
   3 * 60 * 1000,
@@ -86,6 +87,15 @@ async function attemptDelivery(eventId) {
         `UPDATE webhook_events SET status = 'failed', attempts = $1, last_response_code = $2, last_error = $3, next_retry_at = NULL WHERE id = $4`,
         [attempts, statusCode, errorMsg, eventId]
       );
+      // Notifier le dashboard admin en temps réel
+      emit(SSE_EVENTS.WEBHOOK_FAILED, {
+        webhookEventId: eventId,
+        merchantId: event.merchant_id,
+        eventType: event.event_type,
+        attempts,
+        lastError: errorMsg,
+        failedAt: new Date().toISOString(),
+      });
     } else {
       const delayMs = RETRY_DELAYS_MS[attempts - 1] || RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
       const nextRetry = new Date(Date.now() + delayMs).toISOString();

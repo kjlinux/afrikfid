@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import api from '../../api.js'
 import { fmt, KpiCard, Card, PeriodSelector, Spinner, exportCsv, exportPdf, Alert, Badge } from '../../components/ui.jsx'
+import { useSSE } from '../../hooks/useSSE.js'
+import { useToast } from '../../components/ToastNotification.jsx'
 
-const POLL_INTERVAL = 30000 // 30s auto-refresh
 const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
 export default function AdminDashboard() {
@@ -12,7 +13,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [alertMsg, setAlertMsg] = useState(null)
-  const timerRef = useRef(null)
+  const [liveCount, setLiveCount] = useState(0)
+  const { toast } = useToast()
+
+  // Récupérer le token depuis le localStorage (format stocké par auth)
+  const token = localStorage.getItem('accessToken')
 
   const load = useCallback(() => {
     return api.get(`/reports/overview?period=${period}d`).then(r => {
@@ -27,9 +32,29 @@ export default function AdminDashboard() {
   useEffect(() => {
     setLoading(true)
     load()
-    timerRef.current = setInterval(load, POLL_INTERVAL)
-    return () => clearInterval(timerRef.current)
   }, [load])
+
+  // SSE — mise à jour en temps réel
+  useSSE('admin', token, {
+    'payment.success': (payload) => {
+      setLiveCount(c => c + 1)
+      toast(`Paiement reçu : ${payload.amount} ${payload.currency} via ${payload.operator || 'carte'}`, 'success')
+      // Rafraîchir les KPIs (après 1s pour laisser la DB se stabiliser)
+      setTimeout(load, 1000)
+    },
+    'payment.failed': (payload) => {
+      toast(`Paiement échoué : TX ${payload.reference || payload.transactionId}`, 'error')
+    },
+    'payment.expired': (payload) => {
+      toast(`Transaction expirée : ${payload.reference || payload.transactionId}`, 'warning')
+    },
+    'webhook.failed': (payload) => {
+      toast(`Webhook définitivement échoué (${payload.eventType}) — marchand ${payload.merchantId}`, 'error', 6000)
+    },
+    'loyalty.status_changed': (payload) => {
+      toast(`Fidélité mise à jour : ${payload.old_status} → ${payload.new_status}`, 'info')
+    },
+  }, !!token)
 
   const VOLUME_COLS = [
     { label: 'Date', key: 'day' },
@@ -65,7 +90,9 @@ export default function AdminDashboard() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Dashboard Afrik'Fid</h1>
           <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>
-            Vue d'ensemble · {lastUpdate ? `Mis à jour ${lastUpdate.toLocaleTimeString('fr-FR')}` : ''} · Rafraîchissement auto 30s
+            Vue d'ensemble · {lastUpdate ? `Mis à jour ${lastUpdate.toLocaleTimeString('fr-FR')}` : ''}
+            {' · '}<span style={{ color: '#10b981' }}>● Temps réel</span>
+            {liveCount > 0 && <span style={{ marginLeft: 8, background: '#16a34a', color: '#fff', borderRadius: 12, padding: '1px 8px', fontSize: 11 }}>+{liveCount} depuis ouverture</span>}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

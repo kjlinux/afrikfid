@@ -11,7 +11,16 @@ const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
 const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed } = require('../lib/notifications');
 const { checkTransaction } = require('../lib/fraud');
-const { initiateCardPayment, checkPaymentStatus } = require('../lib/adapters/cinetpay');
+const cinetpay = require('../lib/adapters/cinetpay');
+const flutterwave = require('../lib/adapters/flutterwave');
+const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
+
+// Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
+function getCardProvider() {
+  return (process.env.CARD_PROVIDER || 'cinetpay').toLowerCase() === 'flutterwave'
+    ? flutterwave
+    : cinetpay;
+}
 
 // POST /api/v1/payments/initiate
 router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (req, res) => {
@@ -118,9 +127,11 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
   let cardResult = null;
 
   if (payment_method === 'card') {
-    cardResult = await initiateCardPayment({
+    const cardProvider = getCardProvider();
+    cardResult = await cardProvider.initiateCardPayment({
       transactionId: txId, reference, amount: distribution.grossAmount, currency,
       customerName: client ? client.full_name : undefined,
+      customerEmail: client ? client.email : undefined,
       customerPhone: client_phone || undefined, description,
     });
 
@@ -128,7 +139,8 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [cardResult.message, txId]);
       return res.status(422).json({ error: cardResult.error, message: cardResult.message });
     }
-    await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [cardResult.cinetpayRef, txId]);
+    const cardRef = cardResult.cinetpayRef || cardResult.flutterwaveRef || txId;
+    await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [cardRef, txId]);
 
   } else if (['ORANGE', 'MTN', 'AIRTEL', 'MPESA', 'WAVE', 'MOOV'].includes((payment_operator || '').toUpperCase())) {
     const clientAmount = merchant.rebate_mode === 'immediate'
@@ -188,6 +200,111 @@ router.post('/card/notify', async (req, res) => {
   }
 
   res.status(200).json({ message: 'OK' });
+});
+
+// POST /api/v1/payments/card/flutterwave/notify (Flutterwave webhook)
+router.post('/card/flutterwave/notify', async (req, res) => {
+  if (!flutterwave.verifyWebhookSignature(req)) {
+    return res.status(403).json({ error: 'Signature webhook invalide' });
+  }
+
+  const { data } = req.body;
+  if (!data || !data.tx_ref) return res.status(400).json({ error: 'Payload invalide' });
+
+  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [data.tx_ref])).rows[0];
+  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
+  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
+
+  const statusCheck = await flutterwave.checkPaymentStatus(data.tx_ref);
+
+  if (statusCheck.success && statusCheck.status === 'successful') {
+    await processCompletedPayment(tx);
+  } else if (statusCheck.status === 'failed') {
+    await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Flutterwave: ${statusCheck.message}`, tx.id]);
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
+  }
+
+  res.status(200).json({ message: 'OK' });
+});
+
+// POST /api/v1/payments/mm/mpesa/notify (M-Pesa Daraja STK callback)
+router.post('/mm/mpesa/notify', async (req, res) => {
+  // M-Pesa envoie toujours HTTP 200 en attente d'un 200 de notre côté
+  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+
+  try {
+    const callback = req.body?.Body?.stkCallback;
+    if (!callback) return;
+
+    const checkoutRequestId = callback.CheckoutRequestID;
+    const resultCode = callback.ResultCode; // 0 = success
+
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE operator_ref = $1 AND status = 'pending'",
+      [checkoutRequestId]
+    )).rows[0];
+    if (!tx) return;
+
+    if (resultCode === 0) {
+      await processCompletedPayment(tx);
+    } else {
+      const desc = callback.ResultDesc || 'Paiement M-Pesa refusé';
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`M-Pesa: ${desc}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[mpesa/notify]', err.message);
+  }
+});
+
+// POST /api/v1/payments/mm/wave/notify (Wave checkout webhook)
+router.post('/mm/wave/notify', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
+
+  try {
+    const { payment_status, client_reference } = req.body || {};
+    if (!client_reference) return;
+
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE reference = $1 AND status = 'pending'",
+      [client_reference]
+    )).rows[0];
+    if (!tx) return;
+
+    if (payment_status === 'complete') {
+      await processCompletedPayment(tx);
+    } else if (payment_status === 'error' || payment_status === 'cancelled') {
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Wave: ${payment_status}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[wave/notify]', err.message);
+  }
+});
+
+// POST /api/v1/payments/mm/moov/notify (Moov Money callback)
+router.post('/mm/moov/notify', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
+
+  try {
+    const { status, externalReference } = req.body || {};
+    if (!externalReference) return;
+
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE reference = $1 AND status = 'pending'",
+      [externalReference]
+    )).rows[0];
+    if (!tx) return;
+
+    if (status === 'SUCCESS') {
+      await processCompletedPayment(tx);
+    } else if (status === 'FAILED' || status === 'CANCELLED') {
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Moov: ${status}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[moov/notify]', err.message);
+  }
 });
 
 // POST /api/v1/payments/:id/confirm (sandbox)
@@ -309,6 +426,20 @@ async function processCompletedPayment(tx) {
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);
 
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
+
+  // Notifier les clients SSE en temps réel
+  emit(SSE_EVENTS.PAYMENT_SUCCESS, {
+    transactionId: tx.id, reference: tx.reference,
+    merchantId: tx.merchant_id, status: 'completed',
+    amount: tx.gross_amount, currency: tx.currency,
+    operator: tx.payment_operator,
+  });
+  emit(SSE_EVENTS.TRANSACTION_STATUS, {
+    transactionId: tx.id, status: 'completed',
+    merchantId: tx.merchant_id,
+    amount: tx.gross_amount, currency: tx.currency,
+  });
+
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
 
   // Webhook distribution.completed (CDC §4.5.3)
