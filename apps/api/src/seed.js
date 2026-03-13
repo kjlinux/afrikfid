@@ -2,6 +2,7 @@ require('dotenv').config();
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const db = require('./lib/db');
+const { encrypt, hashField } = require('./lib/crypto');
 
 async function seed() {
   console.log("🌱 Seeding Afrik'Fid database...");
@@ -96,13 +97,21 @@ async function seed() {
 
   const clientIds = [];
   for (const c of clientsData) {
-    const clientId = uuidv4();
-    const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    await db.query(
-      `INSERT INTO clients (id, afrikfid_id, full_name, phone, email, country_id, loyalty_status) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (phone) DO NOTHING`,
-      [clientId, afrikfidId, c.full_name, c.phone, c.email, c.country_id, c.loyalty_status]
-    );
-    await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2) ON CONFLICT (client_id) DO NOTHING', [uuidv4(), clientId]);
+    const phoneHash = hashField(c.phone);
+    // Vérifier si le client existe déjà (par phone_hash)
+    const existing = (await db.query('SELECT id FROM clients WHERE phone_hash = $1', [phoneHash])).rows[0];
+    const clientId = existing ? existing.id : uuidv4();
+    if (!existing) {
+      const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      await db.query(
+        `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, loyalty_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [clientId, afrikfidId, c.full_name, encrypt(c.phone), phoneHash,
+         c.email ? encrypt(c.email) : null, c.email ? hashField(c.email) : null,
+         c.country_id, c.loyalty_status]
+      );
+      await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2) ON CONFLICT (client_id) DO NOTHING', [uuidv4(), clientId]);
+    }
     clientIds.push(clientId);
   }
   console.log(`✅ ${clientsData.length} clients démo créés`);

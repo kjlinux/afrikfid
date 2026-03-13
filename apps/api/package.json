@@ -8,14 +8,19 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
     "reset": "node src/resetDb.js",
-    "test": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --forceExit --runInBand",
-    "test:watch": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --watch --runInBand",
-    "test:coverage": "NODE_OPTIONS=\"--experimental-vm-modules\" NODE_ENV=test npx jest --coverage --forceExit --runInBand"
+    "test": "NODE_ENV=test npx jest --forceExit --runInBand",
+    "test:watch": "NODE_ENV=test npx jest --watch --runInBand",
+    "test:coverage": "NODE_ENV=test npx jest --coverage --forceExit --runInBand"
   },
   "jest": {
     "testEnvironment": "node",
     "testMatch": [
       "**/tests/**/*.test.js"
+    ],
+    "globalSetup": "./tests/setup/global-setup.js",
+    "globalTeardown": "./tests/setup/global-teardown.js",
+    "setupFiles": [
+      "./tests/setup/setup-env.js"
     ],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [

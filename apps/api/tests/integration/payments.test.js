@@ -4,8 +4,7 @@
  * Tests d'integration -- Routes Paiements
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/lib/adapters/mobile-money', () => ({
   initiatePayment: jest.fn(),
 }));
@@ -14,47 +13,36 @@ const request = require('supertest');
 const app = require('../../src/index');
 const mobileMoney = require('../../src/lib/adapters/mobile-money');
 const db = require('../../src/lib/db');
+const { clearAll } = require('../helpers/test-db');
 
 const SANDBOX_KEY = 'af_sandbox_pub_pay_test';
 const SANDBOX_HEADERS = { 'X-API-Key': SANDBOX_KEY, 'X-Sandbox': 'true' };
 
-function clearData() {
-  db.exec([
-    'DELETE FROM wallet_movements',
-    'DELETE FROM wallets',
-    'DELETE FROM distributions',
-    'DELETE FROM refunds',
-    'DELETE FROM transactions',
-    'DELETE FROM payment_links',
-    'DELETE FROM clients',
-  ].join('; '));
+async function clearData() {
+  await db.query('DELETE FROM wallet_movements');
+  await db.query('DELETE FROM wallets');
+  await db.query('DELETE FROM distributions');
+  await db.query('DELETE FROM refunds');
+  await db.query('DELETE FROM transactions');
+  await db.query('DELETE FROM payment_links');
+  await db.query('DELETE FROM clients');
 }
 
-beforeAll(() => {
-  db.exec([
-    'DELETE FROM wallet_movements',
-    'DELETE FROM wallets',
-    'DELETE FROM distributions',
-    'DELETE FROM refunds',
-    'DELETE FROM transactions',
-    'DELETE FROM payment_links',
-    'DELETE FROM webhook_events',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
-
-  db.prepare(
-    'INSERT OR IGNORE INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, kyc_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
-  ).run('merch-pay', 'Pay Shop', 'pay@test.af', 10, 'cashback',
-    'af_pub_pay_test', 'af_sec_pay_test', SANDBOX_KEY, 'af_sandbox_sec_pay_test', 'active', 'approved');
+beforeAll(async () => {
+  await clearAll();
+  await db.query(`
+    INSERT INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, kyc_status, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE)
+    ON CONFLICT DO NOTHING
+  `, ['merch-pay', 'Pay Shop', 'pay@test.af', 10, 'cashback',
+      'af_pub_pay_test', 'af_sec_pay_test', SANDBOX_KEY, 'af_sandbox_sec_pay_test', 'active', 'approved']);
 });
 
 // ─── POST /initiate ──────────────────────────────────────────────────────────
 
 describe('POST /api/v1/payments/initiate', () => {
-  beforeEach(() => {
-    clearData();
+  beforeEach(async () => {
+    await clearData();
     mobileMoney.initiatePayment.mockResolvedValue({
       success: true,
       operatorRef: 'OP-REF-123',
@@ -92,9 +80,10 @@ describe('POST /api/v1/payments/initiate', () => {
   });
 
   test('client ROYAL (Y=10%, Z=0%) => distributions correctes', async () => {
-    db.prepare(
-      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('cl-royal', 'AFD-ROYAL', 'Client Royal', '+22500000001', 'ROYAL');
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      ['cl-royal', 'AFD-ROYAL', 'Client Royal', '+22500000001', 'ROYAL']
+    );
 
     const res = await request(app)
       .post('/api/v1/payments/initiate')
@@ -142,9 +131,10 @@ describe('Cycle de vie transaction (initiate -> confirm -> refund)', () => {
       message: 'OK',
     });
 
-    db.prepare(
-      'INSERT OR IGNORE INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('cl-lifecycle', 'AFD-LIFECYCLE', 'Client Lifecycle', '+22500000010', 'LIVE');
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE) ON CONFLICT DO NOTHING',
+      ['cl-lifecycle', 'AFD-LIFECYCLE', 'Client Lifecycle', '+22500000010', 'LIVE']
+    );
 
     const res = await request(app)
       .post('/api/v1/payments/initiate')

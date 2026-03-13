@@ -4,8 +4,7 @@
  * Tests d'intégration — Liens de paiement (payment-links)
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/lib/adapters/mobile-money', () => ({
   initiatePayment: jest.fn(),
 }));
@@ -40,17 +39,16 @@ const bcrypt = require('bcrypt');
 const app = require('../../src/index');
 const db = require('../../src/lib/db');
 const mobileMoney = require('../../src/lib/adapters/mobile-money');
+const { clearAll } = require('../helpers/test-db');
 
-function clearData() {
-  db.exec([
-    'DELETE FROM wallet_movements',
-    'DELETE FROM wallets',
-    'DELETE FROM distributions',
-    'DELETE FROM transactions',
-    'DELETE FROM payment_links',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-  ].join('; '));
+async function clearData() {
+  await db.query('DELETE FROM wallet_movements');
+  await db.query('DELETE FROM wallets');
+  await db.query('DELETE FROM distributions');
+  await db.query('DELETE FROM transactions');
+  await db.query('DELETE FROM payment_links');
+  await db.query('DELETE FROM clients');
+  await db.query('DELETE FROM merchants');
 }
 
 let merchantToken;
@@ -61,14 +59,13 @@ async function setupMerchant() {
   const hash = await bcrypt.hash('password123', 8);
   const id = 'merchant-link-test-001';
   apiKey = 'af_live_pub_linktest001';
-  db.prepare(`
+  await db.query(`
     INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
       password_hash, is_active, currency)
-    VALUES (?, 'Link Test SARL', 'links@test.ci', '+2250700001', 'CI', 8, 'cashback', 'active', 'approved',
-      ?, 'secret_live', ?, 'secret_sandbox',
-      ?, 1, 'XOF')
-  `).run(id, apiKey, 'af_sandbox_pub_linktest001', hash);
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE, $15)
+  `, [id, 'Link Test SARL', 'links@test.ci', '+2250700001', 'CI', 8, 'cashback', 'active', 'approved',
+      apiKey, 'secret_live', 'af_sandbox_pub_linktest001', 'secret_sandbox', hash, 'XOF']);
   merchantId = id;
 
   const loginRes = await request(app)
@@ -79,7 +76,7 @@ async function setupMerchant() {
 
 describe('Payment Links — CRUD Marchand', () => {
   beforeEach(async () => {
-    clearData();
+    await clearData();
     await setupMerchant();
   });
 
@@ -157,7 +154,7 @@ describe('Payment Links — Flux public (client)', () => {
   let linkCode;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     await setupMerchant();
 
     const createRes = await request(app)
@@ -183,10 +180,10 @@ describe('Payment Links — Flux public (client)', () => {
 
   test('POST /:code/identify-client — client trouvé', async () => {
     // Créer un client
-    db.prepare(`
-      INSERT INTO clients (id, afrikfid_id, phone, full_name, loyalty_status, is_active)
-      VALUES ('cli-001', 'AFD-CLI-001', '+2250700123', 'Jean Dupont', 'LIVE', 1)
-    `).run();
+    await db.query(
+      "INSERT INTO clients (id, afrikfid_id, phone, full_name, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)",
+      ['cli-001', 'AFD-CLI-001', '+2250700123', 'Jean Dupont', 'LIVE']
+    );
 
     const res = await request(app)
       .post(`/api/v1/payment-links/${linkCode}/identify-client`)

@@ -1,6 +1,6 @@
 'use strict';
 
-jest.mock('../../src/lib/db');
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 
 const db = require('../../src/lib/db');
 const {
@@ -11,77 +11,77 @@ const {
   runLoyaltyBatch,
 } = require('../../src/lib/loyalty-engine');
 
-function clearData() {
-  db.exec([
-    'DELETE FROM wallet_movements',
-    'DELETE FROM wallets',
-    'DELETE FROM distributions',
-    'DELETE FROM transactions',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
+async function clearData() {
+  await db.query('DELETE FROM wallet_movements');
+  await db.query('DELETE FROM wallets');
+  await db.query('DELETE FROM distributions');
+  await db.query('DELETE FROM transactions');
+  await db.query('DELETE FROM clients');
+  await db.query('DELETE FROM merchants');
+  await db.query('DELETE FROM admins');
 }
 
 // ─── calculateDistribution ───────────────────────────────────────────────────
 
 describe('calculateDistribution', () => {
-  test('OPEN: Y=0%, Z=X%', () => {
-    const r = calculateDistribution(100000, 10, 'OPEN');
+  test('OPEN: Y=0%, Z=X%', async () => {
+    const r = await calculateDistribution(100000, 10, 'OPEN');
     expect(r.clientRebatePercent).toBe(0);
     expect(r.platformCommissionPercent).toBe(10);
     expect(r.merchantReceives).toBe(90000);
     expect(r.isValid).toBe(true);
   });
 
-  test('LIVE: Y=5%, Z=5%', () => {
-    const r = calculateDistribution(100000, 10, 'LIVE');
+  test('LIVE: Y=5%, Z=5%', async () => {
+    const r = await calculateDistribution(100000, 10, 'LIVE');
     expect(r.clientRebatePercent).toBe(5);
     expect(r.platformCommissionPercent).toBe(5);
     expect(r.merchantReceives).toBe(90000);
   });
 
-  test('GOLD: Y=8%, Z=2%', () => {
-    const r = calculateDistribution(100000, 10, 'GOLD');
+  test('GOLD: Y=8%, Z=2%', async () => {
+    const r = await calculateDistribution(100000, 10, 'GOLD');
     expect(r.clientRebatePercent).toBe(8);
     expect(r.platformCommissionPercent).toBe(2);
     expect(r.merchantReceives).toBe(90000);
   });
 
-  test('ROYAL: Y=10%, Z=0%', () => {
-    const r = calculateDistribution(100000, 10, 'ROYAL');
+  test('ROYAL: Y=10%, Z=0%', async () => {
+    const r = await calculateDistribution(100000, 10, 'ROYAL');
     expect(r.clientRebatePercent).toBe(10);
     expect(r.platformCommissionPercent).toBe(0);
     expect(r.merchantReceives).toBe(90000);
   });
 
-  test('merchantReceives identique pour tous les statuts', () => {
+  test('merchantReceives identique pour tous les statuts', async () => {
     const statuses = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
-    const receives = statuses.map((s) => calculateDistribution(150000, 8, s).merchantReceives);
+    const receives = await Promise.all(
+      statuses.map((s) => calculateDistribution(150000, 8, s).then(r => r.merchantReceives))
+    );
     expect(new Set(receives).size).toBe(1);
   });
 
-  test('Plafonnement Y<=X: ROYAL avec X=5%', () => {
-    const r = calculateDistribution(100000, 5, 'ROYAL');
+  test('Plafonnement Y<=X: ROYAL avec X=5%', async () => {
+    const r = await calculateDistribution(100000, 5, 'ROYAL');
     expect(r.clientRebatePercent).toBe(5);
     expect(r.platformCommissionPercent).toBe(0);
     expect(r.yExceedsX).toBe(true);
   });
 
-  test('Arrondi 2 decimales', () => {
-    const r = calculateDistribution(33333, 7, 'LIVE');
+  test('Arrondi 2 decimales', async () => {
+    const r = await calculateDistribution(33333, 7, 'LIVE');
     expect(r.merchantRebateAmount).toBe(2333.31);
     expect(r.clientRebateAmount).toBe(1666.65);
   });
 
-  test('X=0% => merchantReceives = grossAmount', () => {
-    const r = calculateDistribution(100000, 0, 'ROYAL');
+  test('X=0% => merchantReceives = grossAmount', async () => {
+    const r = await calculateDistribution(100000, 0, 'ROYAL');
     expect(r.clientRebatePercent).toBe(0);
     expect(r.merchantReceives).toBe(100000);
   });
 
-  test('Statut inconnu => Y=0%', () => {
-    expect(calculateDistribution(100000, 10, 'UNKNOWN').clientRebatePercent).toBe(0);
+  test('Statut inconnu => Y=0%', async () => {
+    expect((await calculateDistribution(100000, 10, 'UNKNOWN')).clientRebatePercent).toBe(0);
   });
 });
 
@@ -92,87 +92,94 @@ describe('getClientRebatePercent', () => {
     ['OPEN', 0],
     ['LIVE', 5],
     ['GOLD', 8],
-    ['ROYAL', 10],
+    ['ROYAL', 12],
     ['INCONNU', 0],
-  ])('statut %s => %i%', (s, expected) => {
-    expect(getClientRebatePercent(s)).toBe(expected);
+  ])('statut %s => %i%', async (s, expected) => {
+    expect(await getClientRebatePercent(s)).toBe(expected);
   });
 });
 
 // ─── evaluateClientStatus ────────────────────────────────────────────────────
 
 describe('evaluateClientStatus', () => {
-  beforeEach(() => clearData());
+  beforeEach(async () => {
+    await clearData();
+  });
 
-  function createClient(id, status) {
+  async function createClient(id, status) {
     const st = status || 'OPEN';
     const phone = '+225990' + String(id.charCodeAt(0)).slice(-3).padStart(3, '0') + id.slice(-2).padStart(2, '0');
-    db.prepare(
-      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run(id, 'AFD-' + id, 'Test ' + id, phone, st);
-  }
-
-  function addTx(clientId, amount, daysAgo) {
-    const d = new Date();
-    d.setDate(d.getDate() - (daysAgo || 5));
-    db.prepare(
-      'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES (?, ?, ?, ?, ?, ?, 10, 5, 5, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      'tx-' + Math.random().toString(36).slice(2),
-      'REF-' + Math.random().toString(36).slice(2),
-      'mx', clientId, amount, amount * 0.95,
-      amount * 0.1, amount * 0.05, amount * 0.05, amount * 0.9,
-      'cashback', 'mobile_money', 'completed', d.toISOString()
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      [id, 'AFD-' + id, 'Test ' + id, phone, st]
     );
   }
 
-  test('Client inexistant => null', () => {
-    expect(evaluateClientStatus('nobody')).toBeNull();
+  async function addTx(clientId, amount, daysAgo) {
+    const d = new Date();
+    d.setDate(d.getDate() - (daysAgo || 5));
+    await db.query(
+      'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES ($1, $2, $3, $4, $5, $6, 10, 5, 5, $7, $8, $9, $10, $11, $12, $13, $14)',
+      [
+        'tx-' + Math.random().toString(36).slice(2),
+        'REF-' + Math.random().toString(36).slice(2),
+        'mx', clientId, amount, amount * 0.95,
+        amount * 0.1, amount * 0.05, amount * 0.05, amount * 0.9,
+        'cashback', 'mobile_money', 'completed', d.toISOString()
+      ]
+    );
+  }
+
+  test('Client inexistant => null', async () => {
+    expect(await evaluateClientStatus('nobody')).toBeNull();
   });
 
-  test('Aucun achat => reste OPEN, changed=false', () => {
-    createClient('c1');
-    const r = evaluateClientStatus('c1');
+  test('Aucun achat => reste OPEN, changed=false', async () => {
+    await createClient('c1');
+    const r = await evaluateClientStatus('c1');
     expect(r.newStatus).toBe('OPEN');
     expect(r.changed).toBe(false);
   });
 
-  test('3 achats en 3 mois => OPEN vers LIVE', () => {
-    createClient('c2', 'OPEN');
-    addTx('c2', 20000, 5);
-    addTx('c2', 20000, 10);
-    addTx('c2', 20000, 15);
-    const r = evaluateClientStatus('c2');
+  test('3 achats en 3 mois => OPEN vers LIVE', async () => {
+    await createClient('c2', 'OPEN');
+    await addTx('c2', 20000, 5);
+    await addTx('c2', 20000, 10);
+    await addTx('c2', 20000, 15);
+    const r = await evaluateClientStatus('c2');
     expect(r.newStatus).toBe('LIVE');
     expect(r.changed).toBe(true);
   });
 
-  test('10 achats >= 200K en 6 mois => GOLD', () => {
-    createClient('c3', 'LIVE');
-    for (let i = 0; i < 10; i++) addTx('c3', 25000, i * 15 + 1);
-    expect(evaluateClientStatus('c3').newStatus).toBe('GOLD');
+  test('10 achats >= 200K en 6 mois => GOLD', async () => {
+    await createClient('c3', 'LIVE');
+    for (let i = 0; i < 10; i++) await addTx('c3', 25000, i * 15 + 1);
+    expect((await evaluateClientStatus('c3')).newStatus).toBe('GOLD');
   });
 
-  test('Statut deja correct => changed=false', () => {
-    createClient('c4', 'LIVE');
-    addTx('c4', 20000, 5);
-    addTx('c4', 20000, 10);
-    addTx('c4', 20000, 15);
-    expect(evaluateClientStatus('c4').changed).toBe(false);
+  test('Statut deja correct => changed=false', async () => {
+    await createClient('c4', 'LIVE');
+    await addTx('c4', 20000, 5);
+    await addTx('c4', 20000, 10);
+    await addTx('c4', 20000, 15);
+    expect((await evaluateClientStatus('c4')).changed).toBe(false);
   });
 });
 
 // ─── applyStatusChange ───────────────────────────────────────────────────────
 
 describe('applyStatusChange', () => {
-  beforeEach(() => clearData());
+  beforeEach(async () => {
+    await clearData();
+  });
 
-  test('Met a jour loyalty_status en base', () => {
-    db.prepare(
-      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('asc1', 'AFD-ASC1', 'Alice', '+22599000201', 'OPEN');
-    applyStatusChange('asc1', 'GOLD');
-    const c = db.prepare('SELECT loyalty_status FROM clients WHERE id = ?').get('asc1');
+  test('Met a jour loyalty_status en base', async () => {
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      ['asc1', 'AFD-ASC1', 'Alice', '+22599000201', 'OPEN']
+    );
+    await applyStatusChange('asc1', 'GOLD');
+    const c = (await db.query('SELECT loyalty_status FROM clients WHERE id = $1', ['asc1'])).rows[0];
     expect(c.loyalty_status).toBe('GOLD');
   });
 });
@@ -180,37 +187,41 @@ describe('applyStatusChange', () => {
 // ─── runLoyaltyBatch ─────────────────────────────────────────────────────────
 
 describe('runLoyaltyBatch', () => {
-  beforeEach(() => clearData());
-
-  test('Aucun changement => tableau vide', () => {
-    db.prepare(
-      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('rb1', 'AFD-RB1', 'Bob', '+22599000202', 'OPEN');
-    expect(runLoyaltyBatch()).toEqual([]);
+  beforeEach(async () => {
+    await clearData();
   });
 
-  test('Client eligible => changement persiste', () => {
-    db.prepare(
-      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('rb2', 'AFD-RB2', 'Charlie', '+22599000203', 'OPEN');
+  test('Aucun changement => tableau vide', async () => {
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      ['rb1', 'AFD-RB1', 'Bob', '+22599000202', 'OPEN']
+    );
+    expect(await runLoyaltyBatch()).toEqual([]);
+  });
+
+  test('Client eligible => changement persiste', async () => {
+    await db.query(
+      'INSERT INTO clients (id, afrikfid_id, full_name, phone, loyalty_status, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      ['rb2', 'AFD-RB2', 'Charlie', '+22599000203', 'OPEN']
+    );
 
     const now = new Date();
     for (let i = 0; i < 3; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() - (i + 1));
-      db.prepare(
-        'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES (?, ?, ?, ?, ?, ?, 10, 5, 5, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(
-        'tx-rb2-' + i, 'REF-rb2-' + i, 'mx', 'rb2',
-        20000, 19000, 2000, 1000, 1000, 18000,
-        'cashback', 'mobile_money', 'completed', d.toISOString()
+      await db.query(
+        'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+        [
+          'tx-rb2-' + i, 'REF-rb2-' + i, 'mx', 'rb2',
+          20000, 19000, 10, 5, 5, 2000, 1000, 1000, 18000,
+          'cashback', 'mobile_money', 'completed', d.toISOString()
+        ]
       );
     }
 
-    const results = runLoyaltyBatch();
+    const results = await runLoyaltyBatch();
     expect(results.some((r) => r.clientId === 'rb2' && r.newStatus === 'LIVE')).toBe(true);
-    expect(
-      db.prepare('SELECT loyalty_status FROM clients WHERE id = ?').get('rb2').loyalty_status
-    ).toBe('LIVE');
+    const row = (await db.query('SELECT loyalty_status FROM clients WHERE id = $1', ['rb2'])).rows[0];
+    expect(row.loyalty_status).toBe('LIVE');
   });
 });

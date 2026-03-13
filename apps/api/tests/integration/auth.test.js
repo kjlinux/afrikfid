@@ -2,39 +2,25 @@
 
 /**
  * Tests d'integration -- Authentification (Admin + Marchand)
- * Utilise le mock automatique src/lib/__mocks__/db.js (SQLite en memoire)
+ * Utilise PostgreSQL réel via src/lib/db
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 
 const request = require('supertest');
 const bcrypt = require('bcrypt');
 const app = require('../../src/index');
 const db = require('../../src/lib/db');
-
-function clearData() {
-  db.exec([
-    'DELETE FROM wallet_movements',
-    'DELETE FROM wallets',
-    'DELETE FROM distributions',
-    'DELETE FROM transactions',
-    'DELETE FROM payment_links',
-    'DELETE FROM webhook_events',
-    'DELETE FROM refunds',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
-}
+const { clearAll } = require('../helpers/test-db');
 
 describe('Auth -- Admin Login', () => {
   beforeAll(async () => {
-    clearData();
+    await clearAll();
     const hash = await bcrypt.hash('Admin@2026!', 10);
-    db.prepare(
-      'INSERT INTO admins (id, email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('admin-1', 'admin@test.af', hash, 'Admin Test', 'admin');
+    await db.query(
+      'INSERT INTO admins (id, email, password_hash, full_name, role, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)',
+      ['admin-1', 'admin@test.af', hash, 'Admin Test', 'admin']
+    );
   });
 
   test('succes login admin', async () => {
@@ -82,9 +68,10 @@ describe('Auth -- Middleware requireAdmin', () => {
 
   beforeAll(async () => {
     const hash = await bcrypt.hash('Admin@2026!', 10);
-    db.prepare(
-      'INSERT OR IGNORE INTO admins (id, email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-    ).run('admin-2', 'admin2@test.af', hash, 'Admin 2', 'admin');
+    await db.query(
+      'INSERT INTO admins (id, email, password_hash, full_name, role, is_active) VALUES ($1, $2, $3, $4, $5, TRUE) ON CONFLICT DO NOTHING',
+      ['admin-2', 'admin2@test.af', hash, 'Admin 2', 'admin']
+    );
 
     const res = await request(app)
       .post('/api/v1/auth/admin/login')
@@ -114,12 +101,14 @@ describe('Auth -- Middleware requireAdmin', () => {
 });
 
 describe('Auth -- requireApiKey', () => {
-  beforeAll(() => {
-    db.prepare(
-      'INSERT OR IGNORE INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
-    ).run('merch-test', 'Test Shop', 'shop@test.af', 10, 'cashback',
-      'af_pub_testkey123', 'af_sec_testkey123',
-      'af_sandbox_pub_testkey123', 'af_sandbox_sec_testkey123', 'active');
+  beforeAll(async () => {
+    await db.query(`
+      INSERT INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE)
+      ON CONFLICT DO NOTHING
+    `, ['merch-test', 'Test Shop', 'shop@test.af', 10, 'cashback',
+        'af_pub_testkey123', 'af_sec_testkey123',
+        'af_sandbox_pub_testkey123', 'af_sandbox_sec_testkey123', 'active']);
   });
 
   test('sans cle API => 401', async () => {
@@ -150,10 +139,12 @@ describe('Auth -- requireApiKey', () => {
 describe('Auth -- Merchant Login', () => {
   beforeAll(async () => {
     const hash = await bcrypt.hash('Merchant@2026!', 10);
-    db.prepare(
-      'INSERT OR IGNORE INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, is_active, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
-    ).run('merch-auth', 'Auth Shop', 'auth@test.af', 8, 'cashback',
-      'af_pub_auth', 'af_sec_auth', 'af_sandbox_pub_auth', 'af_sandbox_sec_auth', 'active', hash);
+    await db.query(`
+      INSERT INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, is_active, password_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, $11)
+      ON CONFLICT DO NOTHING
+    `, ['merch-auth', 'Auth Shop', 'auth@test.af', 8, 'cashback',
+        'af_pub_auth', 'af_sec_auth', 'af_sandbox_pub_auth', 'af_sandbox_sec_auth', 'active', hash]);
   });
 
   test('succes login marchand', async () => {

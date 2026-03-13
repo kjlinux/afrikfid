@@ -4,8 +4,7 @@
  * Tests d'intégration — Rapports (overview, transactions, exchange-rates)
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/workers/webhook-dispatcher', () => ({
   dispatchWebhook: jest.fn().mockResolvedValue({}),
   processRetryQueue: jest.fn().mockResolvedValue(0),
@@ -16,60 +15,62 @@ const request = require('supertest');
 const bcrypt = require('bcrypt');
 const app = require('../../src/index');
 const db = require('../../src/lib/db');
+const { clearAll } = require('../helpers/test-db');
 
-function clearData() {
-  db.exec([
-    'DELETE FROM distributions',
-    'DELETE FROM transactions',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
+async function clearData() {
+  await db.query('DELETE FROM distributions');
+  await db.query('DELETE FROM transactions');
+  await db.query('DELETE FROM clients');
+  await db.query('DELETE FROM merchants');
+  await db.query('DELETE FROM admins');
 }
 
 async function getAdminToken() {
   const hash = await bcrypt.hash('admin123', 8);
-  db.prepare("INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ('adm-rep', 'admin@reports.ci', ?, 'super_admin', 'Admin Test')").run(hash);
+  await db.query(
+    "INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ($1, $2, $3, $4, $5)",
+    ['adm-rep', 'admin@reports.ci', hash, 'super_admin', 'Admin Test']
+  );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@reports.ci', password: 'admin123' });
   return res.body.accessToken;
 }
 
-function seedMerchantAndTx() {
-  db.prepare(`
+async function seedMerchantAndTx() {
+  await db.query(`
     INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, is_active, currency)
-    VALUES ('mrc-rep', 'Marchand Reports', 'rep@test.ci', '+2250700002', 'CI', 8, 'cashback', 'active',
-      'k1', 'k2', 'k3', 'k4', 1, 'XOF')
-  `).run();
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE, $13)
+  `, ['mrc-rep', 'Marchand Reports', 'rep@test.ci', '+2250700002', 'CI', 8, 'cashback', 'active',
+      'k1', 'k2', 'k3', 'k4', 'XOF']);
 
   // 3 transactions complétées
   for (let i = 0; i < 3; i++) {
-    db.prepare(`
+    await db.query(`
       INSERT INTO transactions (id, reference, merchant_id, gross_amount, merchant_rebate_percent,
         client_rebate_percent, platform_commission_percent, merchant_rebate_amount,
         client_rebate_amount, platform_commission_amount, merchant_receives,
         net_client_amount, client_loyalty_status, rebate_mode, payment_method, status, currency)
-      VALUES (?, ?, 'mrc-rep', 10000, 8, 5, 3, 800, 500, 300, 9200, 9500, 'LIVE', 'cashback', 'mobile_money', 'completed', 'XOF')
-    `).run(`tx-rep-${i}`, `AFD-REP-${i}`);
+      VALUES ($1, $2, 'mrc-rep', 10000, 8, 5, 3, 800, 500, 300, 9200, 9500, 'LIVE', 'cashback', 'mobile_money', 'completed', 'XOF')
+    `, [`tx-rep-${i}`, `AFD-REP-${i}`]);
   }
 
   // 1 transaction échouée
-  db.prepare(`
+  await db.query(`
     INSERT INTO transactions (id, reference, merchant_id, gross_amount, merchant_rebate_percent,
       client_rebate_percent, platform_commission_percent, merchant_rebate_amount,
       client_rebate_amount, platform_commission_amount, merchant_receives,
       net_client_amount, client_loyalty_status, rebate_mode, payment_method, status, currency)
-    VALUES ('tx-rep-fail', 'AFD-REP-FAIL', 'mrc-rep', 5000, 8, 0, 8, 400, 0, 400, 4600, 5000, 'OPEN', 'cashback', 'mobile_money', 'failed', 'XOF')
-  `).run();
+    VALUES ($1, $2, 'mrc-rep', 5000, 8, 0, 8, 400, 0, 400, 4600, 5000, 'OPEN', 'cashback', 'mobile_money', 'failed', 'XOF')
+  `, ['tx-rep-fail', 'AFD-REP-FAIL']);
 }
 
 describe('Rapports — Overview global (admin)', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
-    seedMerchantAndTx();
+    await seedMerchantAndTx();
   });
 
   test('GET /reports/overview — retourne les KPIs', async () => {
@@ -107,9 +108,9 @@ describe('Rapports — Transactions (admin)', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
-    seedMerchantAndTx();
+    await seedMerchantAndTx();
   });
 
   test('GET /reports/transactions — liste paginée', async () => {
@@ -145,7 +146,7 @@ describe('Rapports — Taux de change (admin)', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
   });
 
@@ -189,9 +190,9 @@ describe('Rapports — Taux de change (admin)', () => {
   });
 
   test('GET /reports/overview-normalized — retourne volume normalisé EUR', async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
-    seedMerchantAndTx();
+    await seedMerchantAndTx();
 
     const res = await request(app)
       .get('/api/v1/reports/overview-normalized?period=30d')

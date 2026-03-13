@@ -4,80 +4,78 @@
  * Tests unitaires — Devises (lib/currency.js)
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 
-const db = require('../../src/lib/db');
 const { getExchangeRate, convertAmount, toEUR, updateExchangeRate, getAllRates, formatAmount, getCurrencyMeta } = require('../../src/lib/currency');
 
 describe('getExchangeRate', () => {
-  test('retourne un taux pour XOF → EUR (seedé en migration 003)', () => {
-    const rate = getExchangeRate('XOF', 'EUR');
+  test('retourne un taux pour XOF → EUR (seedé en migration 003)', async () => {
+    const rate = await getExchangeRate('XOF', 'EUR');
     expect(typeof rate).toBe('number');
     expect(rate).toBeGreaterThan(0);
   });
 
-  test('retourne 1 pour même devise (XOF → XOF)', () => {
-    const rate = getExchangeRate('XOF', 'XOF');
+  test('retourne 1 pour même devise (XOF → XOF)', async () => {
+    const rate = await getExchangeRate('XOF', 'XOF');
     expect(rate).toBe(1);
   });
 
-  test('retourne null pour paire inconnue', () => {
-    const rate = getExchangeRate('XOF', 'JPY');
+  test('retourne null pour paire inconnue', async () => {
+    const rate = await getExchangeRate('XOF', 'JPY');
     expect(rate).toBeNull();
   });
 });
 
 describe('convertAmount', () => {
-  test('convertit XOF en EUR', () => {
-    const eurAmount = convertAmount(655000, 'XOF', 'EUR');
+  test('convertit XOF en EUR', async () => {
+    const eurAmount = await convertAmount(655000, 'XOF', 'EUR');
     expect(eurAmount).toBeGreaterThan(0);
     expect(eurAmount).toBeLessThan(10000); // Taux approximatif ~0.00152
   });
 
-  test('retourne montant identique si même devise', () => {
-    expect(convertAmount(1000, 'XOF', 'XOF')).toBe(1000);
+  test('retourne montant identique si même devise', async () => {
+    expect(await convertAmount(1000, 'XOF', 'XOF')).toBe(1000);
   });
 
-  test('retourne null si paire inconnue', () => {
-    expect(convertAmount(1000, 'XOF', 'JPY')).toBeNull();
+  test('retourne null si paire inconnue', async () => {
+    expect(await convertAmount(1000, 'XOF', 'JPY')).toBeNull();
   });
 });
 
 describe('toEUR', () => {
-  test('convertit XOF en EUR', () => {
-    const eur = toEUR(655957, 'XOF');
+  test('convertit XOF en EUR', async () => {
+    const eur = await toEUR(655957, 'XOF');
     expect(typeof eur).toBe('number');
     expect(eur).toBeGreaterThan(0);
   });
 
-  test('retourne le montant inchangé si devise est EUR', () => {
-    expect(toEUR(100, 'EUR')).toBe(100);
+  test('retourne le montant inchangé si devise est EUR', async () => {
+    expect(await toEUR(100, 'EUR')).toBe(100);
   });
 
-  test('retourne 0 pour devise inconnue', () => {
-    const result = toEUR(1000, 'JPY');
+  test('retourne 0 pour devise inconnue', async () => {
+    const result = await toEUR(1000, 'JPY');
     expect(result == null || result === 0).toBe(true);
   });
 });
 
 describe('updateExchangeRate', () => {
-  test('met à jour le taux XOF/EUR', () => {
-    updateExchangeRate('XOF', 'EUR', 0.002);
-    const rate = getExchangeRate('XOF', 'EUR');
+  test('met à jour le taux XOF/EUR', async () => {
+    await updateExchangeRate('XOF', 'EUR', 0.002);
+    const rate = await getExchangeRate('XOF', 'EUR');
     expect(rate).toBe(0.002);
   });
 
-  test('insère un nouveau taux si paire inexistante', () => {
-    updateExchangeRate('XOF', 'USD', 0.0017);
-    const rate = getExchangeRate('XOF', 'USD');
+  test('insère un nouveau taux si paire inexistante', async () => {
+    await updateExchangeRate('XOF', 'USD', 0.0017);
+    const rate = await getExchangeRate('XOF', 'USD');
     expect(rate).toBe(0.0017);
   });
 });
 
 describe('getAllRates', () => {
-  test('retourne un tableau de taux', () => {
-    const rates = getAllRates();
+  test('retourne un tableau de taux', async () => {
+    const rates = await getAllRates();
     expect(Array.isArray(rates)).toBe(true);
     expect(rates.length).toBeGreaterThan(0);
     expect(rates[0]).toHaveProperty('from_currency');

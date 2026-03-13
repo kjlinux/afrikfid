@@ -4,8 +4,7 @@
  * Tests d'intégration — Marchands (admin CRUD + profil marchand)
  */
 
-jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/workers/webhook-dispatcher', () => ({
   dispatchWebhook: jest.fn().mockResolvedValue({}),
   processRetryQueue: jest.fn().mockResolvedValue(0),
@@ -16,33 +15,35 @@ const request = require('supertest');
 const bcrypt = require('bcrypt');
 const app = require('../../src/index');
 const db = require('../../src/lib/db');
+const { clearAll } = require('../helpers/test-db');
 
-function clearData() {
-  db.exec([
-    'DELETE FROM transactions',
-    'DELETE FROM payment_links',
-    'DELETE FROM clients',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
+async function clearData() {
+  await db.query('DELETE FROM transactions');
+  await db.query('DELETE FROM payment_links');
+  await db.query('DELETE FROM clients');
+  await db.query('DELETE FROM merchants');
+  await db.query('DELETE FROM admins');
 }
 
 async function getAdminToken() {
   const hash = await bcrypt.hash('admin123', 8);
-  db.prepare("INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ('adm-01', 'admin@test.ci', ?, 'super_admin', 'Admin Test')").run(hash);
+  await db.query(
+    "INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ($1, $2, $3, $4, $5)",
+    ['adm-01', 'admin@test.ci', hash, 'super_admin', 'Admin Test']
+  );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@test.ci', password: 'admin123' });
   return res.body.accessToken;
 }
 
 async function getMerchantToken(email = 'marchand@test.ci', password = 'pass123') {
   const hash = await bcrypt.hash(password, 8);
-  db.prepare(`
+  await db.query(`
     INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
       password_hash, is_active, currency)
-    VALUES ('mrc-01', 'Chez Koffi', ?, '+2250701001', 'CI', 5, 'cashback', 'active', 'approved',
-      'af_live_pub_001', 'af_live_sec_001', 'af_sandbox_pub_001', 'af_sandbox_sec_001', ?, 1, 'XOF')
-  `).run(email, hash);
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE, $15)
+  `, ['mrc-01', 'Chez Koffi', email, '+2250701001', 'CI', 5, 'cashback', 'active', 'approved',
+      'af_live_pub_001', 'af_live_sec_001', 'af_sandbox_pub_001', 'af_sandbox_sec_001', hash, 'XOF']);
   const res = await request(app).post('/api/v1/auth/merchant/login').send({ email, password });
   return res.body.accessToken;
 }
@@ -51,7 +52,7 @@ describe('Marchands — Admin CRUD', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
   });
 
@@ -141,7 +142,7 @@ describe('Marchands — Profil et stats (marchand connecté)', () => {
   let merchantToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     merchantToken = await getMerchantToken();
   });
 
