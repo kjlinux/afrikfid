@@ -9,7 +9,7 @@ const { validate } = require('../middleware/validate');
 const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
-const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed } = require('../lib/notifications');
+const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed, notifyFraudBlocked } = require('../lib/notifications');
 const { checkTransaction } = require('../lib/fraud');
 const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
@@ -90,6 +90,15 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
   const distribution = await calculateDistribution(amount, merchant.rebate_percent, loyaltyStatus, clientCountryId);
 
   if (distribution.yExceedsX) {
+    // Alerte admin pour anomalie de configuration (CDC §4.1.4)
+    notifyFraudBlocked({
+      amount,
+      currency: merchant.currency || 'XOF',
+      merchantName: merchant.name,
+      clientPhone: client ? client.phone : 'inconnu',
+      reason: `Anomalie config: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
+      riskScore: 100,
+    }).catch(() => {});
     return res.status(422).json({
       error: 'DISTRIBUTION_ERROR',
       message: `Taux client Y (${distribution.clientRebatePercent}%) supérieur au taux marchand X (${distribution.merchantRebatePercent}%). Anomalie de configuration.`,
@@ -394,6 +403,48 @@ router.post('/mm/airtel/notify', async (req, res) => {
   }
 });
 
+// POST /api/v1/payments/mm/mtn/notify (MTN MoMo callback)
+router.post('/mm/mtn/notify', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
+
+  try {
+    const body = req.body || {};
+    // MTN MoMo utilise X-Callback-Api-Key pour l'authentification
+    if (process.env.MTN_CALLBACK_API_KEY) {
+      const apiKey = req.headers['x-callback-api-key'];
+      if (apiKey !== process.env.MTN_CALLBACK_API_KEY) {
+        console.warn('[mtn/notify] Clé API callback invalide');
+        return;
+      }
+    }
+
+    // Format MTN MoMo: { financialTransactionId, externalId, status, reason }
+    const externalId = body?.externalId || body?.external_id;
+    const financialTransactionId = body?.financialTransactionId;
+    const statusCode = body?.status;
+    if (!externalId && !financialTransactionId) return;
+
+    // L'externalId correspond à la référence de transaction Afrik'Fid
+    const reference = externalId || financialTransactionId;
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE (reference = $1 OR operator_reference = $1) AND status = 'pending'",
+      [reference]
+    )).rows[0];
+    if (!tx) return;
+
+    const normalizedStatus = String(statusCode || '').toUpperCase();
+    if (normalizedStatus === 'SUCCESSFUL') {
+      await processCompletedPayment(tx);
+    } else if (['FAILED', 'REJECTED', 'TIMEOUT', 'EXPIRED'].includes(normalizedStatus)) {
+      const reason = body?.reason?.message || body?.reason || normalizedStatus;
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`MTN: ${reason}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[mtn/notify]', err.message);
+  }
+});
+
 // POST /api/v1/payments/:id/confirm (sandbox)
 router.post('/:id/confirm', requireApiKey, async (req, res) => {
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2', [req.params.id, req.merchant.id])).rows[0];
@@ -435,6 +486,12 @@ router.post('/:id/refund', requireApiKey, validate(RefundSchema), async (req, re
 
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
   if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
+
+  // Vérification délai maximum 72h (CDC §4.4)
+  const hoursElapsed = (Date.now() - new Date(tx.completed_at).getTime()) / 3600000;
+  if (hoursElapsed > 72) {
+    return res.status(422).json({ error: 'Délai de remboursement dépassé (72h maximum après la transaction)', hours_elapsed: Math.round(hoursElapsed) });
+  }
 
   const grossAmount = parseFloat(tx.gross_amount);
   const refundAmount = refund_type === 'full' ? grossAmount : Math.min(parseFloat(amount || grossAmount), grossAmount);
@@ -532,6 +589,14 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
   const distribution = await calculateDistribution(amount, merchant.rebate_percent, client.loyalty_status, clientCountryId);
 
   if (distribution.yExceedsX) {
+    notifyFraudBlocked({
+      amount,
+      currency: merchant.currency || 'XOF',
+      merchantName: merchant.name,
+      clientPhone: client.phone || 'inconnu',
+      reason: `Anomalie config wallet: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
+      riskScore: 100,
+    }).catch(() => {});
     return res.status(422).json({ error: 'DISTRIBUTION_ERROR', message: 'Taux Y supérieur à X. Anomalie de configuration.' });
   }
 
@@ -684,6 +749,23 @@ async function processCompletedPayment(tx) {
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);
 
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
+
+  // Journalisation audit_log pour conformité BCEAO/BEAC (CDC §4.1.3 étape 7)
+  db.query(
+    `INSERT INTO audit_logs (id, action, entity_type, entity_id, actor_type, actor_id, metadata, created_at)
+     VALUES ($1, 'payment.completed', 'transaction', $2, 'system', 'gateway', $3, NOW())`,
+    [uuidv4(), tx.id, JSON.stringify({
+      reference: tx.reference,
+      merchant_id: tx.merchant_id,
+      client_id: tx.client_id || null,
+      gross_amount: tx.gross_amount,
+      currency: tx.currency,
+      merchant_rebate_amount: tx.merchant_rebate_amount,
+      client_rebate_amount: tx.client_rebate_amount,
+      platform_commission_amount: tx.platform_commission_amount,
+      payment_operator: tx.payment_operator,
+    })]
+  ).catch(() => {});
 
   // Notifier les clients SSE en temps réel
   emit(SSE_EVENTS.PAYMENT_SUCCESS, {

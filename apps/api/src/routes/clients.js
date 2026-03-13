@@ -48,7 +48,12 @@ router.get('/', requireAdmin, async (req, res) => {
   let idx = 1;
 
   if (status) { sql += ` AND c.loyalty_status = $${idx++}`; params.push(status); }
-  if (q) { sql += ` AND (c.full_name ILIKE $${idx++} OR c.phone ILIKE $${idx++} OR c.afrikfid_id ILIKE $${idx++})`; params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  if (q) {
+    // phone et email sont chiffrés AES-256-GCM — recherche via leur hash HMAC-SHA256
+    const qHash = hashField(q);
+    sql += ` AND (c.full_name ILIKE $${idx++} OR c.phone_hash = $${idx++} OR c.email_hash = $${idx++} OR c.afrikfid_id ILIKE $${idx++})`;
+    params.push(`%${q}%`, qHash, qHash, `%${q}%`);
+  }
 
   sql += ` ORDER BY c.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (page - 1) * limit);

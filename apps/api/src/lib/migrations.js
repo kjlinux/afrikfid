@@ -407,6 +407,73 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_gdpr_requests_client ON gdpr_export_requests(client_id);
     `,
   },
+  {
+    version: 11,
+    name: '011_disbursements',
+    up: `
+      -- Table de règlement automatique vers les marchands (CDC §4.1.3 — distribution fonds)
+      CREATE TABLE IF NOT EXISTS disbursements (
+        id TEXT PRIMARY KEY,
+        beneficiary_type TEXT NOT NULL DEFAULT 'merchant',
+        beneficiary_id TEXT NOT NULL REFERENCES merchants(id),
+        transaction_id TEXT REFERENCES transactions(id),
+        amount NUMERIC NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'XOF',
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'pending_manual', 'completed', 'failed')),
+        operator TEXT,
+        operator_ref TEXT,
+        executed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_disbursements_beneficiary ON disbursements(beneficiary_type, beneficiary_id);
+      CREATE INDEX IF NOT EXISTS idx_disbursements_status ON disbursements(status);
+      CREATE INDEX IF NOT EXISTS idx_disbursements_created ON disbursements(created_at);
+
+      -- Colonne settlement_frequency sur merchants si absente
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS settlement_frequency TEXT DEFAULT 'daily'
+        CHECK (settlement_frequency IN ('instant', 'daily', 'weekly', 'monthly'));
+
+      -- Colonnes mobile money paiement sortant pour les marchands
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS mm_phone TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS mm_operator TEXT DEFAULT NULL;
+    `,
+  },
+  {
+    version: 12,
+    name: '012_loyalty_config_category',
+    up: `
+      -- Taux Y% par catégorie marchand (CDC §2.5 — taux configurables par pays et catégorie)
+      CREATE TABLE IF NOT EXISTS loyalty_config_category (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL,
+        status TEXT NOT NULL,
+        client_rebate_percent NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (category, status)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_loyalty_config_category ON loyalty_config_category(category, status);
+    `,
+  },
+  {
+    version: 13,
+    name: '013_encryption_key_rotation',
+    up: `
+      -- Versioning des clés AES-256-GCM (CDC §5.4.1 — rotation tous les 90j, PCI-DSS)
+      CREATE TABLE IF NOT EXISTS encryption_keys (
+        id TEXT PRIMARY KEY,
+        version INTEGER NOT NULL UNIQUE,
+        key_hex TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_encryption_keys_active ON encryption_keys(is_active, version DESC);
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

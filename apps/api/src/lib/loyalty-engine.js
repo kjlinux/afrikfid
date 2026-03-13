@@ -13,11 +13,21 @@ async function getLoyaltyConfig() {
 
 /**
  * Retourne le taux Y% pour un statut donné.
- * Si countryId est fourni, cherche d'abord une surcharge par pays (CDC §2.5).
+ * Priorité (CDC §2.5): catégorie marchand > pays > global
  * @param {string} loyaltyStatus
  * @param {string|null} countryId
+ * @param {string|null} merchantCategory
  */
-async function getClientRebatePercent(loyaltyStatus, countryId = null) {
+async function getClientRebatePercent(loyaltyStatus, countryId = null, merchantCategory = null) {
+  // Priorité 1 : surcharge par catégorie marchand
+  if (merchantCategory) {
+    const catOverride = await db.query(
+      'SELECT client_rebate_percent FROM loyalty_config_category WHERE status = $1 AND category = $2',
+      [loyaltyStatus, merchantCategory]
+    );
+    if (catOverride.rows[0]) return parseFloat(catOverride.rows[0].client_rebate_percent);
+  }
+  // Priorité 2 : surcharge par pays
   if (countryId) {
     const override = await db.query(
       'SELECT client_rebate_percent FROM loyalty_config_country WHERE status = $1 AND country_id = $2',
@@ -25,13 +35,14 @@ async function getClientRebatePercent(loyaltyStatus, countryId = null) {
     );
     if (override.rows[0]) return parseFloat(override.rows[0].client_rebate_percent);
   }
+  // Priorité 3 : taux global
   const res = await db.query('SELECT client_rebate_percent FROM loyalty_config WHERE status = $1', [loyaltyStatus]);
   return res.rows[0] ? parseFloat(res.rows[0].client_rebate_percent) : 0;
 }
 
-async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null) {
+async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null, merchantCategory = null) {
   const X = merchantRebatePercent;
-  const Y = await getClientRebatePercent(clientLoyaltyStatus, countryId);
+  const Y = await getClientRebatePercent(clientLoyaltyStatus, countryId, merchantCategory);
 
   const effectiveY = Math.min(Y, X);
   const Z = X - effectiveY;

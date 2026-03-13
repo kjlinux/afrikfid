@@ -13,6 +13,7 @@ import AdminWebhooks from './pages/admin/Webhooks.jsx'
 import AdminFraud from './pages/admin/Fraud.jsx'
 import AdminExchangeRates from './pages/admin/ExchangeRates.jsx'
 import AdminAuditLogs from './pages/admin/AuditLogs.jsx'
+import AdminRefunds from './pages/admin/Refunds.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
@@ -67,6 +68,7 @@ function AdminLayout({ children }) {
     { path: '/admin/webhooks', label: 'Webhooks', icon: '🔔' },
     { path: '/admin/fraud', label: 'Fraude', icon: '🛡️' },
     { path: '/admin/exchange-rates', label: 'Taux de change', icon: '💱' },
+    { path: '/admin/refunds', label: 'Remboursements', icon: '↩️' },
     { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: '📋' },
   ]
 
@@ -182,6 +184,7 @@ export default function App() {
           <Route path="/admin/webhooks" element={<Protected role="admin"><AdminLayout><AdminWebhooks /></AdminLayout></Protected>} />
           <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
           <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
+          <Route path="/admin/refunds" element={<Protected role="admin"><AdminLayout><AdminRefunds /></AdminLayout></Protected>} />
           <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
 
           {/* Merchant */}

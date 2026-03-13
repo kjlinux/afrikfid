@@ -266,4 +266,31 @@ router.get('/transactions/pdf', requireAdmin, async (req, res) => {
   doc.end();
 });
 
+// GET /api/v1/reports/refunds (admin) — liste paginée des remboursements (CDC §4.6.1)
+router.get('/refunds', requireAdmin, async (req, res) => {
+  const { page = 1, limit = 20, status, refund_type, q } = req.query;
+  let sql = `
+    SELECT r.*, t.reference as transaction_reference, t.currency, m.name as merchant_name
+    FROM refunds r
+    LEFT JOIN transactions t ON r.transaction_id = t.id
+    LEFT JOIN merchants m ON t.merchant_id = m.id
+    WHERE 1=1
+  `;
+  const params = [];
+  let idx = 1;
+
+  if (status) { sql += ` AND r.status = $${idx++}`; params.push(status); }
+  if (refund_type) { sql += ` AND r.refund_type = $${idx++}`; params.push(refund_type); }
+  if (q) { sql += ` AND (t.reference ILIKE $${idx++} OR m.name ILIKE $${idx++})`; params.push(`%${q}%`, `%${q}%`); }
+
+  const countSql = sql.replace(/SELECT r\.\*.*FROM refunds r/, 'SELECT COUNT(*) as c FROM refunds r');
+  const total = parseInt((await db.query(countSql, params)).rows[0]?.c || 0);
+
+  sql += ` ORDER BY r.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+  const refunds = (await db.query(sql, params)).rows;
+  res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
 module.exports = router;

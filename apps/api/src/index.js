@@ -10,6 +10,7 @@ const { runMigrations } = require('./lib/migrations');
 const { processRetryQueue, dispatchWebhook, WebhookEvents } = require('./workers/webhook-dispatcher');
 const { processExpiredTransactions } = require('./workers/transaction-expiry');
 const { processDisbursements } = require('./workers/disbursement');
+const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
 const swaggerUi = require('swagger-ui-express');
@@ -32,7 +33,21 @@ const app = express();
 const PORT = process.env.PORT || 4001;
 
 // ─── Middleware ────────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline requis pour Swagger UI embarqué
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", 'https:', 'data:'],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+}));
 
 // CORS — liste blanche configurable via CORS_ORIGINS (CSV). '*' uniquement en dev/test.
 const CORS_ORIGINS = process.env.CORS_ORIGINS
@@ -125,78 +140,68 @@ try {
   console.warn('[docs] Swagger UI non disponible:', e.message);
 }
 
-// ─── Prometheus Metrics ────────────────────────────────────────────────────
-// Compteurs en mémoire (remis à zéro au redémarrage du processus)
-const _metrics = {
-  http_requests_total: 0,
-  http_errors_total: 0,
-  payment_initiated_total: 0,
-  payment_completed_total: 0,
-  payment_failed_total: 0,
-};
+// ─── Prometheus Metrics (prom-client — CDC §5.5 SLA P95 < 2s) ────────────────
+const promClient = require('prom-client');
+const promRegistry = new promClient.Registry();
+promClient.collectDefaultMetrics({ register: promRegistry, prefix: 'afrikfid_node_' });
 
-// Middleware de comptage des requêtes (exclut /health et /metrics)
+// Histogramme de latence HTTP — permet de mesurer P50/P95/P99 (CDC §5.5)
+const httpRequestDurationMs = new promClient.Histogram({
+  name: 'afrikfid_http_request_duration_ms',
+  help: 'Durée des requêtes HTTP en millisecondes',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [50, 100, 200, 500, 1000, 2000, 5000],
+  registers: [promRegistry],
+});
+
+const httpRequestsTotal = new promClient.Counter({
+  name: 'afrikfid_http_requests_total',
+  help: 'Nombre total de requêtes HTTP reçues',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [promRegistry],
+});
+
+const paymentCounter = new promClient.Counter({
+  name: 'afrikfid_payments_total',
+  help: 'Transactions de paiement par statut',
+  labelNames: ['status', 'operator', 'currency'],
+  registers: [promRegistry],
+});
+
+const webhookQueueDepth = new promClient.Gauge({
+  name: 'afrikfid_webhook_queue_depth',
+  help: 'Webhooks en attente ou en retry',
+  registers: [promRegistry],
+});
+
+// Exposer les compteurs de paiement pour les routes
+app.set('paymentCounter', paymentCounter);
+app.set('webhookQueueDepth', webhookQueueDepth);
+
+// Middleware de mesure de latence (exclut /health et /metrics)
 app.use((req, res, next) => {
-  if (req.path !== '/api/v1/health' && req.path !== '/api/v1/metrics') {
-    _metrics.http_requests_total++;
-    res.on('finish', () => { if (res.statusCode >= 500) _metrics.http_errors_total++; });
-  }
+  if (req.path === '/api/v1/health' || req.path === '/api/v1/metrics') return next();
+  const start = Date.now();
+  res.on('finish', () => {
+    const route = req.route ? req.baseUrl + req.route.path : req.path;
+    const duration = Date.now() - start;
+    const labels = { method: req.method, route, status_code: res.statusCode };
+    httpRequestDurationMs.observe(labels, duration);
+    httpRequestsTotal.inc(labels);
+  });
   next();
 });
 
-// Exposer un compteur depuis les routes paiements
-app.set('metrics', _metrics);
-
 app.get('/api/v1/metrics', async (req, res) => {
   const db = require('./lib/db');
-  const uptimeSeconds = Math.floor((Date.now() - _startTime) / 1000);
-
-  let txStats = { completed: 0, failed: 0, pending: 0, total_volume: 0 };
-  let pendingWebhooks = 0;
   try {
-    const txRes = await db.query(`
-      SELECT
-        COUNT(CASE WHEN status='completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status='failed'    THEN 1 END) as failed,
-        COUNT(CASE WHEN status='pending'   THEN 1 END) as pending,
-        COALESCE(SUM(CASE WHEN status='completed' THEN gross_amount ELSE 0 END), 0) as total_volume
-      FROM transactions
-    `);
-    txStats = txRes.rows[0];
-    pendingWebhooks = parseInt((await db.query("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')")).rows[0].c);
+    // Actualiser la jauge des webhooks depuis la BDD
+    const wRes = await db.query("SELECT COUNT(*) as c FROM webhook_events WHERE status IN ('pending','retry')");
+    webhookQueueDepth.set(parseInt(wRes.rows[0]?.c || 0));
   } catch (_) { /* db not ready */ }
 
-  const lines = [
-    '# HELP afrikfid_uptime_seconds Uptime du processus en secondes',
-    '# TYPE afrikfid_uptime_seconds gauge',
-    `afrikfid_uptime_seconds ${uptimeSeconds}`,
-    '',
-    '# HELP afrikfid_http_requests_total Nombre total de requêtes HTTP reçues',
-    '# TYPE afrikfid_http_requests_total counter',
-    `afrikfid_http_requests_total ${_metrics.http_requests_total}`,
-    '',
-    '# HELP afrikfid_http_errors_total Nombre de réponses HTTP 5xx',
-    '# TYPE afrikfid_http_errors_total counter',
-    `afrikfid_http_errors_total ${_metrics.http_errors_total}`,
-    '',
-    '# HELP afrikfid_transactions_total Transactions par statut',
-    '# TYPE afrikfid_transactions_total gauge',
-    `afrikfid_transactions_total{status="completed"} ${txStats.completed}`,
-    `afrikfid_transactions_total{status="failed"} ${txStats.failed}`,
-    `afrikfid_transactions_total{status="pending"} ${txStats.pending}`,
-    '',
-    '# HELP afrikfid_total_volume_xof Volume total traité (transactions complétées) en XOF',
-    '# TYPE afrikfid_total_volume_xof counter',
-    `afrikfid_total_volume_xof ${txStats.total_volume}`,
-    '',
-    '# HELP afrikfid_webhook_queue_depth Webhooks en attente ou en retry',
-    '# TYPE afrikfid_webhook_queue_depth gauge',
-    `afrikfid_webhook_queue_depth ${pendingWebhooks}`,
-    '',
-  ];
-
-  res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
-  res.send(lines.join('\n'));
+  res.set('Content-Type', promRegistry.contentType);
+  res.send(await promRegistry.metrics());
 });
 
 // ─── Sandbox: Confirmer un paiement automatiquement ───────────────────────
@@ -268,6 +273,22 @@ if (process.env.NODE_ENV !== 'test') {
     if (process.env.OPENEXCHANGERATES_APP_ID || process.env.FIXER_API_KEY) {
       const result = await refreshExchangeRates();
       if (result.updated > 0) console.log(`💱 Taux de change mis à jour (${result.source}): ${result.updated} paires`);
+    }
+  }, null, true, 'Africa/Abidjan');
+
+  // Rotation automatique des clés AES-256-GCM: vérification quotidienne à 03h00 (CDC §5.4.1 — PCI-DSS 90j)
+  new CronJob('0 3 * * *', async () => {
+    try {
+      if (await isRotationDue()) {
+        console.log('🔑 Rotation des clés de chiffrement déclenchée...');
+        const { version } = await rotateKey();
+        console.log(`✅ Clé v${version} activée`);
+      }
+      // Re-chiffrement progressif des enregistrements avec l'ancienne clé
+      const { reencrypted } = await reencryptPendingRecords();
+      if (reencrypted > 0) console.log(`🔒 ${reencrypted} enregistrements re-chiffrés`);
+    } catch (err) {
+      console.error('[key-rotation] Erreur:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
 
