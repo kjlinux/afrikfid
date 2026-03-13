@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import api from '../../api.js'
-import { fmt, KpiCard, Card, PeriodSelector, Spinner, exportCsv, Alert, Badge } from '../../components/ui.jsx'
+import { fmt, KpiCard, Card, PeriodSelector, Spinner, exportCsv, exportPdf, Alert, Badge } from '../../components/ui.jsx'
 
 const POLL_INTERVAL = 30000 // 30s auto-refresh
 const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
@@ -31,15 +31,22 @@ export default function AdminDashboard() {
     return () => clearInterval(timerRef.current)
   }, [load])
 
+  const VOLUME_COLS = [
+    { label: 'Date', key: 'day' },
+    { label: 'Volume (XOF)', key: 'volume' },
+    { label: 'Transactions', key: 'count' },
+  ]
+
   const handleExportCsv = () => {
     if (!data?.dailyVolume?.length) return
-    exportCsv(data.dailyVolume, [
-      { label: 'Date', key: 'day' },
-      { label: 'Volume (XOF)', key: 'volume' },
-      { label: 'Transactions', key: 'count' },
-    ], `afrikfid-volume-${period}j.csv`)
+    exportCsv(data.dailyVolume, VOLUME_COLS, `afrikfid-volume-${period}j.csv`)
     setAlertMsg({ type: 'success', text: 'Export CSV téléchargé !' })
     setTimeout(() => setAlertMsg(null), 3000)
+  }
+
+  const handleExportPdf = () => {
+    if (!data?.dailyVolume?.length) return
+    exportPdf(data.dailyVolume, VOLUME_COLS, `Rapport Volume — ${period} derniers jours`, `${merchantCount} marchands · ${clientCount} clients`)
   }
 
   if (loading && !data) return <Spinner />
@@ -65,6 +72,10 @@ export default function AdminDashboard() {
           <button onClick={handleExportCsv}
             style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             ↓ Export CSV
+          </button>
+          <button onClick={handleExportPdf}
+            style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ Export PDF
           </button>
           <PeriodSelector value={period} onChange={setPeriod} />
         </div>

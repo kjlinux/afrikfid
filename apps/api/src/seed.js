@@ -35,7 +35,7 @@ async function seed() {
     { id: 'LC-OPEN',  status: 'OPEN',  client_rebate_percent: 0,  label: 'Open',  color: '#6B7280', sort_order: 0, min_purchases: 0,  min_cumulative_amount: 0,       evaluation_months: 3,  inactivity_months: 12 },
     { id: 'LC-LIVE',  status: 'LIVE',  client_rebate_percent: 5,  label: 'Live',  color: '#3B82F6', sort_order: 1, min_purchases: 3,  min_cumulative_amount: 50000,   evaluation_months: 3,  inactivity_months: 6 },
     { id: 'LC-GOLD',  status: 'GOLD',  client_rebate_percent: 8,  label: 'Gold',  color: '#F59E0B', sort_order: 2, min_purchases: 10, min_cumulative_amount: 200000,  evaluation_months: 6,  inactivity_months: 6 },
-    { id: 'LC-ROYAL', status: 'ROYAL', client_rebate_percent: 10, label: 'Royal', color: '#8B5CF6', sort_order: 3, min_purchases: 30, min_cumulative_amount: 1000000, evaluation_months: 12, inactivity_months: 12 },
+    { id: 'LC-ROYAL', status: 'ROYAL', client_rebate_percent: 12, label: 'Royal', color: '#8B5CF6', sort_order: 3, min_purchases: 30, min_cumulative_amount: 1000000, evaluation_months: 12, inactivity_months: 12 },
   ];
 
   for (const lc of loyaltyConfigs) {
@@ -113,7 +113,7 @@ async function seed() {
 
   const amounts = [15000, 25000, 50000, 75000, 100000, 150000, 200000];
   const operators = ['ORANGE', 'MTN', 'WAVE'];
-  const loyaltyRates = { OPEN: 0, LIVE: 5, GOLD: 8, ROYAL: 10 };
+  const loyaltyRates = { OPEN: 0, LIVE: 5, GOLD: 8, ROYAL: 12 };
   let txCount = 0;
 
   for (let i = 0; i < 50; i++) {

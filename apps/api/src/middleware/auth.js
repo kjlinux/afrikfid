@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../lib/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
+const redis = require('../lib/redis');
 
 /**
  * Middleware d'authentification JWT pour les admins
@@ -13,6 +15,11 @@ async function requireAdmin(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'admin') return res.status(403).json({ error: 'Accès interdit' });
+
+    // Vérifier que le token n'a pas été révoqué (logout)
+    if (decoded.jti && await redis.exists(`revoked:${decoded.jti}`)) {
+      return res.status(401).json({ error: 'Token révoqué. Reconnectez-vous.' });
+    }
 
     const result = await db.query('SELECT * FROM admins WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
     const admin = result.rows[0];
@@ -64,6 +71,11 @@ async function requireMerchant(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'merchant') return res.status(403).json({ error: 'Accès interdit' });
 
+    // Vérifier que le token n'a pas été révoqué (logout)
+    if (decoded.jti && await redis.exists(`revoked:${decoded.jti}`)) {
+      return res.status(401).json({ error: 'Token révoqué. Reconnectez-vous.' });
+    }
+
     const result = await db.query('SELECT * FROM merchants WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
     const merchant = result.rows[0];
     if (!merchant) return res.status(401).json({ error: 'Session invalide' });
@@ -106,8 +118,10 @@ async function requireAuth(req, res, next) {
 }
 
 function generateTokens(payload) {
-  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ ...payload, type: 'refresh' }, JWT_SECRET, { expiresIn: '7d' });
+  const jtiAccess = crypto.randomBytes(16).toString('hex');
+  const jtiRefresh = crypto.randomBytes(16).toString('hex');
+  const accessToken = jwt.sign({ ...payload, jti: jtiAccess }, JWT_SECRET, { expiresIn: '15m' });
+  const refreshToken = jwt.sign({ ...payload, type: 'refresh', jti: jtiRefresh }, JWT_SECRET, { expiresIn: '7d' });
   return { accessToken, refreshToken };
 }
 

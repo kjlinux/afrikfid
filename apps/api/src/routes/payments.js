@@ -35,7 +35,40 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
     client = (await db.query("SELECT * FROM clients WHERE phone = $1 AND is_active = TRUE", [client_phone])).rows[0];
   }
 
+  // Mode invité (CDC §4.1.4) : client non identifié
+  if (!client) {
+    const guestAllowed = merchant.allow_guest_mode !== false && merchant.allow_guest_mode !== 0;
+    if (!guestAllowed) {
+      return res.status(403).json({ error: 'GUEST_NOT_ALLOWED', message: 'Ce marchand exige une identification client Afrik\'Fid' });
+    }
+  }
+
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
+
+  // Vérification seuil maximum par transaction (CDC §4.2.2)
+  if (merchant.max_transaction_amount && amount > parseFloat(merchant.max_transaction_amount)) {
+    return res.status(422).json({
+      error: 'AMOUNT_EXCEEDS_LIMIT',
+      message: `Montant (${amount}) dépasse le seuil maximum par transaction (${merchant.max_transaction_amount})`,
+    });
+  }
+
+  // Vérification volume quotidien marchand (CDC §4.2.2)
+  if (merchant.daily_volume_limit) {
+    const today = new Date().toISOString().slice(0, 10);
+    const dailyRes = await db.query(
+      `SELECT COALESCE(SUM(gross_amount), 0) as daily_total FROM transactions
+       WHERE merchant_id = $1 AND status IN ('pending','completed') AND initiated_at::date = $2::date`,
+      [merchant.id, today]
+    );
+    const dailyTotal = parseFloat(dailyRes.rows[0].daily_total);
+    if (dailyTotal + amount > parseFloat(merchant.daily_volume_limit)) {
+      return res.status(422).json({
+        error: 'DAILY_LIMIT_EXCEEDED',
+        message: `Volume quotidien dépassé. Limite: ${merchant.daily_volume_limit}, déjà traité: ${dailyTotal}`,
+      });
+    }
+  }
 
   const fraudCheck = await checkTransaction({
     amount, clientId: client ? client.id : null, clientPhone: client_phone || null, merchantId: merchant.id,
@@ -44,7 +77,8 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
     return res.status(403).json({ error: 'FRAUD_BLOCKED', message: fraudCheck.reason, riskScore: fraudCheck.riskScore });
   }
 
-  const distribution = await calculateDistribution(amount, merchant.rebate_percent, loyaltyStatus);
+  const clientCountryId = client ? client.country_id : (merchant.country_id || null);
+  const distribution = await calculateDistribution(amount, merchant.rebate_percent, loyaltyStatus, clientCountryId);
 
   if (distribution.yExceedsX) {
     return res.status(422).json({
@@ -276,6 +310,19 @@ async function processCompletedPayment(tx) {
 
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
+
+  // Webhook distribution.completed (CDC §4.5.3)
+  const distributions = (await db.query('SELECT * FROM distributions WHERE transaction_id = $1', [tx.id])).rows;
+  dispatchWebhook(tx.merchant_id, WebhookEvents.DISTRIBUTION_COMPLETED, {
+    transaction_id: tx.id,
+    reference: tx.reference,
+    distributions: distributions.map(d => ({
+      beneficiary_type: d.beneficiary_type,
+      amount: d.amount,
+      currency: d.currency,
+      status: d.status,
+    })),
+  }).catch(() => {});
 
   if (tx.client_id) {
     const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];

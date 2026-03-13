@@ -10,14 +10,27 @@ async function getLoyaltyConfig() {
   return res.rows;
 }
 
-async function getClientRebatePercent(loyaltyStatus) {
+/**
+ * Retourne le taux Y% pour un statut donné.
+ * Si countryId est fourni, cherche d'abord une surcharge par pays (CDC §2.5).
+ * @param {string} loyaltyStatus
+ * @param {string|null} countryId
+ */
+async function getClientRebatePercent(loyaltyStatus, countryId = null) {
+  if (countryId) {
+    const override = await db.query(
+      'SELECT client_rebate_percent FROM loyalty_config_country WHERE status = $1 AND country_id = $2',
+      [loyaltyStatus, countryId]
+    );
+    if (override.rows[0]) return parseFloat(override.rows[0].client_rebate_percent);
+  }
   const res = await db.query('SELECT client_rebate_percent FROM loyalty_config WHERE status = $1', [loyaltyStatus]);
   return res.rows[0] ? parseFloat(res.rows[0].client_rebate_percent) : 0;
 }
 
-async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN') {
+async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null) {
   const X = merchantRebatePercent;
-  const Y = await getClientRebatePercent(clientLoyaltyStatus);
+  const Y = await getClientRebatePercent(clientLoyaltyStatus, countryId);
 
   const effectiveY = Math.min(Y, X);
   const Z = X - effectiveY;
@@ -78,6 +91,27 @@ async function evaluateClientStatus(clientId) {
 
   const currentStatus = client.loyalty_status;
   let newStatus = 'OPEN';
+
+  // Rétrogradation par inactivité (CDC §2.6) : si aucune transaction dans inactivity_months
+  const currentConfig = configs.find(c => c.status === currentStatus);
+  if (currentConfig && currentConfig.inactivity_months > 0 && currentStatus !== 'OPEN') {
+    const inactivityCutoff = new Date();
+    inactivityCutoff.setMonth(inactivityCutoff.getMonth() - currentConfig.inactivity_months);
+    const activityRes = await db.query(
+      `SELECT COUNT(*) as count FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
+      [clientId, inactivityCutoff.toISOString()]
+    );
+    if (parseInt(activityRes.rows[0].count) === 0) {
+      return {
+        clientId,
+        currentStatus,
+        newStatus: 'OPEN',
+        changed: currentStatus !== 'OPEN',
+        reason: 'inactivity',
+        stats: { recentStats, sixMonthStats, twelveMonthStats },
+      };
+    }
+  }
 
   const royalConfig = configs.find(c => c.status === 'ROYAL');
   if (royalConfig && twelveMonthStats.count >= royalConfig.min_purchases &&

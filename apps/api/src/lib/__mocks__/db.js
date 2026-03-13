@@ -61,6 +61,9 @@ testDb.exec(`
     webhook_url TEXT, status TEXT DEFAULT 'pending', kyc_status TEXT DEFAULT 'pending',
     password_hash TEXT, is_active INTEGER DEFAULT 1,
     currency TEXT DEFAULT 'XOF',
+    max_transaction_amount REAL DEFAULT NULL,
+    daily_volume_limit REAL DEFAULT NULL,
+    allow_guest_mode INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS clients (
@@ -145,6 +148,14 @@ testDb.exec(`
     rate REAL NOT NULL, source TEXT DEFAULT 'manual', updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(from_currency, to_currency)
   );
+  CREATE TABLE IF NOT EXISTS loyalty_config_country (
+    id TEXT PRIMARY KEY,
+    country_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    client_rebate_percent REAL NOT NULL DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(country_id, status)
+  );
   CREATE TABLE IF NOT EXISTS notification_log (
     id TEXT PRIMARY KEY, type TEXT NOT NULL, recipient TEXT NOT NULL,
     channel TEXT NOT NULL, status TEXT DEFAULT 'pending', error TEXT, sent_at TEXT
@@ -158,7 +169,7 @@ testDb.exec(`
     ('lc-open',  'OPEN',  0,  'Open',  1, 0,  0,       3),
     ('lc-live',  'LIVE',  5,  'Live',  2, 3,  50000,   3),
     ('lc-gold',  'GOLD',  8,  'Gold',  3, 10, 200000,  6),
-    ('lc-royal', 'ROYAL', 10, 'Royal', 4, 30, 1000000, 12);
+    ('lc-royal', 'ROYAL', 12, 'Royal', 4, 30, 1000000, 12);
 `);
 
 testDb.exec(`

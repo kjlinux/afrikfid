@@ -74,6 +74,9 @@ const UpdateMerchantSchema = z.object({
   bank_account: z.string().max(50).optional(),
   category: z.string().max(50).optional(),
   address: z.string().max(255).optional(),
+  max_transaction_amount: z.number().positive().nullable().optional(),
+  daily_volume_limit: z.number().positive().nullable().optional(),
+  allow_guest_mode: z.boolean().optional(),
 }).refine(data => Object.keys(data).length > 0, { message: 'Au moins un champ à mettre à jour' });
 
 const MerchantLoginSchema = z.object({

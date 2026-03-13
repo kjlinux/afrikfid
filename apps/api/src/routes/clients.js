@@ -7,21 +7,27 @@ const { requireAdmin, requireApiKey } = require('../middleware/auth');
 const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engine');
 const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
+const { encrypt, decrypt, hashField } = require('../lib/crypto');
 
 // POST /api/v1/clients
 router.post('/', validate(CreateClientSchema), async (req, res) => {
   const { full_name, phone, email, country_id, password } = req.body;
 
-  const existing = await db.query('SELECT id FROM clients WHERE phone = $1', [phone]);
+  const phoneHash = hashField(phone);
+  const existing = await db.query('SELECT id FROM clients WHERE phone_hash = $1', [phoneHash]);
   if (existing.rows[0]) return res.status(409).json({ error: 'Numéro de téléphone déjà enregistré' });
 
   const id = uuidv4();
   const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+  const encPhone = encrypt(phone);
+  const encEmail = email ? encrypt(email) : null;
+  const emailHash = email ? hashField(email) : null;
 
   await db.query(
-    `INSERT INTO clients (id, afrikfid_id, full_name, phone, email, country_id, password_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [id, afrikfidId, full_name, phone, email || null, country_id || null, passwordHash]
+    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash]
   );
 
   await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2)', [uuidv4(), id]);
@@ -138,7 +144,8 @@ router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, 
   if (afrikfid_id) {
     clientRes = await db.query('SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.afrikfid_id = $1 AND c.is_active = TRUE', [afrikfid_id]);
   } else if (phone) {
-    clientRes = await db.query('SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.phone = $1 AND c.is_active = TRUE', [phone]);
+    const ph = hashField(phone);
+    clientRes = await db.query('SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.phone_hash = $1 AND c.is_active = TRUE', [ph]);
   }
 
   const client = clientRes && clientRes.rows[0];
@@ -166,8 +173,8 @@ function sanitizeClient(c) {
     id: c.id,
     afrikfidId: c.afrikfid_id,
     fullName: c.full_name,
-    email: c.email,
-    phone: c.phone,
+    email: decrypt(c.email),
+    phone: decrypt(c.phone),
     countryId: c.country_id,
     countryName: c.country_name,
     loyaltyStatus: c.loyalty_status,

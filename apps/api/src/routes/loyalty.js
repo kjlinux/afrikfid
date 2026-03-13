@@ -63,4 +63,58 @@ router.get('/stats', requireAdmin, async (req, res) => {
   res.json({ byStatus: stats, summary: transitions });
 });
 
+// ─── Taux Y% par pays (CDC §2.5) ──────────────────────────────────────────
+
+// GET /api/v1/loyalty/config-country — liste toutes les surcharges par pays
+router.get('/config-country', requireAdmin, async (req, res) => {
+  const rows = (await db.query(
+    `SELECT lcc.*, c.name as country_name FROM loyalty_config_country lcc
+     JOIN countries c ON c.id = lcc.country_id
+     ORDER BY lcc.country_id, lcc.status`
+  )).rows;
+  res.json({ overrides: rows });
+});
+
+// PUT /api/v1/loyalty/config-country/:countryId/:status — créer/mettre à jour un taux par pays
+router.put('/config-country/:countryId/:status', requireAdmin, async (req, res) => {
+  const { countryId, status } = req.params;
+  const { client_rebate_percent } = req.body;
+
+  if (client_rebate_percent === undefined || isNaN(parseFloat(client_rebate_percent))) {
+    return res.status(400).json({ error: 'client_rebate_percent requis (nombre)' });
+  }
+  const country = (await db.query('SELECT id FROM countries WHERE id = $1', [countryId])).rows[0];
+  if (!country) return res.status(404).json({ error: 'Pays non trouvé' });
+
+  const loyaltyStatuses = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+  if (!loyaltyStatuses.includes(status)) {
+    return res.status(400).json({ error: `Statut invalide. Valeurs: ${loyaltyStatuses.join(', ')}` });
+  }
+
+  const { v4: uuidv4 } = require('uuid');
+  await db.query(
+    `INSERT INTO loyalty_config_country (id, country_id, status, client_rebate_percent, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (country_id, status) DO UPDATE SET client_rebate_percent = EXCLUDED.client_rebate_percent, updated_at = NOW()`,
+    [uuidv4(), countryId, status, parseFloat(client_rebate_percent)]
+  );
+
+  const updated = (await db.query(
+    'SELECT * FROM loyalty_config_country WHERE country_id = $1 AND status = $2',
+    [countryId, status]
+  )).rows[0];
+  res.json({ override: updated });
+});
+
+// DELETE /api/v1/loyalty/config-country/:countryId/:status — supprimer une surcharge (retour au taux global)
+router.delete('/config-country/:countryId/:status', requireAdmin, async (req, res) => {
+  const { countryId, status } = req.params;
+  const result = await db.query(
+    'DELETE FROM loyalty_config_country WHERE country_id = $1 AND status = $2',
+    [countryId, status]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Surcharge non trouvée' });
+  res.json({ message: 'Surcharge supprimée, taux global restauré' });
+});
+
 module.exports = router;

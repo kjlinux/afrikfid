@@ -197,6 +197,56 @@ export function PeriodSelector({ value, onChange, options = ['7', '30', '90'] })
   )
 }
 
+// Helper to export table data as PDF (print dialog → Save as PDF)
+// Ouvre une fenêtre dédiée avec le tableau formaté et déclenche l'impression (CDC §4.6.1)
+export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
+  const date = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
+  const thead = columns.map(c => `<th>${c.label}</th>`).join('')
+  const tbody = rows.map(row => {
+    const cells = columns.map(c => {
+      const val = typeof c.value === 'function' ? c.value(row) : row[c.key]
+      return `<td>${val ?? ''}</td>`
+    }).join('')
+    return `<tr>${cells}</tr>`
+  }).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; padding: 24px; }
+    h1 { font-size: 18px; color: #f59e0b; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+    .date { font-size: 11px; color: #94a3b8; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1e293b; color: #f1f5f9; padding: 8px 10px; text-align: left; font-size: 11px; }
+    td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .footer { margin-top: 20px; font-size: 10px; color: #94a3b8; text-align: right; }
+    @media print { body { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
+  <div class="date">Généré le ${date} — Afrik'Fid</div>
+  <table>
+    <thead><tr>${thead}</tr></thead>
+    <tbody>${tbody}</tbody>
+  </table>
+  <div class="footer">Afrik'Fid — Document confidentiel</div>
+  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
+</body>
+</html>`
+
+  const w = window.open('', '_blank', 'width=900,height=700')
+  w.document.write(html)
+  w.document.close()
+}
+
 // Helper to export table data as CSV
 export function exportCsv(rows, columns, filename = 'export.csv') {
   const header = columns.map(c => c.label).join(',')

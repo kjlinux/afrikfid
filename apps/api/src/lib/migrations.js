@@ -291,6 +291,53 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_notif_recipient ON notification_log(recipient, sent_at);
     `,
   },
+  {
+    version: 5,
+    name: '005_loyalty_config_per_country',
+    up: `
+      -- Taux Y% personnalisés par pays (CDC §2.5)
+      -- Surcharge les taux globaux de loyalty_config pour un pays donné.
+      CREATE TABLE IF NOT EXISTS loyalty_config_country (
+        id TEXT PRIMARY KEY,
+        country_id TEXT NOT NULL REFERENCES countries(id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        client_rebate_percent NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(country_id, status)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_loyalty_cfg_country ON loyalty_config_country(country_id, status);
+    `,
+  },
+  {
+    version: 6,
+    name: '006_merchant_alert_thresholds',
+    up: `
+      -- Seuils d'alerte par marchand (CDC §4.2.2)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS daily_volume_limit NUMERIC DEFAULT NULL;
+
+      -- Mode invité configurable par marchand (CDC §4.1.4)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS allow_guest_mode BOOLEAN DEFAULT TRUE;
+    `,
+  },
+  {
+    version: 7,
+    name: '007_encryption_hash_fields',
+    up: `
+      -- Champs de hachage pour la recherche sur données chiffrées (CDC §5.4.1)
+      -- Les valeurs phone/email dans clients seront chiffrées AES-256-GCM.
+      -- Ces colonnes _hash (HMAC-SHA256) permettent la recherche sans déchiffrer.
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS phone_hash TEXT DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS email_hash TEXT DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_clients_phone_hash ON clients(phone_hash);
+      CREATE INDEX IF NOT EXISTS idx_clients_email_hash ON clients(email_hash);
+
+      -- Hachage du numéro de paiement sur les transactions pour audit sécurisé
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_phone_hash TEXT DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_tx_payment_phone_hash ON transactions(payment_phone_hash);
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

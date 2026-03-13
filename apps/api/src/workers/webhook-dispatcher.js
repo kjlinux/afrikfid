@@ -127,10 +127,17 @@ async function requeueWebhook(eventId) {
 }
 
 const WebhookEvents = {
-  PAYMENT_COMPLETED: 'payment.completed',
+  // Paiements (noms conformes CDC §4.5.3)
+  PAYMENT_SUCCESS: 'payment.success',
+  PAYMENT_COMPLETED: 'payment.success',   // alias rétrocompat
   PAYMENT_FAILED: 'payment.failed',
-  PAYMENT_REFUNDED: 'payment.refunded',
-  STATUS_UPGRADED: 'loyalty.status_upgraded',
+  PAYMENT_EXPIRED: 'payment.expired',
+  PAYMENT_REFUNDED: 'refund.completed',
+  // Distribution (CDC §4.5.3)
+  DISTRIBUTION_COMPLETED: 'distribution.completed',
+  // Fidélité (CDC §4.5.3)
+  STATUS_CHANGED: 'loyalty.status_changed',
+  STATUS_UPGRADED: 'loyalty.status_changed', // alias rétrocompat
 };
 
 module.exports = {

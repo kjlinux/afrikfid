@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import { exportCsv, exportPdf } from '../../components/ui.jsx'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const STATUS_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
@@ -24,10 +25,34 @@ export default function AdminTransactions() {
 
   useEffect(() => { load() }, [page, filters])
 
+  const TX_COLS = [
+    { label: 'Référence', key: 'reference' },
+    { label: 'Marchand', key: 'merchant_name' },
+    { label: 'Client', key: 'client_name' },
+    { label: 'Montant brut', value: r => fmt(r.gross_amount) },
+    { label: 'X%', key: 'merchant_rebate_percent' },
+    { label: 'Y%', key: 'client_rebate_percent' },
+    { label: 'Z%', key: 'platform_commission_percent' },
+    { label: 'Statut client', key: 'client_loyalty_status' },
+    { label: 'Statut tx', key: 'status' },
+    { label: 'Opérateur', key: 'payment_operator' },
+    { label: 'Date', value: r => r.initiated_at ? new Date(r.initiated_at).toLocaleDateString('fr-FR') : '' },
+  ]
+
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Transactions ({total})</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => exportCsv(transactions, TX_COLS, 'transactions.csv')}
+            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ CSV
+          </button>
+          <button onClick={() => exportPdf(transactions, TX_COLS, 'Rapport Transactions', `${total} transactions`)}
+            style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ PDF
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>

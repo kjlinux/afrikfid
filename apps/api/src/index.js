@@ -7,7 +7,8 @@ const { CronJob } = require('cron');
 const { runLoyaltyBatch } = require('./lib/loyalty-engine');
 const { errorHandler } = require('./middleware/error-handler');
 const { runMigrations } = require('./lib/migrations');
-const { processRetryQueue } = require('./workers/webhook-dispatcher');
+const { processRetryQueue, dispatchWebhook, WebhookEvents } = require('./workers/webhook-dispatcher');
+const { processExpiredTransactions } = require('./workers/transaction-expiry');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
 const swaggerUi = require('swagger-ui-express');
 const yaml = require('js-yaml');
@@ -51,6 +52,8 @@ app.use('/api/v1/loyalty', require('./routes/loyalty'));
 app.use('/api/v1/payment-links', require('./routes/payment-links'));
 app.use('/api/v1/reports', require('./routes/reports'));
 app.use('/api/v1/fraud', require('./routes/fraud'));
+app.use('/api/v1/distributions', require('./routes/distributions'));
+app.use('/api/v1/audit-logs', require('./routes/audit'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();
@@ -199,9 +202,27 @@ if (process.env.NODE_ENV !== 'test') {
     const db = require('./lib/db');
     const results = await runLoyaltyBatch();
     for (const r of results) {
-      if (r.changed && r.newStatus !== 'OPEN') {
+      if (r.changed) {
         const client = (await db.query('SELECT * FROM clients WHERE id = $1', [r.clientId])).rows[0];
-        if (client) notifyLoyaltyUpgrade({ client, oldStatus: r.currentStatus, newStatus: r.newStatus });
+        if (client) {
+          if (r.newStatus !== 'OPEN') {
+            notifyLoyaltyUpgrade({ client, oldStatus: r.currentStatus, newStatus: r.newStatus });
+          }
+          // Webhook loyalty.status_changed vers tous les marchands actifs du client (CDC §4.5.3)
+          const merchantIds = (await db.query(
+            `SELECT DISTINCT merchant_id FROM transactions WHERE client_id = $1 AND status = 'completed'`,
+            [r.clientId]
+          )).rows.map(row => row.merchant_id);
+          for (const merchantId of merchantIds) {
+            dispatchWebhook(merchantId, WebhookEvents.STATUS_CHANGED, {
+              client_id: client.id,
+              afrikfid_id: client.afrikfid_id,
+              old_status: r.currentStatus,
+              new_status: r.newStatus,
+              changed_at: new Date().toISOString(),
+            }).catch(() => {});
+          }
+        }
       }
     }
     console.log(`✅ Batch terminé: ${results.length} changements de statut`);
@@ -211,6 +232,11 @@ if (process.env.NODE_ENV !== 'test') {
   new CronJob('*/2 * * * *', async () => {
     const count = await processRetryQueue();
     if (count > 0) console.log(`🔔 Webhooks retry: ${count} traité(s)`);
+  }, null, true, 'Africa/Abidjan');
+
+  // Expiration transactions pending: toutes les 30 secondes (CDC §4.1.4)
+  new CronJob('*/30 * * * * *', async () => {
+    await processExpiredTransactions();
   }, null, true, 'Africa/Abidjan');
 }
 

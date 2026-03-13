@@ -10,6 +10,41 @@ version: '3.9'
 
 services:
 
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: afrikfid_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: afrikfid
+      POSTGRES_USER: afrikfid
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afrikfid"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: afrikfid_redis
+    restart: always
+    command: redis-server --save 60 1 --requirepass ${REDIS_PASSWORD} --loglevel warning
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # ─── API Node.js ────────────────────────────────────────────────────────
   api:
     build:
@@ -21,12 +56,20 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4001
+      # Base de données PostgreSQL
+      DATABASE_URL: postgres://afrikfid:${POSTGRES_PASSWORD}@postgres:5432/afrikfid
+      DATABASE_SSL: "false"
+      # Redis sessions (CDC §5.2)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # Auth
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SANDBOX_MODE: "false"
-      DB_PATH: /data/afrikfid.db
+      # Chiffrement AES-256 (CDC §5.4.1)
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      HMAC_SECRET: ${HMAC_SECRET}
       # SMS
       AT_USERNAME: ${AT_USERNAME}
       AT_API_KEY: ${AT_API_KEY}
@@ -40,11 +83,33 @@ services:
       CINETPAY_API_KEY: ${CINETPAY_API_KEY}
       CINETPAY_NOTIFY_URL: https://${DOMAIN}/api/v1/webhooks/cinetpay
       CINETPAY_RETURN_URL: https://${DOMAIN}/pay/return
+      # Mobile Money — Orange Money
+      ORANGE_CLIENT_ID: ${ORANGE_CLIENT_ID}
+      ORANGE_CLIENT_SECRET: ${ORANGE_CLIENT_SECRET}
+      ORANGE_MERCHANT_KEY: ${ORANGE_MERCHANT_KEY}
+      # Mobile Money — MTN MoMo
+      MTN_SUBSCRIPTION_KEY: ${MTN_SUBSCRIPTION_KEY}
+      MTN_API_USER: ${MTN_API_USER}
+      MTN_API_KEY: ${MTN_API_KEY}
+      MTN_BASE_URL: ${MTN_BASE_URL:-https://proxy.momoapi.mtn.com}
+      MTN_ENVIRONMENT: production
+      # Mobile Money — M-Pesa (Safaricom)
+      MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY}
+      MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET}
+      MPESA_SHORTCODE: ${MPESA_SHORTCODE}
+      MPESA_PASSKEY: ${MPESA_PASSKEY}
+      PAYMENT_CALLBACK_URL: https://${DOMAIN}/api/v1/webhooks/mpesa
+      # Mobile Money — Airtel Money
+      AIRTEL_CLIENT_ID: ${AIRTEL_CLIENT_ID}
+      AIRTEL_CLIENT_SECRET: ${AIRTEL_CLIENT_SECRET}
       # Rate limiting
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX: 200
-    volumes:
-      - afrikfid_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     expose:
       - "4001"
     healthcheck:
@@ -150,7 +215,9 @@ services:
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
 volumes:
-  afrikfid_data:
+  pgdata:
+    driver: local
+  redis_data:
     driver: local
   traefik_certs:
     driver: local

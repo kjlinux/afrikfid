@@ -93,7 +93,7 @@ router.get('/:id', requireAdmin, async (req, res) => {
 router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
   const allowed = ['name', 'phone', 'rebate_percent', 'rebate_mode', 'status', 'kyc_status',
     'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name', 'bank_account',
-    'category', 'address'];
+    'category', 'address', 'max_transaction_amount', 'daily_volume_limit', 'allow_guest_mode'];
 
   const updates = {};
   for (const key of allowed) {
@@ -271,6 +271,9 @@ function sanitizeMerchant(m, includeKeys = false) {
     category: m.category, rebatePercent: m.rebate_percent, rebateMode: m.rebate_mode,
     settlementFrequency: m.settlement_frequency, webhookUrl: m.webhook_url,
     status: m.status, kycStatus: m.kyc_status, isActive: m.is_active,
+    maxTransactionAmount: m.max_transaction_amount ?? null,
+    dailyVolumeLimit: m.daily_volume_limit ?? null,
+    allowGuestMode: m.allow_guest_mode !== false && m.allow_guest_mode !== 0,
     createdAt: m.created_at, updatedAt: m.updated_at,
   };
   if (includeKeys) {
