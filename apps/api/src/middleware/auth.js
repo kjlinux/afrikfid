@@ -133,4 +133,31 @@ function extractToken(req) {
   return null;
 }
 
-module.exports = { requireAdmin, requireApiKey, requireMerchant, requireAuth, generateTokens };
+/**
+ * Middleware d'authentification JWT pour les clients (paiement wallet)
+ */
+async function requireClient(req, res, next) {
+  const token = extractToken(req);
+  if (!token) return res.status(401).json({ error: 'Token manquant' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'client') return res.status(403).json({ error: 'Accès réservé aux clients' });
+
+    if (decoded.jti && await redis.exists(`revoked:${decoded.jti}`)) {
+      return res.status(401).json({ error: 'Token révoqué. Reconnectez-vous.' });
+    }
+
+    const result = await db.query('SELECT * FROM clients WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+    const client = result.rows[0];
+    if (!client) return res.status(401).json({ error: 'Session invalide' });
+
+    req.client = client;
+    req.user = { id: client.id, role: 'client' };
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+}
+
+module.exports = { requireAdmin, requireApiKey, requireMerchant, requireAuth, requireClient, generateTokens };

@@ -125,6 +125,56 @@ const templates = {
     ].join('\n'),
   }),
 
+  fraud_alert: ({ amount, currency, merchantName, clientPhone, reason, riskScore }) => ({
+    sms: null,
+    subject: `[ALERTE FRAUDE] Transaction bloquée — Score ${riskScore}/100`,
+    text: [
+      `Une transaction a été bloquée par le système anti-fraude.`,
+      ``,
+      `Marchand   : ${merchantName || 'Inconnu'}`,
+      `Montant    : ${amount} ${currency}`,
+      `Téléphone  : ${clientPhone || 'N/A'}`,
+      `Score      : ${riskScore}/100`,
+      `Raison     : ${reason}`,
+      `Date       : ${new Date().toISOString()}`,
+      ``,
+      `Connectez-vous au tableau de bord admin pour consulter les détails.`,
+    ].join('\n'),
+  }),
+
+  kyc_approved: ({ merchantName, email }) => ({
+    sms: null, // KYC notifications envoyées par email uniquement
+    subject: `Votre compte Afrik'Fid a été approuvé — ${merchantName}`,
+    text: [
+      `Bonjour,`,
+      ``,
+      `Nous avons le plaisir de vous informer que votre dossier KYC pour le compte marchand "${merchantName}" a été approuvé.`,
+      ``,
+      `Vous pouvez désormais accepter des paiements via Afrik'Fid.`,
+      `Connectez-vous à votre tableau de bord pour accéder à vos clés API de production.`,
+      ``,
+      `Bienvenue dans l'écosystème Afrik'Fid !`,
+      ``,
+      `L'équipe Afrik'Fid`,
+    ].join('\n'),
+    html: `<p>Bonjour,</p><p>Votre dossier KYC pour le compte marchand <strong>${merchantName}</strong> a été <strong style="color:green">approuvé</strong>.</p><p>Vous pouvez désormais accepter des paiements. <a href="${process.env.DASHBOARD_URL || '#'}">Accéder au tableau de bord</a></p>`,
+  }),
+
+  kyc_rejected: ({ merchantName, reason }) => ({
+    sms: null,
+    subject: `Dossier KYC incomplet — ${merchantName}`,
+    text: [
+      `Bonjour,`,
+      ``,
+      `Votre dossier KYC pour le compte marchand "${merchantName}" n'a pas pu être approuvé.`,
+      reason ? `\nMotif : ${reason}` : '',
+      ``,
+      `Vous pouvez soumettre un nouveau dossier en vous connectant à votre espace marchand.`,
+      ``,
+      `L'équipe Afrik'Fid`,
+    ].filter(l => l !== null).join('\n'),
+  }),
+
   payment_failed: ({ amount, currency, merchantName, errorMessage }) => ({
     sms: `Afrik'Fid: Echec paiement de ${amount} ${currency} chez ${merchantName}. ${errorMessage || 'Verifiez votre compte.'}`,
     subject: `Échec de paiement — ${merchantName}`,
@@ -315,11 +365,83 @@ function notifyPaymentFailed({ client, transaction, errorMessage }) {
   });
 }
 
+/**
+ * Notifie un marchand de l'approbation de son KYC.
+ */
+function notifyKycApproved({ merchant }) {
+  if (!merchant?.email) return;
+  const tpl = templates.kyc_approved({ merchantName: merchant.name, email: merchant.email });
+  enqueue(async () => {
+    try {
+      await sendEmail(merchant.email, tpl.subject, tpl.text, tpl.html);
+      logNotification('kyc_approved', merchant.email, 'email', 'sent');
+    } catch (e) {
+      logNotification('kyc_approved', merchant.email, 'email', 'failed', e.message);
+    }
+  });
+  // SMS si numéro disponible
+  if (merchant.phone) {
+    enqueue(async () => {
+      try {
+        await sendSMS(merchant.phone, `Afrik'Fid: Votre KYC pour ${merchant.name} a ete approuve. Connectez-vous pour acceder a vos cles API.`);
+        logNotification('kyc_approved', merchant.phone, 'sms', 'sent');
+      } catch (e) {
+        logNotification('kyc_approved', merchant.phone, 'sms', 'failed', e.message);
+      }
+    });
+  }
+}
+
+/**
+ * Notifie un marchand du rejet de son KYC.
+ */
+function notifyKycRejected({ merchant, reason }) {
+  if (!merchant?.email) return;
+  const tpl = templates.kyc_rejected({ merchantName: merchant.name, reason });
+  enqueue(async () => {
+    try {
+      await sendEmail(merchant.email, tpl.subject, tpl.text);
+      logNotification('kyc_rejected', merchant.email, 'email', 'sent');
+    } catch (e) {
+      logNotification('kyc_rejected', merchant.email, 'email', 'failed', e.message);
+    }
+  });
+}
+
+/**
+ * Alerte admin lors d'un blocage fraude.
+ * Envoie un email aux admins et émet un événement SSE.
+ */
+async function notifyFraudBlocked({ amount, currency, merchantName, clientPhone, reason, riskScore }) {
+  // Émettre SSE pour le dashboard admin
+  try {
+    const { emit, SSE_EVENTS } = require('./sse-emitter');
+    emit(SSE_EVENTS.FRAUD_BLOCKED, { amount, currency, merchantName, clientPhone, reason, riskScore, blockedAt: new Date().toISOString() });
+  } catch { /* SSE non critique */ }
+
+  // Email aux admins (si ADMIN_ALERT_EMAIL configuré)
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL;
+  if (!adminEmail) return;
+
+  const tpl = templates.fraud_alert({ amount, currency, merchantName, clientPhone, reason, riskScore });
+  enqueue(async () => {
+    try {
+      await sendEmail(adminEmail, tpl.subject, tpl.text);
+      logNotification('fraud_alert', adminEmail, 'email', 'sent');
+    } catch (e) {
+      logNotification('fraud_alert', adminEmail, 'email', 'failed', e.message);
+    }
+  });
+}
+
 module.exports = {
   notifyPaymentConfirmed,
   notifyCashbackCredit,
   notifyLoyaltyUpgrade,
   notifyPaymentFailed,
+  notifyKycApproved,
+  notifyKycRejected,
+  notifyFraudBlocked,
   // Exposed for testing
   sendSMS,
   sendEmail,

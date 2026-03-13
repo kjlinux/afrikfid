@@ -9,6 +9,8 @@ const { errorHandler } = require('./middleware/error-handler');
 const { runMigrations } = require('./lib/migrations');
 const { processRetryQueue, dispatchWebhook, WebhookEvents } = require('./workers/webhook-dispatcher');
 const { processExpiredTransactions } = require('./workers/transaction-expiry');
+const { processDisbursements } = require('./workers/disbursement');
+const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
 const swaggerUi = require('swagger-ui-express');
 const yaml = require('js-yaml');
@@ -31,7 +33,25 @@ const PORT = process.env.PORT || 4001;
 
 // ─── Middleware ────────────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Sandbox'] }));
+
+// CORS — liste blanche configurable via CORS_ORIGINS (CSV). '*' uniquement en dev/test.
+const CORS_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : null;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // En dev/test sans liste blanche, tout autoriser
+    if (!CORS_ORIGINS || CORS_ORIGINS.includes('*')) return callback(null, true);
+    // Requêtes sans origin (curl, Postman, serveur-à-serveur) : autoriser
+    if (!origin) return callback(null, true);
+    if (CORS_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origine non autorisée — ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Sandbox'],
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
 
 // Rate limiting
@@ -241,6 +261,23 @@ if (process.env.NODE_ENV !== 'test') {
   // Expiration transactions pending: toutes les 30 secondes (CDC §4.1.4)
   new CronJob('*/30 * * * * *', async () => {
     await processExpiredTransactions();
+  }, null, true, 'Africa/Abidjan');
+
+  // Rafraîchissement automatique des taux de change: toutes les heures (si fournisseur configuré)
+  new CronJob('0 * * * *', async () => {
+    if (process.env.OPENEXCHANGERATES_APP_ID || process.env.FIXER_API_KEY) {
+      const result = await refreshExchangeRates();
+      if (result.updated > 0) console.log(`💱 Taux de change mis à jour (${result.source}): ${result.updated} paires`);
+    }
+  }, null, true, 'Africa/Abidjan');
+
+  // Disbursement automatique vers marchands: tous les jours à 06h00 (CDC §settlement_frequency)
+  new CronJob('0 6 * * *', async () => {
+    console.log('💰 Exécution du disbursement automatique...');
+    const result = await processDisbursements();
+    if (result.processed > 0) {
+      console.log(`✅ Disbursement terminé: ${result.processed} règlements, total ${result.totalAmount}`);
+    }
   }, null, true, 'Africa/Abidjan');
 }
 

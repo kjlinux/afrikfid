@@ -12,6 +12,7 @@ const SSE_EVENTS = {
   WEBHOOK_FAILED: 'webhook.failed',
   LOYALTY_CHANGED: 'loyalty.status_changed',
   TRANSACTION_STATUS: 'transaction.status',
+  FRAUD_BLOCKED: 'fraud.blocked',
 };
 
 /**

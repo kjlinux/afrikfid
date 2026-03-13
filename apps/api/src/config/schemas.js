@@ -132,7 +132,16 @@ const UpdateLoyaltyConfigSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Couleur hex invalide').optional(),
 });
 
+const WalletPaySchema = z.object({
+  merchant_id: z.string().min(1, 'merchant_id requis'),
+  amount: positiveAmount,
+  currency: z.enum(CURRENCIES).default('XOF'),
+  description: z.string().max(255).optional(),
+  idempotency_key: z.string().max(100).optional(),
+});
+
 module.exports = {
+  WalletPaySchema,
   InitiatePaymentSchema,
   RefundSchema,
   CreateMerchantSchema,

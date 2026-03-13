@@ -4,6 +4,7 @@
  */
 
 const db = require('./db');
+const { notifyLoyaltyUpgrade } = require('./notifications');
 
 async function getLoyaltyConfig() {
   const res = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order');
@@ -151,10 +152,17 @@ async function runLoyaltyBatch() {
   const clientsRes = await db.query('SELECT id FROM clients WHERE is_active = TRUE');
   const results = [];
 
-  for (const client of clientsRes.rows) {
-    const evaluation = await evaluateClientStatus(client.id);
+  for (const row of clientsRes.rows) {
+    const evaluation = await evaluateClientStatus(row.id);
     if (evaluation && evaluation.changed) {
-      await applyStatusChange(client.id, evaluation.newStatus);
+      await applyStatusChange(row.id, evaluation.newStatus);
+      // Notifier le client si montée en statut (pas pour les rétrogradations vers OPEN)
+      if (evaluation.newStatus !== 'OPEN' && evaluation.newStatus !== evaluation.currentStatus) {
+        const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
+        if (client) {
+          notifyLoyaltyUpgrade({ client, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
+        }
+      }
       results.push(evaluation);
     }
   }

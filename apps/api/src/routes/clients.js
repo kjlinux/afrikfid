@@ -3,7 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const db = require('../lib/db');
-const { requireAdmin, requireApiKey } = require('../middleware/auth');
+const { requireAdmin, requireApiKey, requireClient } = require('../middleware/auth');
 const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engine');
 const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
@@ -134,6 +134,72 @@ router.patch('/:id/loyalty-status', requireAdmin, validate(UpdateLoyaltyStatusSc
   await applyStatusChange(req.params.id, status);
   const updated = (await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id])).rows[0];
   res.json({ client: sanitizeClient(updated), message: 'Statut mis à jour' });
+});
+
+// DELETE /api/v1/clients/:id — RGPD droit à l'effacement (admin ou client lui-même)
+router.delete('/:id', requireAdmin, async (req, res) => {
+  const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+  if (client.anonymized_at) return res.status(400).json({ error: 'Client déjà anonymisé' });
+
+  // Pseudonymisation RGPD : on remplace les données PII par des valeurs neutres
+  const anonPhone = encrypt(`DELETED_${uuidv4()}`);
+  const anonEmail = encrypt(`DELETED_${uuidv4()}`);
+  const anonHash = hashField(`DELETED_${uuidv4()}`);
+
+  await db.query(`
+    UPDATE clients SET
+      full_name = 'Utilisateur supprimé',
+      phone = $1, phone_hash = $2,
+      email = $3, email_hash = $2,
+      password_hash = NULL,
+      is_active = FALSE,
+      anonymized_at = NOW(),
+      updated_at = NOW()
+    WHERE id = $4
+  `, [anonPhone, anonHash, anonEmail, client.id]);
+
+  // Log audit
+  await db.query(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
+    VALUES ($1, 'admin', $2, 'gdpr_anonymize', 'client', $3, $4)`,
+    [uuidv4(), req.admin.id, client.id, req.ip]);
+
+  res.json({ message: 'Données client anonymisées (RGPD). Les transactions historiques sont conservées à des fins comptables.', clientId: client.id });
+});
+
+// GET /api/v1/clients/:id/export — RGPD portabilité des données (admin)
+router.get('/:id/export', requireAdmin, async (req, res) => {
+  const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+  const movements = (await db.query('SELECT * FROM wallet_movements WHERE wallet_id = $1 ORDER BY created_at DESC', [wallet?.id || ''])).rows;
+  const transactions = (await db.query('SELECT id, reference, gross_amount, currency, status, initiated_at FROM transactions WHERE client_id = $1 ORDER BY initiated_at DESC', [client.id])).rows;
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    client: {
+      id: client.id,
+      afrikfidId: client.afrikfid_id,
+      fullName: client.full_name,
+      phone: decrypt(client.phone),
+      email: decrypt(client.email),
+      countryId: client.country_id,
+      loyaltyStatus: client.loyalty_status,
+      createdAt: client.created_at,
+    },
+    wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
+    walletMovements: movements,
+    transactions,
+  };
+
+  await db.query(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
+    VALUES ($1, 'admin', $2, 'gdpr_export', 'client', $3, $4)`,
+    [uuidv4(), req.admin.id, client.id, req.ip]);
+
+  res.json(exportData);
 });
 
 // POST /api/v1/clients/lookup (marchands)

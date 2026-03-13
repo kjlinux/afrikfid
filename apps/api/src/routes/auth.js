@@ -8,6 +8,7 @@ const { generateTokens, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { AdminLoginSchema, MerchantLoginSchema } = require('../config/schemas');
 const redis = require('../lib/redis');
+const { generateTotpSecret, generateQrCode, verifyTotp, generateBackupCodes } = require('../lib/totp');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const REFRESH_TTL = 7 * 24 * 3600; // 7 jours en secondes
@@ -39,7 +40,7 @@ function extractJti(token) {
 
 // ─── POST /api/v1/auth/admin/login ───────────────────────────────────────────
 router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, totp_code } = req.body;
 
   const result = await db.query('SELECT * FROM admins WHERE email = $1 AND is_active = TRUE', [email]);
   const admin = result.rows[0];
@@ -47,6 +48,26 @@ router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req
 
   const valid = await bcrypt.compare(password, admin.password_hash);
   if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+
+  // Vérification 2FA si activé
+  if (admin.totp_enabled && admin.totp_secret) {
+    if (!totp_code) {
+      return res.status(200).json({ requires2FA: true, message: 'Code 2FA requis. Veuillez fournir le champ totp_code.' });
+    }
+    // Vérifier le code TOTP
+    const totpValid = verifyTotp(admin.totp_secret, totp_code);
+    if (!totpValid) {
+      // Vérifier les codes de secours
+      const backupCodes = admin.totp_backup_codes ? JSON.parse(admin.totp_backup_codes) : [];
+      const backupIdx = backupCodes.indexOf(String(totp_code).toUpperCase());
+      if (backupIdx === -1) {
+        return res.status(401).json({ error: 'Code 2FA invalide' });
+      }
+      // Invalider le code de secours utilisé
+      backupCodes.splice(backupIdx, 1);
+      await db.query('UPDATE admins SET totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(backupCodes), admin.id]);
+    }
+  }
 
   await db.query('UPDATE admins SET last_login = NOW() WHERE id = $1', [admin.id]);
 
@@ -60,7 +81,7 @@ router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req
 
   res.json({
     ...tokens,
-    admin: { id: admin.id, email: admin.email, fullName: admin.full_name, role: admin.role },
+    admin: { id: admin.id, email: admin.email, fullName: admin.full_name, role: admin.role, totpEnabled: admin.totp_enabled || false },
   });
 });
 
@@ -164,7 +185,106 @@ router.post('/logout', async (req, res) => {
 
 // ─── GET /api/v1/auth/me ──────────────────────────────────────────────────────
 router.get('/me', requireAdmin, (req, res) => {
-  res.json({ admin: { id: req.admin.id, email: req.admin.email, fullName: req.admin.full_name, role: req.admin.role } });
+  res.json({ admin: { id: req.admin.id, email: req.admin.email, fullName: req.admin.full_name, role: req.admin.role, totpEnabled: req.admin.totp_enabled || false } });
+});
+
+// ─── POST /api/v1/auth/2fa/setup — Initier l'enrollment 2FA (admin) ──────────
+router.post('/2fa/setup', requireAdmin, async (req, res) => {
+  const admin = req.admin;
+  if (admin.totp_enabled) return res.status(400).json({ error: '2FA déjà activé sur ce compte' });
+
+  const { secret, otpauth_url } = generateTotpSecret(admin.email);
+  const qrCode = await generateQrCode(otpauth_url);
+
+  // Stocker le secret temporairement (non encore activé)
+  await db.query('UPDATE admins SET totp_secret = $1 WHERE id = $2', [secret, admin.id]);
+
+  res.json({
+    message: 'Scannez ce QR code avec votre application 2FA (Google Authenticator, Authy, etc.), puis confirmez avec POST /auth/2fa/verify',
+    qrCode,
+    secret, // Pour entrée manuelle
+  });
+});
+
+// ─── POST /api/v1/auth/2fa/verify — Confirmer et activer le 2FA ──────────────
+router.post('/2fa/verify', requireAdmin, async (req, res) => {
+  const { totp_code } = req.body;
+  if (!totp_code) return res.status(400).json({ error: 'totp_code requis' });
+
+  const adminRes = await db.query('SELECT * FROM admins WHERE id = $1', [req.admin.id]);
+  const admin = adminRes.rows[0];
+  if (!admin.totp_secret) return res.status(400).json({ error: "Initiez d'abord l'enrollment via POST /auth/2fa/setup" });
+
+  const valid = verifyTotp(admin.totp_secret, totp_code);
+  if (!valid) return res.status(401).json({ error: 'Code TOTP invalide. Vérifiez que votre horloge est synchronisée.' });
+
+  const backupCodes = generateBackupCodes();
+  await db.query(
+    'UPDATE admins SET totp_enabled = TRUE, totp_backup_codes = $1 WHERE id = $2',
+    [JSON.stringify(backupCodes), admin.id]
+  );
+
+  res.json({
+    message: '2FA activé avec succès. Conservez ces codes de secours dans un endroit sûr.',
+    backupCodes,
+  });
+});
+
+// ─── DELETE /api/v1/auth/2fa/disable — Désactiver le 2FA ─────────────────────
+router.delete('/2fa/disable', requireAdmin, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: 'Mot de passe requis pour désactiver le 2FA' });
+
+  const adminRes = await db.query('SELECT * FROM admins WHERE id = $1', [req.admin.id]);
+  const admin = adminRes.rows[0];
+
+  const valid = await bcrypt.compare(password, admin.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect' });
+
+  await db.query(
+    'UPDATE admins SET totp_enabled = FALSE, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1',
+    [admin.id]
+  );
+
+  res.json({ message: '2FA désactivé' });
+});
+
+// ─── POST /api/v1/auth/client/login ──────────────────────────────────────────
+router.post('/client/login', loginLimiter, async (req, res) => {
+  const { phone, password } = req.body;
+  if (!phone || !password) return res.status(400).json({ error: 'phone et password requis' });
+
+  const { hashField } = require('../lib/crypto');
+  const { decrypt } = require('../lib/crypto');
+  const phoneHash = hashField(phone);
+
+  const result = await db.query('SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE', [phoneHash]);
+  const client = result.rows[0];
+  if (!client || !client.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
+
+  const valid = await bcrypt.compare(password, client.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+
+  const tokens = generateTokens({ sub: client.id, role: 'client', afrikfidId: client.afrikfid_id });
+
+  const refreshJti = extractJti(tokens.refreshToken);
+  if (refreshJti) {
+    await redis.setEx(refreshKey(refreshJti), REFRESH_TTL, JSON.stringify({ sub: client.id, role: 'client' }));
+  }
+
+  const wallet = (await db.query('SELECT balance FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+
+  res.json({
+    ...tokens,
+    client: {
+      id: client.id,
+      afrikfidId: client.afrikfid_id,
+      fullName: client.full_name,
+      phone: decrypt(client.phone),
+      loyaltyStatus: client.loyalty_status,
+      walletBalance: wallet?.balance || 0,
+    },
+  });
 });
 
 module.exports = router;

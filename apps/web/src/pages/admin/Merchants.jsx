@@ -37,6 +37,9 @@ export default function AdminMerchants() {
   const [q, setQ] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [kycMerchant, setKycMerchant] = useState(null)
+  const [kycForm, setKycForm] = useState({ decision: 'approved', rejection_reason: '' })
+  const [kycSaving, setKycSaving] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', country_id: 'CI', rebate_percent: 10, rebate_mode: 'cashback', category: 'retail', password: 'Merchant@2026!' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -66,6 +69,23 @@ export default function AdminMerchants() {
   const updateStatus = async (id, status) => {
     await api.patch(`/merchants/${id}`, { status })
     load()
+  }
+
+  const submitKycReview = async e => {
+    e.preventDefault()
+    setKycSaving(true)
+    try {
+      await api.patch(`/merchants/${kycMerchant.id}/kyc/review`, {
+        decision: kycForm.decision,
+        rejection_reason: kycForm.decision === 'rejected' ? kycForm.rejection_reason : undefined,
+      })
+      setMsg(`KYC ${kycForm.decision === 'approved' ? 'approuvé' : 'rejeté'} pour ${kycMerchant.name}`)
+      setKycMerchant(null)
+      setKycForm({ decision: 'approved', rejection_reason: '' })
+      load()
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'Erreur lors de la revue KYC')
+    } finally { setKycSaving(false) }
   }
 
   return (
@@ -132,6 +152,12 @@ export default function AdminMerchants() {
                       style={{ padding: '4px 10px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', cursor: 'pointer', fontSize: 12 }}>
                       Détails
                     </button>
+                    {m.kycStatus === 'submitted' && (
+                      <button onClick={() => { setKycMerchant(m); setKycForm({ decision: 'approved', rejection_reason: '' }) }}
+                        style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 6, color: '#f59e0b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        Revue KYC
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -196,6 +222,60 @@ export default function AdminMerchants() {
               style={{ width: '100%', padding: '12px', background: saving ? '#374151' : '#f59e0b', border: 'none', borderRadius: 8, color: '#0f172a', fontWeight: 700, cursor: 'pointer', marginTop: 8, fontSize: 15 }}>
               {saving ? 'Création...' : 'Créer le marchand'}
             </button>
+          </form>
+        </Modal>
+      )}
+
+      {/* KYC Review Modal */}
+      {kycMerchant && (
+        <Modal title={`Revue KYC — ${kycMerchant.name}`} onClose={() => setKycMerchant(null)}>
+          <div style={{ marginBottom: 20, padding: 14, background: '#0f172a', borderRadius: 8 }}>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Documents soumis</div>
+            {kycMerchant.kycDocuments ? (
+              <pre style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+                {JSON.stringify(kycMerchant.kycDocuments, null, 2)}
+              </pre>
+            ) : (
+              <span style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>Aucun document joint</span>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            {[['Nom', kycMerchant.name], ['Email', kycMerchant.email], ['Catégorie', kycMerchant.category], ['Pays', kycMerchant.countryId]].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2, textTransform: 'uppercase' }}>{k}</div>
+                <div style={{ fontSize: 13, color: '#f1f5f9' }}>{v || '—'}</div>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={submitKycReview}>
+            <Field label="Décision">
+              <select value={kycForm.decision} onChange={e => setKycForm(f => ({ ...f, decision: e.target.value }))} style={sel}>
+                <option value="approved">Approuver</option>
+                <option value="rejected">Rejeter</option>
+              </select>
+            </Field>
+            {kycForm.decision === 'rejected' && (
+              <Field label="Motif de rejet *">
+                <textarea
+                  required
+                  value={kycForm.rejection_reason}
+                  onChange={e => setKycForm(f => ({ ...f, rejection_reason: e.target.value }))}
+                  rows={3}
+                  placeholder="Expliquez la raison du rejet..."
+                  style={{ ...inp, resize: 'vertical' }}
+                />
+              </Field>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button type="button" onClick={() => setKycMerchant(null)}
+                style={{ flex: 1, padding: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}>
+                Annuler
+              </button>
+              <button type="submit" disabled={kycSaving}
+                style={{ flex: 1, padding: '11px', background: kycSaving ? '#374151' : (kycForm.decision === 'approved' ? '#10b981' : '#ef4444'), border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+                {kycSaving ? 'Enregistrement...' : (kycForm.decision === 'approved' ? 'Approuver le KYC' : 'Rejeter le KYC')}
+              </button>
+            </div>
           </form>
         </Modal>
       )}

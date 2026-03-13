@@ -172,4 +172,98 @@ router.get('/overview-normalized', requireAdmin, async (req, res) => {
   res.json({ bycurrency: normalizedVolume, totalVolumeEUR: Math.round(totalVolumeEUR * 100) / 100, period: `${days}d` });
 });
 
+// GET /api/v1/reports/transactions/pdf — Export PDF serveur des transactions (admin)
+router.get('/transactions/pdf', requireAdmin, async (req, res) => {
+  let PDFDocument;
+  try {
+    PDFDocument = require('pdfkit');
+  } catch {
+    return res.status(501).json({ error: 'PDFKit non installé. Exécutez: npm install pdfkit' });
+  }
+
+  const { from, to, merchant_id, status } = req.query;
+
+  let sql = `
+    SELECT t.reference, t.gross_amount, t.currency, t.status, t.payment_method,
+           t.payment_operator, t.initiated_at, t.completed_at,
+           m.name as merchant_name, c.full_name as client_name
+    FROM transactions t
+    JOIN merchants m ON t.merchant_id = m.id
+    LEFT JOIN clients c ON t.client_id = c.id
+    WHERE 1=1
+  `;
+  const params = [];
+  let idx = 1;
+  if (from) { sql += ` AND t.initiated_at >= $${idx++}`; params.push(from); }
+  if (to) { sql += ` AND t.initiated_at <= $${idx++}`; params.push(to); }
+  if (merchant_id) { sql += ` AND t.merchant_id = $${idx++}`; params.push(merchant_id); }
+  if (status) { sql += ` AND t.status = $${idx++}`; params.push(status); }
+  sql += ` ORDER BY t.initiated_at DESC LIMIT 1000`;
+
+  const transactions = (await db.query(sql, params)).rows;
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="transactions-${new Date().toISOString().split('T')[0]}.pdf"`);
+  doc.pipe(res);
+
+  // En-tête
+  doc.fontSize(18).fillColor('#1a1a5e').text("Afrik'Fid — Rapport de Transactions", { align: 'center' });
+  doc.moveDown(0.5);
+  doc.fontSize(10).fillColor('#666').text(`Généré le ${new Date().toLocaleString('fr-FR')} | ${transactions.length} transactions`, { align: 'center' });
+  if (from || to) doc.text(`Période : ${from || '...'} → ${to || '...'}`, { align: 'center' });
+  doc.moveDown(1);
+
+  // Tableau
+  const colWidths = [110, 65, 45, 55, 60, 75, 100];
+  const headers = ['Référence', 'Montant', 'Devise', 'Statut', 'Méthode', 'Marchand', 'Date'];
+  const startX = 40;
+  let y = doc.y;
+
+  // En-tête tableau
+  doc.fontSize(9).fillColor('#fff');
+  doc.rect(startX, y, 515, 18).fill('#1a1a5e');
+  let x = startX + 4;
+  headers.forEach((h, i) => {
+    doc.fillColor('#fff').text(h, x, y + 4, { width: colWidths[i] - 4, lineBreak: false });
+    x += colWidths[i];
+  });
+  y += 20;
+
+  // Lignes
+  transactions.forEach((tx, rowIdx) => {
+    if (y > 760) { doc.addPage(); y = 40; }
+    const bg = rowIdx % 2 === 0 ? '#f9fafb' : '#ffffff';
+    doc.rect(startX, y, 515, 16).fill(bg);
+
+    const statusColors = { completed: '#16a34a', failed: '#dc2626', pending: '#d97706', expired: '#6b7280' };
+    const values = [
+      tx.reference?.slice(0, 16) || '',
+      parseFloat(tx.gross_amount || 0).toLocaleString('fr-FR'),
+      tx.currency || 'XOF',
+      tx.status || '',
+      tx.payment_operator || tx.payment_method || '',
+      (tx.merchant_name || '').slice(0, 14),
+      tx.initiated_at ? new Date(tx.initiated_at).toLocaleDateString('fr-FR') : '',
+    ];
+
+    x = startX + 4;
+    values.forEach((v, i) => {
+      const color = i === 3 ? (statusColors[tx.status] || '#111') : '#111';
+      doc.fontSize(8).fillColor(color).text(String(v), x, y + 3, { width: colWidths[i] - 4, lineBreak: false });
+      x += colWidths[i];
+    });
+    y += 17;
+  });
+
+  // Totaux
+  doc.moveDown(1.5);
+  const completed = transactions.filter(t => t.status === 'completed');
+  const totalVol = completed.reduce((s, t) => s + parseFloat(t.gross_amount || 0), 0);
+  doc.fontSize(10).fillColor('#111').text(`Total transactions : ${transactions.length} | Complétées : ${completed.length} | Volume : ${totalVol.toLocaleString('fr-FR')} XOF`);
+
+  doc.end();
+});
+
 module.exports = router;

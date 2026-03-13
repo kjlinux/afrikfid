@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: afrikfid-config
+  namespace: afrikfid
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  VITE_API_URL: "/api/v1"
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX: "200"
+  TX_EXPIRY_MS: "120000"
+  TX_RETRY_WINDOW_MS: "600000"
+  CARD_PROVIDER: "cinetpay"

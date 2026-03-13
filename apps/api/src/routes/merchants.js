@@ -6,6 +6,8 @@ const db = require('../lib/db');
 const { requireAdmin, requireMerchant, generateTokens } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { CreateMerchantSchema, UpdateMerchantSchema, MerchantLoginSchema } = require('../config/schemas');
+const { encrypt, decrypt, hashField } = require('../lib/crypto');
+const { notifyKycApproved, notifyKycRejected } = require('../lib/notifications');
 
 // POST /api/v1/merchants (admin)
 router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) => {
@@ -27,27 +29,29 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
   const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
   const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+  const encBankAccount = bank_account ? encrypt(bank_account) : null;
+  const bankAccountHash = bank_account ? hashField(bank_account) : null;
 
   await db.query(`
     INSERT INTO merchants (
       id, name, email, phone, country_id, category,
       rebate_percent, rebate_mode, business_registration, address, website,
-      mm_operator, mm_phone, bank_name, bank_account,
+      mm_operator, mm_phone, bank_name, bank_account, bank_account_hash,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
       webhook_url, settlement_frequency, password_hash,
       status, kyc_status
     ) VALUES (
       $1, $2, $3, $4, $5, $6,
       $7, $8, $9, $10, $11,
-      $12, $13, $14, $15,
-      $16, $17, $18, $19,
-      $20, $21, $22,
+      $12, $13, $14, $15, $16,
+      $17, $18, $19, $20,
+      $21, $22, $23,
       'pending', 'pending'
     )
   `, [
     id, name, email, phone || null, country_id || null, category || 'general',
     rebate_percent, rebate_mode, business_registration || null, address || null, website || null,
-    mm_operator || null, mm_phone || null, bank_name || null, bank_account || null,
+    mm_operator || null, mm_phone || null, bank_name || null, encBankAccount, bankAccountHash,
     apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
     webhook_url || null, settlement_frequency, passwordHash,
   ]);
@@ -92,12 +96,17 @@ router.get('/:id', requireAdmin, async (req, res) => {
 // PATCH /api/v1/merchants/:id (admin)
 router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
   const allowed = ['name', 'phone', 'rebate_percent', 'rebate_mode', 'status', 'kyc_status',
-    'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name', 'bank_account',
+    'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name',
     'category', 'address', 'max_transaction_amount', 'daily_volume_limit', 'allow_guest_mode'];
 
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
+  }
+  // Chiffrement bank_account séparé
+  if (req.body.bank_account !== undefined) {
+    updates.bank_account = req.body.bank_account ? encrypt(req.body.bank_account) : null;
+    updates.bank_account_hash = req.body.bank_account ? hashField(req.body.bank_account) : null;
   }
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'Aucune donnée à mettre à jour' });
@@ -259,6 +268,13 @@ router.patch('/:id/kyc/review', requireAdmin, async (req, res) => {
     [newKycStatus, req.admin.id, reason || null, newMerchantStatus, req.params.id]
   );
 
+  // Notifier le marchand par email/SMS
+  if (action === 'approve') {
+    notifyKycApproved({ merchant });
+  } else {
+    notifyKycRejected({ merchant, reason });
+  }
+
   res.json({ message: `KYC ${action === 'approve' ? 'approuvé' : 'rejeté'}`, kycStatus: newKycStatus, merchantStatus: newMerchantStatus });
 });
 
@@ -317,11 +333,14 @@ function sanitizeMerchant(m, includeKeys = false) {
     maxTransactionAmount: m.max_transaction_amount ?? null,
     dailyVolumeLimit: m.daily_volume_limit ?? null,
     allowGuestMode: m.allow_guest_mode !== false && m.allow_guest_mode !== 0,
+    bankName: m.bank_name,
     createdAt: m.created_at, updatedAt: m.updated_at,
   };
   if (includeKeys) {
     base.apiKeyPublic = m.api_key_public;
     base.sandboxKeyPublic = m.sandbox_key_public;
+    // Déchiffrer le RIB/IBAN pour l'affichage admin/marchand
+    base.bankAccount = decrypt(m.bank_account);
   }
   return base;
 }

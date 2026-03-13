@@ -3,10 +3,10 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { calculateDistribution } = require('../lib/loyalty-engine');
-const { requireApiKey } = require('../middleware/auth');
+const { requireApiKey, requireClient } = require('../middleware/auth');
 const mobileMoney = require('../lib/adapters/mobile-money');
 const { validate } = require('../middleware/validate');
-const { InitiatePaymentSchema, RefundSchema } = require('../config/schemas');
+const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
 const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed } = require('../lib/notifications');
@@ -307,6 +307,93 @@ router.post('/mm/moov/notify', async (req, res) => {
   }
 });
 
+// POST /api/v1/payments/mm/orange/notify (Orange Money return/callback)
+// Orange Money redirige vers return_url avec les paramètres de statut
+router.post('/mm/orange/notify', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
+
+  try {
+    const { status, txnid, txnStatus, notifToken } = req.body || {};
+    const reference = txnid || req.body?.order_id;
+    if (!reference) return;
+
+    // Vérification de signature optionnelle (ORANGE_WEBHOOK_SECRET)
+    if (process.env.ORANGE_WEBHOOK_SECRET && notifToken) {
+      const crypto = require('crypto');
+      const expected = crypto
+        .createHmac('sha256', process.env.ORANGE_WEBHOOK_SECRET)
+        .update(reference)
+        .digest('hex');
+      if (notifToken !== expected) {
+        console.warn('[orange/notify] Signature invalide pour ref:', reference);
+        return;
+      }
+    }
+
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE reference = $1 AND status = 'pending'",
+      [reference]
+    )).rows[0];
+    if (!tx) return;
+
+    const successStatuses = ['SUCCESS', 'SUCCESSFULL', '00'];
+    const failStatuses = ['FAILED', 'CANCELLED', 'EXPIRED'];
+
+    const normalizedStatus = String(status || txnStatus || '').toUpperCase();
+    if (successStatuses.includes(normalizedStatus)) {
+      await processCompletedPayment(tx);
+    } else if (failStatuses.includes(normalizedStatus)) {
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Orange: ${normalizedStatus}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[orange/notify]', err.message);
+  }
+});
+
+// POST /api/v1/payments/mm/airtel/notify (Airtel Money callback)
+router.post('/mm/airtel/notify', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
+
+  try {
+    const body = req.body || {};
+    // Vérification de signature Airtel (X-Airtel-Signature header)
+    if (process.env.AIRTEL_WEBHOOK_SECRET) {
+      const crypto = require('crypto');
+      const signature = req.headers['x-airtel-signature'];
+      const payload = JSON.stringify(body);
+      const expected = crypto
+        .createHmac('sha256', process.env.AIRTEL_WEBHOOK_SECRET)
+        .update(payload)
+        .digest('base64');
+      if (signature !== expected) {
+        console.warn('[airtel/notify] Signature webhook invalide');
+        return;
+      }
+    }
+
+    const reference = body?.transaction?.id || body?.reference;
+    const statusCode = body?.transaction?.status || body?.status;
+    if (!reference) return;
+
+    const tx = (await db.query(
+      "SELECT * FROM transactions WHERE reference = $1 AND status = 'pending'",
+      [reference]
+    )).rows[0];
+    if (!tx) return;
+
+    const normalizedStatus = String(statusCode || '').toUpperCase();
+    if (normalizedStatus === 'TS' || normalizedStatus === 'SUCCESS') {
+      await processCompletedPayment(tx);
+    } else if (['TF', 'FAILED', 'CANCELLED'].includes(normalizedStatus)) {
+      await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Airtel: ${normalizedStatus}`, tx.id]);
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[airtel/notify]', err.message);
+  }
+});
+
 // POST /api/v1/payments/:id/confirm (sandbox)
 router.post('/:id/confirm', requireApiKey, async (req, res) => {
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2', [req.params.id, req.merchant.id])).rows[0];
@@ -349,32 +436,203 @@ router.post('/:id/refund', requireApiKey, validate(RefundSchema), async (req, re
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
   if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
 
-  const refundAmount = refund_type === 'full' ? tx.gross_amount : (amount || tx.gross_amount);
+  const grossAmount = parseFloat(tx.gross_amount);
+  const refundAmount = refund_type === 'full' ? grossAmount : Math.min(parseFloat(amount || grossAmount), grossAmount);
+
+  // Recalcul proportionnel X/Y/Z (CDC §4.4)
+  const refundRatio = refundAmount / grossAmount;
+  const merchantRebateRefunded = parseFloat(tx.merchant_rebate_amount) * refundRatio;
+  const clientRebateRefunded = parseFloat(tx.client_rebate_amount) * refundRatio;
+  const platformCommissionRefunded = parseFloat(tx.platform_commission_amount) * refundRatio;
+
   const refundId = uuidv4();
 
   await db.query(
-    `INSERT INTO refunds (id, transaction_id, amount, refund_type, reason, status, initiated_by) VALUES ($1, $2, $3, $4, $5, 'processing', $6)`,
-    [refundId, tx.id, refundAmount, refund_type, reason || null, req.merchant.id]
+    `INSERT INTO refunds (id, transaction_id, amount, refund_type, reason, status, initiated_by,
+       merchant_rebate_refunded, client_rebate_refunded, platform_commission_refunded, refund_ratio)
+     VALUES ($1, $2, $3, $4, $5, 'processing', $6, $7, $8, $9, $10)`,
+    [refundId, tx.id, refundAmount, refund_type, reason || null, req.merchant.id,
+      merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded, refundRatio]
   );
 
-  if (tx.rebate_mode === 'cashback' && tx.client_id && tx.client_rebate_amount > 0) {
+  // Annulation du cashback client proportionnel (CDC §4.4)
+  if (tx.rebate_mode === 'cashback' && tx.client_id && clientRebateRefunded > 0) {
     const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [tx.client_id])).rows[0];
-    if (wallet && wallet.balance >= tx.client_rebate_amount) {
-      const newBalance = parseFloat(wallet.balance) - parseFloat(tx.client_rebate_amount);
-      await db.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE client_id = $2', [newBalance, tx.client_id]);
+    if (wallet) {
+      const debit = Math.min(parseFloat(wallet.balance), clientRebateRefunded);
+      if (debit > 0) {
+        const newBalance = parseFloat(wallet.balance) - debit;
+        await db.query('UPDATE wallets SET balance = $1, total_spent = total_spent + $2, updated_at = NOW() WHERE client_id = $3', [newBalance, debit, tx.client_id]);
+        await db.query(
+          `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'debit', $4, $5, $6, $7)`,
+          [uuidv4(), wallet.id, tx.id, debit, wallet.balance, newBalance, `Annulation cashback - remboursement ${tx.reference} (${Math.round(refundRatio * 100)}%)`]
+        );
+      }
+    }
+  }
+
+  const newStatus = refund_type === 'full' ? 'refunded' : 'partially_refunded';
+  await db.query("UPDATE transactions SET status = $1 WHERE id = $2", [newStatus, tx.id]);
+  await db.query("UPDATE refunds SET status = 'completed', processed_at = NOW() WHERE id = $1", [refundId]);
+
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, {
+    transactionId: tx.id,
+    reference: tx.reference,
+    refundAmount,
+    refundRatio,
+    distribution: { merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded },
+  }).catch(() => {});
+
+  res.json({
+    refundId,
+    message: 'Remboursement effectué avec succès',
+    amount: refundAmount,
+    refundRatio,
+    distribution: {
+      merchantRebateRefunded: parseFloat(merchantRebateRefunded.toFixed(2)),
+      clientRebateRefunded: parseFloat(clientRebateRefunded.toFixed(2)),
+      platformCommissionRefunded: parseFloat(platformCommissionRefunded.toFixed(2)),
+    },
+  });
+});
+
+// POST /api/v1/payments/wallet/pay — Paiement avec solde cashback (CDC §4.3.2)
+// Authentification: JWT client (header Authorization: Bearer <token>)
+router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req, res) => {
+  const { merchant_id, amount, currency = 'XOF', description, idempotency_key } = req.body;
+  const client = req.client;
+
+  // Idempotence
+  if (idempotency_key) {
+    const existing = (await db.query('SELECT * FROM transactions WHERE idempotency_key = $1', [idempotency_key])).rows[0];
+    if (existing) return res.status(200).json({ message: 'Transaction existante', transaction: sanitizeTx(existing) });
+  }
+
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1 AND is_active = TRUE AND status = $2', [merchant_id, 'active'])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand non trouvé ou inactif' });
+  if (merchant.kyc_status !== 'approved') return res.status(403).json({ error: 'Marchand non vérifié (KYC requis)' });
+
+  // Vérifier le solde wallet
+  const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+  if (!wallet) return res.status(400).json({ error: 'Portefeuille non trouvé' });
+  if (parseFloat(wallet.balance) < amount) {
+    return res.status(422).json({
+      error: 'INSUFFICIENT_WALLET_BALANCE',
+      message: `Solde insuffisant. Disponible: ${wallet.balance} ${wallet.currency}, demandé: ${amount} ${currency}`,
+    });
+  }
+
+  // Vérifier seuils marchand
+  if (merchant.max_transaction_amount && amount > parseFloat(merchant.max_transaction_amount)) {
+    return res.status(422).json({ error: 'AMOUNT_EXCEEDS_LIMIT', message: `Montant dépasse le seuil maximum (${merchant.max_transaction_amount})` });
+  }
+
+  // Calcul distribution X/Y/Z (paiement wallet = même mécanique, statut fidélité client)
+  const clientCountryId = client.country_id || merchant.country_id || null;
+  const distribution = await calculateDistribution(amount, merchant.rebate_percent, client.loyalty_status, clientCountryId);
+
+  if (distribution.yExceedsX) {
+    return res.status(422).json({ error: 'DISTRIBUTION_ERROR', message: 'Taux Y supérieur à X. Anomalie de configuration.' });
+  }
+
+  // Débit immédiat du wallet
+  const balanceBefore = parseFloat(wallet.balance);
+  const newBalance = balanceBefore - amount;
+
+  // Montant net facturé au client (si mode immediate, déduction Y% supplémentaire déjà intégrée)
+  const chargedAmount = merchant.rebate_mode === 'immediate'
+    ? amount - distribution.clientRebateAmount
+    : amount;
+
+  const txId = uuidv4();
+  const reference = `AFD-WLT-${Date.now()}-${txId.slice(0, 8).toUpperCase()}`;
+  const now = new Date().toISOString();
+
+  await db.query(`
+    INSERT INTO transactions (
+      id, reference, merchant_id, client_id,
+      gross_amount, net_client_amount,
+      merchant_rebate_percent, client_rebate_percent, platform_commission_percent,
+      merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
+      merchant_receives, client_loyalty_status, rebate_mode,
+      payment_method, status, currency, description, idempotency_key,
+      initiated_at, completed_at, expires_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+      'wallet', 'completed', $16, $17, $18,
+      $19, $19, $19
+    )
+  `, [
+    txId, reference, merchant.id, client.id,
+    amount, chargedAmount,
+    distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
+    distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
+    distribution.merchantReceives, client.loyalty_status, merchant.rebate_mode,
+    currency, description || null, idempotency_key || null, now,
+  ]);
+
+  // Débit wallet client
+  await db.query('UPDATE wallets SET balance = $1, total_spent = total_spent + $2, updated_at = NOW() WHERE id = $3', [newBalance, amount, wallet.id]);
+  await db.query(
+    `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description)
+     VALUES ($1, $2, $3, 'debit', $4, $5, $6, $7)`,
+    [uuidv4(), wallet.id, txId, amount, balanceBefore, newBalance, `Paiement chez ${merchant.name} - ${reference}`]
+  );
+
+  // Distributions
+  const distId1 = uuidv4(), distId2 = uuidv4();
+  await db.query(`
+    INSERT INTO distributions (id, transaction_id, beneficiary_type, beneficiary_id, amount, currency, status, executed_at)
+    VALUES ($1, $2, 'merchant', $3, $4, $5, 'completed', $6),
+           ($7, $8, 'platform', 'afrikfid', $9, $10, 'completed', $11)
+  `, [distId1, txId, merchant.id, distribution.merchantReceives, currency, now,
+      distId2, txId, distribution.platformCommissionAmount, currency, now]);
+
+  // Si mode cashback: re-créditer Y% (récompense fidélité sur paiement wallet aussi)
+  if (merchant.rebate_mode === 'cashback' && distribution.clientRebateAmount > 0) {
+    const walletCap = wallet.max_balance;
+    const rebateToCredit = walletCap
+      ? Math.min(distribution.clientRebateAmount, walletCap - newBalance)
+      : distribution.clientRebateAmount;
+
+    if (rebateToCredit > 0) {
+      const balanceAfterRebate = newBalance + rebateToCredit;
+      await db.query('UPDATE wallets SET balance = $1, total_earned = total_earned + $2, updated_at = NOW() WHERE id = $3', [balanceAfterRebate, rebateToCredit, wallet.id]);
       await db.query(
-        `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'debit', $4, $5, $6, $7)`,
-        [uuidv4(), wallet.id, tx.id, tx.client_rebate_amount, wallet.balance, newBalance, `Remboursement transaction ${tx.reference}`]
+        `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description)
+         VALUES ($1, $2, $3, 'credit', $4, $5, $6, $7)`,
+        [uuidv4(), wallet.id, txId, rebateToCredit, newBalance, balanceAfterRebate, `Cashback - ${reference}`]
+      );
+      await db.query(
+        `INSERT INTO distributions (id, transaction_id, beneficiary_type, beneficiary_id, amount, currency, status, executed_at)
+         VALUES ($1, $2, 'client_cashback', $3, $4, $5, 'completed', $6)`,
+        [uuidv4(), txId, client.id, rebateToCredit, currency, now]
       );
     }
   }
 
-  await db.query("UPDATE transactions SET status = 'refunded' WHERE id = $1", [tx.id]);
-  await db.query("UPDATE refunds SET status = 'completed', processed_at = NOW() WHERE id = $1", [refundId]);
+  // Mise à jour stats client
+  await db.query(
+    'UPDATE clients SET total_purchases = total_purchases + 1, total_amount = total_amount + $1, updated_at = NOW() WHERE id = $2',
+    [amount, client.id]
+  );
 
-  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount }).catch(() => {});
+  // Webhooks + SSE
+  const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [txId])).rows[0];
+  dispatchWebhook(merchant.id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
+  emit(SSE_EVENTS.PAYMENT_SUCCESS, { transactionId: txId, reference, merchantId: merchant.id, status: 'completed', amount, currency, operator: 'wallet' });
 
-  res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
+  res.status(201).json({
+    transaction: sanitizeTx(completedTx),
+    walletBalance: newBalance,
+    message: 'Paiement par solde cashback effectué avec succès',
+    distribution: {
+      grossAmount: amount,
+      merchantReceives: distribution.merchantReceives,
+      clientRebateAmount: distribution.clientRebateAmount,
+      platformCommissionAmount: distribution.platformCommissionAmount,
+    },
+  });
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

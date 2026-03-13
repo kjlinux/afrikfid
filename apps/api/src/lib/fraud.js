@@ -87,24 +87,39 @@ async function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
   return { score: Math.min(score, 100), reasons };
 }
 
-async function checkTransaction({ amount, clientId, clientPhone, merchantId }) {
+async function checkTransaction({ amount, clientId, clientPhone, merchantId, currency, merchantName }) {
   if (clientPhone && await isPhoneBlocked(clientPhone)) {
-    return { blocked: true, reason: 'Numéro de téléphone sur liste noire', riskScore: 100, reasons: ['Numéro blacklisté'] };
+    const result = { blocked: true, reason: 'Numéro de téléphone sur liste noire', riskScore: 100, reasons: ['Numéro blacklisté'] };
+    _alertFraudBlocked({ amount, currency, merchantName, clientPhone, ...result });
+    return result;
   }
 
   const rules = await getActiveRules();
   const maxAmount = rules[RULE_TYPES.MAX_AMOUNT_PER_TX];
   if (amount > maxAmount) {
-    return { blocked: true, reason: `Montant ${amount} dépasse le seuil maximum autorisé (${maxAmount})`, riskScore: 100, reasons: ['Montant dépasse le seuil max'] };
+    const result = { blocked: true, reason: `Montant ${amount} dépasse le seuil maximum autorisé (${maxAmount})`, riskScore: 100, reasons: ['Montant dépasse le seuil max'] };
+    _alertFraudBlocked({ amount, currency, merchantName, clientPhone, ...result });
+    return result;
   }
 
   const { score, reasons } = await computeRiskScore({ amount, clientId, clientPhone, merchantId });
 
   if (score >= 70) {
-    return { blocked: true, reason: `Score de risque élevé (${score}/100): ${reasons.join(', ')}`, riskScore: score, reasons };
+    const reason = `Score de risque élevé (${score}/100): ${reasons.join(', ')}`;
+    const result = { blocked: true, reason, riskScore: score, reasons };
+    _alertFraudBlocked({ amount, currency, merchantName, clientPhone, ...result });
+    return result;
   }
 
   return { blocked: false, reason: null, riskScore: score, reasons };
+}
+
+function _alertFraudBlocked({ amount, currency, merchantName, clientPhone, reason, riskScore }) {
+  // Fire-and-forget: ne pas bloquer la réponse HTTP
+  try {
+    const { notifyFraudBlocked } = require('./notifications');
+    notifyFraudBlocked({ amount, currency: currency || 'XOF', merchantName, clientPhone, reason, riskScore }).catch(() => {});
+  } catch { /* pas critique */ }
 }
 
 async function getAllRules() {

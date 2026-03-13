@@ -339,6 +339,29 @@ const MIGRATIONS = [
     `,
   },
   {
+    version: 9,
+    name: '009_wallet_caps_and_refund_details',
+    up: `
+      -- Plafond configurable du solde cashback (CDC §4.3.2)
+      ALTER TABLE wallets ADD COLUMN IF NOT EXISTS max_balance NUMERIC DEFAULT NULL;
+      ALTER TABLE wallets ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'XOF';
+
+      -- Détail du remboursement proportionnel X/Y/Z (CDC §4.4)
+      ALTER TABLE refunds ADD COLUMN IF NOT EXISTS merchant_rebate_refunded NUMERIC DEFAULT 0;
+      ALTER TABLE refunds ADD COLUMN IF NOT EXISTS client_rebate_refunded NUMERIC DEFAULT 0;
+      ALTER TABLE refunds ADD COLUMN IF NOT EXISTS platform_commission_refunded NUMERIC DEFAULT 0;
+      ALTER TABLE refunds ADD COLUMN IF NOT EXISTS refund_ratio NUMERIC DEFAULT 1;
+
+      -- Plafond global du wallet (config admin)
+      CREATE TABLE IF NOT EXISTS wallet_config (
+        id TEXT PRIMARY KEY DEFAULT 'global',
+        default_max_balance NUMERIC DEFAULT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO wallet_config (id) VALUES ('global') ON CONFLICT DO NOTHING;
+    `,
+  },
+  {
     version: 8,
     name: '008_transaction_retry_and_kyc_fields',
     up: `
@@ -354,6 +377,34 @@ const MIGRATIONS = [
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_rejection_reason TEXT DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_documents JSONB DEFAULT NULL;
+    `,
+  },
+  {
+    version: 10,
+    name: '010_security_rgpd_2fa',
+    up: `
+      -- Chiffrement bank_account marchand (CDC §5.4.1)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS bank_account_hash TEXT DEFAULT NULL;
+
+      -- RGPD — champ anonymisation pour les clients (CDC §RGPD)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS gdpr_deletion_requested_at TIMESTAMPTZ DEFAULT NULL;
+
+      -- 2FA TOTP pour admins (CDC §5.4 sécurité renforcée)
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
+
+      -- Export données RGPD demandées par les clients
+      CREATE TABLE IF NOT EXISTS gdpr_export_requests (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id),
+        requested_at TIMESTAMPTZ DEFAULT NOW(),
+        processed_at TIMESTAMPTZ,
+        export_url TEXT,
+        status TEXT DEFAULT 'pending'
+      );
+      CREATE INDEX IF NOT EXISTS idx_gdpr_requests_client ON gdpr_export_requests(client_id);
     `,
   },
 ];
