@@ -1,6 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { ToastProvider } from './components/ToastNotification.jsx'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
+import {
+  ChartBarIcon,
+  BuildingStorefrontIcon,
+  UsersIcon,
+  CreditCardIcon,
+  StarIcon,
+  BellIcon,
+  ShieldCheckIcon,
+  ArrowsRightLeftIcon,
+  ArrowUturnLeftIcon,
+  ScaleIcon,
+  ClipboardDocumentListIcon,
+  LinkIcon,
+  Cog6ToothIcon,
+} from '@heroicons/react/24/outline'
 
 // Pages
 import Login from './pages/Login.jsx'
@@ -64,17 +79,17 @@ function AdminLayout({ children }) {
   const navigate = useNavigate()
 
   const nav = [
-    { path: '/admin', label: 'Dashboard', icon: '📊' },
-    { path: '/admin/merchants', label: 'Marchands', icon: '🏪' },
-    { path: '/admin/clients', label: 'Clients', icon: '👥' },
-    { path: '/admin/transactions', label: 'Transactions', icon: '💳' },
-    { path: '/admin/loyalty', label: 'Fidélité', icon: '⭐' },
-    { path: '/admin/webhooks', label: 'Webhooks', icon: '🔔' },
-    { path: '/admin/fraud', label: 'Fraude', icon: '🛡️' },
-    { path: '/admin/exchange-rates', label: 'Taux de change', icon: '💱' },
-    { path: '/admin/refunds', label: 'Remboursements', icon: '↩️' },
-    { path: '/admin/disputes', label: 'Litiges', icon: '⚖️' },
-    { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: '📋' },
+    { path: '/admin', label: 'Dashboard', icon: ChartBarIcon },
+    { path: '/admin/merchants', label: 'Marchands', icon: BuildingStorefrontIcon },
+    { path: '/admin/clients', label: 'Clients', icon: UsersIcon },
+    { path: '/admin/transactions', label: 'Transactions', icon: CreditCardIcon },
+    { path: '/admin/loyalty', label: 'Fidélité', icon: StarIcon },
+    { path: '/admin/webhooks', label: 'Webhooks', icon: BellIcon },
+    { path: '/admin/fraud', label: 'Fraude', icon: ShieldCheckIcon },
+    { path: '/admin/exchange-rates', label: 'Taux de change', icon: ArrowsRightLeftIcon },
+    { path: '/admin/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
+    { path: '/admin/disputes', label: 'Litiges', icon: ScaleIcon },
+    { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: ClipboardDocumentListIcon },
   ]
 
   return (
@@ -101,7 +116,7 @@ function AdminLayout({ children }) {
                 color: location.pathname === item.path ? '#f59e0b' : '#94a3b8',
                 transition: 'all 0.15s',
               }}>
-              <span>{item.icon}</span>
+              <item.icon style={{ width: 18, height: 18, flexShrink: 0 }} />
               <span>{item.label}</span>
             </Link>
           ))}
@@ -131,12 +146,12 @@ function MerchantLayout({ children }) {
   const navigate = useNavigate()
 
   const nav = [
-    { path: '/merchant', label: 'Dashboard', icon: '📊' },
-    { path: '/merchant/transactions', label: 'Transactions', icon: '💳' },
-    { path: '/merchant/links', label: 'Liens de paiement', icon: '🔗' },
-    { path: '/merchant/clients', label: 'Clients fidélisés', icon: '👥' },
-    { path: '/merchant/refunds', label: 'Remboursements', icon: '↩️' },
-    { path: '/merchant/settings', label: 'Paramètres', icon: '⚙️' },
+    { path: '/merchant', label: 'Dashboard', icon: ChartBarIcon },
+    { path: '/merchant/transactions', label: 'Transactions', icon: CreditCardIcon },
+    { path: '/merchant/links', label: 'Liens de paiement', icon: LinkIcon },
+    { path: '/merchant/clients', label: 'Clients fidélisés', icon: UsersIcon },
+    { path: '/merchant/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
+    { path: '/merchant/settings', label: 'Paramètres', icon: Cog6ToothIcon },
   ]
 
   return (
@@ -155,7 +170,7 @@ function MerchantLayout({ children }) {
                 background: location.pathname === item.path ? 'rgba(245,158,11,0.15)' : 'transparent',
                 color: location.pathname === item.path ? '#f59e0b' : '#94a3b8',
               }}>
-              <span>{item.icon}</span><span>{item.label}</span>
+              <item.icon style={{ width: 18, height: 18, flexShrink: 0 }} /><span>{item.label}</span>
             </Link>
           ))}
         </nav>

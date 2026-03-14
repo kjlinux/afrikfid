@@ -4,6 +4,15 @@ import api from '../../api.js'
 import { fmt, KpiCard, Card, PeriodSelector, Spinner, exportCsv, exportPdf, Alert, Badge } from '../../components/ui.jsx'
 import { useSSE } from '../../hooks/useSSE.js'
 import { useToast } from '../../components/ToastNotification.jsx'
+import {
+  CurrencyDollarIcon,
+  ChartBarIcon,
+  GiftIcon,
+  CheckCircleIcon,
+  BuildingStorefrontIcon,
+  UsersIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline'
 
 const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
@@ -112,17 +121,17 @@ export default function AdminDashboard() {
 
       {/* KPIs ligne 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
-        <KpiCard label="Volume total" value={`${fmt(kpis.total_volume)} XOF`} icon="💰" color="#f59e0b" sub={`${kpis.completed} transactions réussies`} />
-        <KpiCard label="Revenus Afrik'Fid" value={`${fmt(kpis.platform_revenue)} XOF`} icon="📈" color="#10b981" sub="Commissions Z%" />
-        <KpiCard label="Remises clients" value={`${fmt(kpis.client_rebates)} XOF`} icon="🎁" color="#3b82f6" sub="Cashback distribué (Y%)" />
-        <KpiCard label="Taux de succès" value={`${kpis.success_rate || 0}%`} icon="✅" color="#10b981" sub={`${kpis.total_transactions} transactions initiées`} />
+        <KpiCard label="Volume total" value={`${fmt(kpis.total_volume)} XOF`} icon={<CurrencyDollarIcon />} color="#f59e0b" sub={`${kpis.completed} transactions réussies`} />
+        <KpiCard label="Revenus Afrik'Fid" value={`${fmt(kpis.platform_revenue)} XOF`} icon={<ChartBarIcon />} color="#10b981" sub="Commissions Z%" />
+        <KpiCard label="Remises clients" value={`${fmt(kpis.client_rebates)} XOF`} icon={<GiftIcon />} color="#3b82f6" sub="Cashback distribué (Y%)" />
+        <KpiCard label="Taux de succès" value={`${kpis.success_rate || 0}%`} icon={<CheckCircleIcon />} color="#10b981" sub={`${kpis.total_transactions} transactions initiées`} />
       </div>
 
       {/* KPIs ligne 2 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-        <KpiCard label="Marchands actifs" value={merchantCount} icon="🏪" color="#f59e0b" />
-        <KpiCard label="Clients inscrits" value={clientCount} icon="👥" color="#3b82f6" />
-        <KpiCard label="Trans. non complétées" value={kpis.total_transactions - kpis.completed} icon="⏳" color="#f59e0b" />
+        <KpiCard label="Marchands actifs" value={merchantCount} icon={<BuildingStorefrontIcon />} color="#f59e0b" />
+        <KpiCard label="Clients inscrits" value={clientCount} icon={<UsersIcon />} color="#3b82f6" />
+        <KpiCard label="Trans. non complétées" value={kpis.total_transactions - kpis.completed} icon={<ClockIcon />} color="#f59e0b" />
       </div>
 
       {/* Graphiques */}

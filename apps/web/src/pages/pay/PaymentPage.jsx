@@ -6,13 +6,16 @@ import { useTransactionSSE } from '../../hooks/useSSE.js'
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
 const MM_OPERATORS = [
-  { code: 'ORANGE', name: 'Orange Money', color: '#FF6B00', icon: '🟠' },
-  { code: 'MTN',    name: 'MTN MoMo',     color: '#FFD700', icon: '🟡' },
-  { code: 'WAVE',   name: 'Wave',         color: '#1DA1F2', icon: '🌊' },
-  { code: 'AIRTEL', name: 'Airtel Money', color: '#E30613', icon: '🔴' },
-  { code: 'MOOV',   name: 'Moov Money',  color: '#00A651', icon: '🟢' },
-  { code: 'MPESA',  name: 'M-Pesa',      color: '#00A551', icon: '🦁' },
+  { code: 'ORANGE', name: 'Orange Money', color: '#FF6B00' },
+  { code: 'MTN',    name: 'MTN MoMo',     color: '#FFD700' },
+  { code: 'WAVE',   name: 'Wave',         color: '#1DA1F2' },
+  { code: 'AIRTEL', name: 'Airtel Money', color: '#E30613' },
+  { code: 'MOOV',   name: 'Moov Money',  color: '#00A651' },
+  { code: 'MPESA',  name: 'M-Pesa',      color: '#00A551' },
 ]
+function OperatorDot({ color }) {
+  return <span style={{ width: 14, height: 14, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+}
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 const LOYALTY_ICON  = { OPEN: 'o', LIVE: '★', GOLD: '◎', ROYAL: '♛' }
 
@@ -227,7 +230,7 @@ export default function PaymentPage() {
                   {MM_OPERATORS.map(op => (
                     <button key={op.code} onClick={() => setForm(f => ({ ...f, operator: op.code }))}
                       style={{ padding: '9px 4px', border: '2px solid ' + (form.operator === op.code ? op.color : '#334155'), borderRadius: 9, background: form.operator === op.code ? op.color + '22' : '#0f172a', cursor: 'pointer', textAlign: 'center' }}>
-                      <div style={{ fontSize: 18 }}>{op.icon}</div>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}><OperatorDot color={op.color} /></div>
                       <div style={{ fontSize: 9, color: form.operator === op.code ? op.color : '#64748b', marginTop: 3, fontWeight: 600 }}>{op.name.split(' ')[0]}</div>
                     </button>
                   ))}

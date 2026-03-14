@@ -1,7 +1,10 @@
-/**
- * Composants UI réutilisables — Afrik'Fid Design System
- */
 import React from 'react'
+import {
+  TrophyIcon,
+  StarIcon,
+  SparklesIcon,
+  InboxIcon,
+} from '@heroicons/react/24/solid'
 
 export const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
@@ -27,10 +30,11 @@ export function Badge({ status, label }) {
 
 export function LoyaltyBadge({ status }) {
   const color = LOYALTY_COLORS[status] || '#6B7280'
-  const icon = status === 'ROYAL' ? '👑' : status === 'GOLD' ? '🥇' : status === 'LIVE' ? '⭐' : '○'
+  const Icon = status === 'ROYAL' ? TrophyIcon : status === 'GOLD' ? StarIcon : status === 'LIVE' ? SparklesIcon : null
   return (
     <span style={{ color, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      {icon} {status}
+      {Icon ? <Icon style={{ width: 14, height: 14 }} /> : <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block' }} />}
+      {status}
     </span>
   )
 }
@@ -40,7 +44,7 @@ export function KpiCard({ label, value, sub, color = '#f59e0b', icon, trend }) {
     <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 22 }}>{icon}</span>
+        {icon && <span style={{ color, display: 'flex', alignItems: 'center' }}>{React.isValidElement(icon) ? React.cloneElement(icon, { style: { width: 22, height: 22, ...icon.props?.style } }) : icon}</span>}
       </div>
       <div style={{ fontSize: 26, fontWeight: 700, color, marginBottom: 4 }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: '#64748b' }}>{sub}</div>}
@@ -159,10 +163,11 @@ export function Alert({ type = 'error', children, onClose }) {
   )
 }
 
-export function EmptyState({ icon = '📭', title, desc }) {
+export function EmptyState({ icon, title, desc }) {
+  const DefaultIcon = <InboxIcon style={{ width: 40, height: 40, color: '#334155' }} />
   return (
     <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>{icon}</div>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>{icon || DefaultIcon}</div>
       <div style={{ fontSize: 15, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>{title}</div>
       {desc && <div style={{ fontSize: 13 }}>{desc}</div>}
     </div>

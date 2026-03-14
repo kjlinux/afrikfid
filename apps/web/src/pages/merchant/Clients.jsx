@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../api.js'
 import { fmt, Card, Spinner, LoyaltyBadge, Pagination, exportCsv } from '../../components/ui.jsx'
+import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
@@ -57,7 +58,7 @@ export default function MerchantClients() {
           {['OPEN', 'LIVE', 'GOLD', 'ROYAL'].map(s => {
             const count = stats.byStatus?.find(b => b.loyalty_status === s)?.count || 0
             const color = LOYALTY_COLOR[s]
-            const icon = s === 'ROYAL' ? '👑' : s === 'GOLD' ? '🥇' : s === 'LIVE' ? '⭐' : '○'
+            const Icon = s === 'ROYAL' ? TrophyIcon : s === 'GOLD' ? StarIcon : s === 'LIVE' ? SparklesIcon : null
             return (
               <button key={s} onClick={() => { setFilter(s === filter ? 'all' : s); setPage(1) }}
                 style={{
@@ -65,7 +66,9 @@ export default function MerchantClients() {
                   border: `1px solid ${filter === s ? color : '#334155'}`,
                   borderRadius: 12, padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
                 }}>
-                <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
+                <div style={{ marginBottom: 6, color }}>
+                  {Icon ? <Icon style={{ width: 20, height: 20 }} /> : <span style={{ width: 14, height: 14, borderRadius: '50%', background: color, display: 'inline-block' }} />}
+                </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color }}>{count}</div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{s}</div>
               </button>

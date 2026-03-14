@@ -272,23 +272,43 @@ router.get('/:id/export', requireAdmin, async (req, res) => {
 
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   const movements = (await db.query('SELECT * FROM wallet_movements WHERE wallet_id = $1 ORDER BY created_at DESC', [wallet?.id || ''])).rows;
-  const transactions = (await db.query('SELECT id, reference, gross_amount, currency, status, initiated_at FROM transactions WHERE client_id = $1 ORDER BY initiated_at DESC', [client.id])).rows;
+  const transactions = (await db.query(
+    `SELECT id, reference, gross_amount, net_amount, merchant_rebate_percent, client_rebate_percent,
+            client_discount, platform_commission, currency, status, payment_method, initiated_at, completed_at
+     FROM transactions WHERE client_id = $1 ORDER BY initiated_at DESC`,
+    [client.id]
+  )).rows;
+  const loyaltyHistory = (await db.query(
+    'SELECT old_status, new_status, reason, changed_by, changed_at FROM loyalty_status_history WHERE client_id = $1 ORDER BY changed_at DESC',
+    [client.id]
+  )).rows;
 
+  // Export RGPD Article 20 — portabilité des données
   const exportData = {
     exportedAt: new Date().toISOString(),
+    rgpdNote: 'Export de portabilité RGPD (Article 20). Données personnelles traitées par Afrik\'Fid.',
     client: {
       id: client.id,
       afrikfidId: client.afrikfid_id,
       fullName: client.full_name,
-      phone: decrypt(client.phone),
-      email: decrypt(client.email),
+      phone: client.phone ? decrypt(client.phone) : null,
+      email: client.email ? decrypt(client.email) : null,
       countryId: client.country_id,
       loyaltyStatus: client.loyalty_status,
+      isActive: client.is_active,
       createdAt: client.created_at,
+      updatedAt: client.updated_at,
     },
-    wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
+    wallet: wallet ? {
+      balance: wallet.balance,
+      totalEarned: wallet.total_earned,
+      totalSpent: wallet.total_spent,
+      currency: wallet.currency,
+      createdAt: wallet.created_at,
+    } : null,
     walletMovements: movements,
     transactions,
+    loyaltyStatusHistory: loyaltyHistory,
   };
 
   await db.query(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)

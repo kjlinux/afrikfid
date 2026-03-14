@@ -148,7 +148,7 @@ async function processDisbursements() {
 
         processed++;
         totalAmount += amount;
-        console.log(`✅ [DISB] Marchand ${merchant.name}: ${amount} ${currency} → ${disbStatus}`);
+        console.log(`[DISB] Marchand ${merchant.name}: ${amount} ${currency} → ${disbStatus}`);
       }
     } catch (err) {
       console.error(`[DISB] Erreur pour marchand ${merchant.id}:`, err.message);

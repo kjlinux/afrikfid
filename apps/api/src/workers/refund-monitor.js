@@ -93,7 +93,7 @@ Veuillez les traiter immédiatement dans le panel admin.
     }
   }
 
-  console.log(`⚠️  [REFUND-MONITOR] ${overdueRefunds.length} remboursement(s) overdue détecté(s) et notifiés`);
+  console.log(`[REFUND-MONITOR] ${overdueRefunds.length} remboursement(s) overdue détecté(s) et notifiés`);
   return { overdue: overdueRefunds.length, ids };
 }
 

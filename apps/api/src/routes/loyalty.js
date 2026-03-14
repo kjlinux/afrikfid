@@ -56,6 +56,7 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
   }
 
   res.json({ config: updated, warnings });
+});
 
 // POST /api/v1/loyalty/batch (admin)
 router.post('/batch', requireAdmin, async (req, res) => {

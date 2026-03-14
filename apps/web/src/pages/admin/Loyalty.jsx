@@ -2,10 +2,14 @@ import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 
 const STATUS_META = {
-  OPEN: { icon: '⚪', color: '#6B7280', gradient: 'from-gray' },
-  LIVE: { icon: '🔵', color: '#3B82F6', gradient: 'from-blue' },
-  GOLD: { icon: '🟡', color: '#F59E0B', gradient: 'from-yellow' },
-  ROYAL: { icon: '🟣', color: '#8B5CF6', gradient: 'from-purple' },
+  OPEN:  { color: '#6B7280' },
+  LIVE:  { color: '#3B82F6' },
+  GOLD:  { color: '#F59E0B' },
+  ROYAL: { color: '#8B5CF6' },
+}
+function StatusDot({ status }) {
+  const color = STATUS_META[status]?.color || '#6B7280'
+  return <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, display: 'inline-block', marginRight: 6, flexShrink: 0 }} />
 }
 
 const inp = { width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 14, outline: 'none' }
@@ -77,7 +81,7 @@ export default function AdminLoyalty() {
             const total = stats.summary?.total || 1
             return (
               <div key={s} style={{ background: '#1e293b', borderRadius: 12, padding: '20px 20px', border: `1px solid ${m.color}33` }}>
-                <div style={{ fontSize: 22, marginBottom: 8 }}>{m.icon}</div>
+                <div style={{ marginBottom: 8 }}><StatusDot status={s} /></div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: m.color }}>{count}</div>
                 <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{s}</div>
                 <div style={{ marginTop: 10, height: 4, background: '#334155', borderRadius: 4, overflow: 'hidden' }}>
@@ -100,8 +104,8 @@ export default function AdminLoyalty() {
             <div key={config.status} style={{ background: '#1e293b', borderRadius: 14, padding: 24, border: `1px solid ${m.color}33` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: `${m.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                    {m.icon}
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: `${m.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <StatusDot status={config.status} />
                   </div>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{config.status}</div>

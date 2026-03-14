@@ -5,7 +5,7 @@ const db = require('./lib/db');
 const { encrypt, hashField } = require('./lib/crypto');
 
 async function seed() {
-  console.log("🌱 Seeding Afrik'Fid database...");
+  console.log("[SEED] Seeding Afrik'Fid database...");
 
   // ─── Countries ────────────────────────────────────────────────────────────
   const countries = [
@@ -29,7 +29,7 @@ async function seed() {
       [c.id, c.name, c.currency, c.zone]
     );
   }
-  console.log(`✅ ${countries.length} pays insérés`);
+  console.log(`[SEED] ${countries.length} pays insérés`);
 
   // ─── Loyalty Config ────────────────────────────────────────────────────────
   const loyaltyConfigs = [
@@ -46,7 +46,7 @@ async function seed() {
       [lc.id, lc.status, lc.client_rebate_percent, lc.label, lc.color, lc.sort_order, lc.min_purchases, lc.min_cumulative_amount, lc.evaluation_months, lc.inactivity_months]
     );
   }
-  console.log('✅ Config fidélité insérée');
+  console.log('[SEED] Config fidélité insérée');
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@afrikfid.com';
@@ -57,7 +57,7 @@ async function seed() {
     `INSERT INTO admins (id, email, password_hash, full_name, role) VALUES ($1, $2, $3, 'Super Admin', 'admin') ON CONFLICT (email) DO NOTHING`,
     [uuidv4(), adminEmail, adminHash]
   );
-  console.log(`✅ Admin créé: ${adminEmail}`);
+  console.log(`[SEED] Admin créé: ${adminEmail}`);
 
   // ─── Marchands démo ────────────────────────────────────────────────────────
   const merchantPassword = await bcrypt.hash('Merchant@2026!', 10);
@@ -83,7 +83,7 @@ async function seed() {
       ]
     );
   }
-  console.log(`✅ ${merchants.length} marchands démo créés`);
+  console.log(`[SEED] ${merchants.length} marchands démo créés`);
 
   // ─── Clients démo ─────────────────────────────────────────────────────────
   const clientsData = [
@@ -114,7 +114,7 @@ async function seed() {
     }
     clientIds.push(clientId);
   }
-  console.log(`✅ ${clientsData.length} clients démo créés`);
+  console.log(`[SEED] ${clientsData.length} clients démo créés`);
 
   // ─── Transactions démo ────────────────────────────────────────────────────
   const allMerchants = (await db.query("SELECT * FROM merchants WHERE status = 'active'")).rows;
@@ -168,9 +168,9 @@ async function seed() {
     );
     txCount++;
   }
-  console.log(`✅ ${txCount} transactions démo créées`);
+  console.log(`[SEED] ${txCount} transactions démo créées`);
 
-  console.log('\n🎉 Seed terminé !');
+  console.log('\n[SEED] Seed terminé !');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`Admin: ${adminEmail} / ${adminPassword}`);
   console.log('Marchands: supermarche@demo.af (et autres) / Merchant@2026!');

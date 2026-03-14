@@ -5,6 +5,12 @@ import { useAuth } from '../../App.jsx'
 import { fmt, KpiCard, Card, CopyButton, Spinner, PeriodSelector, exportCsv } from '../../components/ui.jsx'
 import { useSSE } from '../../hooks/useSSE.js'
 import { useToast } from '../../components/ToastNotification.jsx'
+import {
+  CurrencyDollarIcon,
+  ChartBarIcon,
+  GiftIcon,
+  CheckCircleIcon,
+} from '@heroicons/react/24/outline'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
@@ -89,10 +95,10 @@ export default function MerchantDashboard() {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-        <KpiCard label="Volume total" value={`${fmt(s.total_volume)} XOF`} icon="💰" color="#f59e0b" />
-        <KpiCard label="Reçu net" value={`${fmt(s.total_received)} XOF`} icon="✅" color="#10b981" sub={`Après remise X=${profile.rebatePercent}%`} />
-        <KpiCard label="Remises accordées" value={`${fmt(s.total_rebate_given)} XOF`} icon="🎁" color="#3b82f6" sub="Cashback clients (Y%)" />
-        <KpiCard label="Transactions" value={s.completed_count} icon="📊" color="#8b5cf6" sub={`sur ${period} jours`} />
+        <KpiCard label="Volume total" value={`${fmt(s.total_volume)} XOF`} icon={<CurrencyDollarIcon />} color="#f59e0b" />
+        <KpiCard label="Reçu net" value={`${fmt(s.total_received)} XOF`} icon={<CheckCircleIcon />} color="#10b981" sub={`Après remise X=${profile.rebatePercent}%`} />
+        <KpiCard label="Remises accordées" value={`${fmt(s.total_rebate_given)} XOF`} icon={<GiftIcon />} color="#3b82f6" sub="Cashback clients (Y%)" />
+        <KpiCard label="Transactions" value={s.completed_count} icon={<ChartBarIcon />} color="#8b5cf6" sub={`sur ${period} jours`} />
       </div>
 
       {/* Graphiques */}

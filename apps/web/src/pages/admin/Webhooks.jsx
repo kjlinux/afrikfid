@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Modal, Spinner, Pagination, Alert, EmptyState, CopyButton } from '../../components/ui.jsx'
+import { BellSlashIcon } from '@heroicons/react/24/outline'
 
 const STATUS_LABEL = { pending: 'En attente', delivered: 'Livré', failed: 'Échoué', retry: 'Retry' }
 
@@ -80,7 +81,7 @@ export default function AdminWebhooks() {
       {loading ? <Spinner /> : (
         <Card>
           {events.length === 0 ? (
-            <EmptyState icon="🔔" title="Aucun événement" desc="Les webhooks apparaîtront ici après les transactions." />
+            <EmptyState icon={<BellSlashIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun événement" desc="Les webhooks apparaîtront ici après les transactions." />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>

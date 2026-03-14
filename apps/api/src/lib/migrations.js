@@ -464,7 +464,7 @@ const MIGRATIONS = [
       -- Seed des pays couverts par la passerelle (CDC §1.3 — zones UEMOA, CEMAC, Est-Afrique)
       INSERT INTO countries (id, name, currency, zone) VALUES
         -- Zone UEMOA (XOF)
-        ('CI', 'Côte d\'Ivoire',  'XOF', 'UEMOA'),
+        ('CI', 'Côte d''Ivoire',  'XOF', 'UEMOA'),
         ('SN', 'Sénégal',         'XOF', 'UEMOA'),
         ('BF', 'Burkina Faso',    'XOF', 'UEMOA'),
         ('ML', 'Mali',            'XOF', 'UEMOA'),
@@ -615,6 +615,16 @@ const MIGRATIONS = [
       -- Date de création des clés API marchands pour rotation automatique (CDC §5.4.1 — rotation 90j)
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS api_key_created_at TIMESTAMPTZ DEFAULT NOW();
       UPDATE merchants SET api_key_created_at = created_at WHERE api_key_created_at IS NULL;
+    `,
+  },
+  {
+    version: 20,
+    name: '020_merchant_2fa',
+    up: `
+      -- 2FA TOTP pour marchands (CDC §5.4.2 — authentification forte multi-acteurs)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
     `,
   },
 ];

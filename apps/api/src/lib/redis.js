@@ -121,4 +121,34 @@ async function exists(key) {
   return val !== null;
 }
 
-module.exports = { setEx, get, del, exists, getClient };
+/**
+ * Incrémenter un compteur (crée la clé à 1 si inexistante). Retourne la nouvelle valeur.
+ */
+async function incr(key) {
+  const client = getClient();
+  if (client && _useRedis) {
+    try { return await client.incr(key); } catch { /* fallback */ }
+  }
+  const entry = _mem.get(key);
+  const now = Date.now();
+  if (!entry || now > entry.expires) {
+    _mem.set(key, { value: 1, expires: Infinity });
+    return 1;
+  }
+  entry.value = (parseInt(entry.value) || 0) + 1;
+  return entry.value;
+}
+
+/**
+ * Définir un TTL (secondes) sur une clé existante.
+ */
+async function expire(key, ttlSeconds) {
+  const client = getClient();
+  if (client && _useRedis) {
+    try { await client.expire(key, ttlSeconds); return; } catch { /* fallback */ }
+  }
+  const entry = _mem.get(key);
+  if (entry) entry.expires = Date.now() + ttlSeconds * 1000;
+}
+
+module.exports = { setEx, get, del, exists, incr, expire, getClient };

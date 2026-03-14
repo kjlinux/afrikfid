@@ -66,16 +66,40 @@ app.use(cors({
     callback(new Error(`CORS: origine non autorisée — ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Sandbox'],
+  // X-CSRF-Token exposé pour requêtes cross-origin si nécessaire (CDC §5.4.2 OWASP)
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Sandbox', 'X-CSRF-Token'],
   credentials: true,
 }));
+
+// Protection CSRF (CDC §5.4.2 — OWASP Top 10 A01)
+// L'API utilise exclusivement JWT Bearer en header Authorization.
+// Les navigateurs ne peuvent PAS envoyer des headers Authorization dans des requêtes
+// cross-origin sans CORS pré-vol — le CSRF classique est donc impossible sur cette API.
+// On renforce avec SameSite=Strict sur tout cookie potentiel et vérification Origin.
+app.use((req, res, next) => {
+  // Bloquer les requêtes cross-origin avec credentials qui viennent d'une origin non whitelistée
+  // (deuxième ligne de défense derrière CORS)
+  const origin = req.headers.origin;
+  if (origin && CORS_ORIGINS && !CORS_ORIGINS.includes('*') && !CORS_ORIGINS.includes(origin)) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      return res.status(403).json({ error: 'CSRF_ORIGIN_MISMATCH', message: 'Origine non autorisée' });
+    }
+  }
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 
-// Rate limiting
+// Confiance proxy (Nginx/Kubernetes ingress) pour obtenir la vraie IP client (CDC §5.4.2)
+app.set('trust proxy', process.env.TRUST_PROXY === 'false' ? false : 1);
+
+// Rate limiting par IP (CDC §5.4.2 — "rate limiting par IP et par clé API")
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 min
   max: parseInt(process.env.RATE_LIMIT_MAX) || 200,
-  message: { error: 'Trop de requêtes. Réessayez dans quelques minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip, // Explicitement par IP
+  message: { error: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes depuis cette adresse. Réessayez dans quelques minutes.' },
 });
 app.use('/api/', (req, res, next) => {
   if (req.path.startsWith('/v1/sse')) return next(); // SSE: connexions longues, pas de rate limit
@@ -228,8 +252,11 @@ app.use(errorHandler);
 
 // ─── Crons (désactivés en test) ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  // Batch fidélité: tous les jours à 2h (heure Abidjan)
-  new CronJob('0 2 * * *', async () => {
+  // Batch fidélité: quotidien à 2h ou hebdomadaire le lundi selon LOYALTY_BATCH_FREQUENCY (CDC §2.6)
+  // Valeurs acceptées: 'daily' (défaut) ou 'weekly' (lundi à 2h)
+  const loyaltyBatchFreq = (process.env.LOYALTY_BATCH_FREQUENCY || 'daily').toLowerCase();
+  const loyaltyCronExpr = loyaltyBatchFreq === 'weekly' ? '0 2 * * 1' : '0 2 * * *';
+  new CronJob(loyaltyCronExpr, async () => {
     console.log('[CRON] Exécution du batch de fidélité...');
     const db = require('./lib/db');
     const results = await runLoyaltyBatch();

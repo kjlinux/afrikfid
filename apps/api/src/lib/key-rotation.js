@@ -174,7 +174,7 @@ async function rotateKey() {
   _activeKey = null;
   _keyCacheExpiry = 0;
 
-  console.log(`🔑 [key-rotation] Nouvelle clé v${newVersion} activée, expire le ${expiresAt.toISOString().slice(0, 10)}`);
+  console.log(`[key-rotation] Nouvelle clé v${newVersion} activée, expire le ${expiresAt.toISOString().slice(0, 10)}`);
   return { version: newVersion, keyId };
 }
 
@@ -236,7 +236,7 @@ async function reencryptPendingRecords() {
   }
 
   if (reencrypted > 0) {
-    console.log(`🔒 [key-rotation] ${reencrypted} enregistrements re-chiffrés avec la clé v${activeVersion}`);
+    console.log(`[key-rotation] ${reencrypted} enregistrements re-chiffrés avec la clé v${activeVersion}`);
   }
 
   return { reencrypted };

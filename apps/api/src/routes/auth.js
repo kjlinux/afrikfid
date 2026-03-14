@@ -127,7 +127,7 @@ router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req
 
 // ─── POST /api/v1/auth/merchant/login ────────────────────────────────────────
 router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, totp_code } = req.body;
 
   if (await checkLockout(email)) {
     return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
@@ -144,6 +144,24 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
   if (!valid) {
     await recordFailure(email);
     return res.status(401).json({ error: 'Identifiants invalides' });
+  }
+
+  // Vérification 2FA marchand si activé (CDC §5.4.2 — authentification forte)
+  if (merchant.totp_enabled && merchant.totp_secret) {
+    if (!totp_code) {
+      return res.status(200).json({ requires2FA: true, message: 'Code 2FA requis. Veuillez fournir le champ totp_code.' });
+    }
+    const totpValid = verifyTotp(merchant.totp_secret, totp_code);
+    if (!totpValid) {
+      const backupCodes = merchant.totp_backup_codes ? JSON.parse(merchant.totp_backup_codes) : [];
+      const backupIdx = backupCodes.indexOf(String(totp_code).toUpperCase());
+      if (backupIdx === -1) {
+        await recordFailure(email);
+        return res.status(401).json({ error: 'Code 2FA invalide' });
+      }
+      backupCodes.splice(backupIdx, 1);
+      await db.query('UPDATE merchants SET totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(backupCodes), merchant.id]);
+    }
   }
 
   await clearFailures(email);
@@ -298,6 +316,68 @@ router.delete('/2fa/disable', requireAdmin, async (req, res) => {
   );
 
   res.json({ message: '2FA désactivé' });
+});
+
+// ─── 2FA Marchands (CDC §5.4.2 — authentification forte) ─────────────────────
+
+// POST /api/v1/auth/merchant/2fa/setup
+router.post('/merchant/2fa/setup', require('../middleware/auth').requireMerchant, async (req, res) => {
+  const merchant = req.merchant;
+  if (merchant.totp_enabled) return res.status(400).json({ error: '2FA déjà activé sur ce compte marchand' });
+
+  const { secret, otpauth_url } = generateTotpSecret(merchant.email);
+  const qrCode = await generateQrCode(otpauth_url);
+
+  await db.query('UPDATE merchants SET totp_secret = $1 WHERE id = $2', [secret, merchant.id]);
+
+  res.json({
+    message: 'Scannez ce QR code avec votre application 2FA, puis confirmez avec POST /auth/merchant/2fa/verify',
+    qrCode,
+    secret,
+  });
+});
+
+// POST /api/v1/auth/merchant/2fa/verify
+router.post('/merchant/2fa/verify', require('../middleware/auth').requireMerchant, async (req, res) => {
+  const { totp_code } = req.body;
+  if (!totp_code) return res.status(400).json({ error: 'totp_code requis' });
+
+  const merchantRes = await db.query('SELECT * FROM merchants WHERE id = $1', [req.merchant.id]);
+  const merchant = merchantRes.rows[0];
+  if (!merchant.totp_secret) return res.status(400).json({ error: "Initiez d'abord l'enrollment via POST /auth/merchant/2fa/setup" });
+
+  const valid = verifyTotp(merchant.totp_secret, totp_code);
+  if (!valid) return res.status(401).json({ error: 'Code TOTP invalide. Vérifiez que votre horloge est synchronisée.' });
+
+  const backupCodes = generateBackupCodes();
+  await db.query(
+    'UPDATE merchants SET totp_enabled = TRUE, totp_backup_codes = $1 WHERE id = $2',
+    [JSON.stringify(backupCodes), merchant.id]
+  );
+
+  res.json({
+    message: '2FA marchand activé avec succès. Conservez ces codes de secours dans un endroit sûr.',
+    backupCodes,
+  });
+});
+
+// DELETE /api/v1/auth/merchant/2fa/disable
+router.delete('/merchant/2fa/disable', require('../middleware/auth').requireMerchant, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: 'Mot de passe requis pour désactiver le 2FA' });
+
+  const merchantRes = await db.query('SELECT * FROM merchants WHERE id = $1', [req.merchant.id]);
+  const merchant = merchantRes.rows[0];
+
+  const valid = await bcrypt.compare(password, merchant.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect' });
+
+  await db.query(
+    'UPDATE merchants SET totp_enabled = FALSE, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1',
+    [merchant.id]
+  );
+
+  res.json({ message: '2FA marchand désactivé' });
 });
 
 // ─── POST /api/v1/auth/client/login ──────────────────────────────────────────

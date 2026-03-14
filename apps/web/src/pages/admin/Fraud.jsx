@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Modal, Input, Button, Alert, EmptyState, Spinner } from '../../components/ui.jsx'
+import { ScaleIcon, NoSymbolIcon } from '@heroicons/react/24/outline'
 
 const RULE_TYPE_LABELS = {
   max_amount_per_tx:   'Montant max par transaction',
@@ -102,7 +103,7 @@ export default function AdminFraud() {
             <Button size="sm" onClick={() => setShowRuleModal(true)}>+ Ajouter</Button>
           }>
             {rules.length === 0 ? (
-              <EmptyState icon="⚖️" title="Règles par défaut actives" desc="Ajoutez des règles pour surcharger les valeurs par défaut." />
+              <EmptyState icon={<ScaleIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Règles par défaut actives" desc="Ajoutez des règles pour surcharger les valeurs par défaut." />
             ) : (
               <div>
                 {rules.map(r => (
@@ -148,7 +149,7 @@ export default function AdminFraud() {
             <Button size="sm" variant="danger" onClick={() => setShowPhoneModal(true)}>+ Bloquer</Button>
           }>
             {phones.length === 0 ? (
-              <EmptyState icon="📵" title="Aucun numéro bloqué" desc="Les numéros bloqués seront refusés à l'initiation de paiement." />
+              <EmptyState icon={<NoSymbolIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun numéro bloqué" desc="Les numéros bloqués seront refusés à l'initiation de paiement." />
             ) : (
               <div>
                 {phones.map(p => (

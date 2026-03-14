@@ -182,7 +182,7 @@ async function refreshExchangeRates() {
   await updateExchangeRate('XOF', 'XAF', 1.0, 'fixed');
   await updateExchangeRate('XAF', 'XOF', 1.0, 'fixed');
 
-  console.log(`✅ [currency] ${updated} taux mis à jour depuis ${source}`);
+  console.log(`[currency] ${updated} taux mis à jour depuis ${source}`);
   return { updated, source };
 }
 
