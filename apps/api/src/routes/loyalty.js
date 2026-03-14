@@ -35,8 +35,27 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
   await db.query(`UPDATE loyalty_config SET ${setClause} WHERE status = $${keys.length + 1}`, [...Object.values(updates), status]);
 
   const updated = (await db.query('SELECT * FROM loyalty_config WHERE status = $1', [status])).rows[0];
-  res.json({ config: updated });
-});
+
+  // Vérification anomalie Y > X : alerter si le taux Y% dépasse le X% minimal des marchands actifs (CDC §2.5)
+  const warnings = [];
+  if (client_rebate_percent !== undefined) {
+    const newY = parseFloat(client_rebate_percent);
+    const merchantsWithLowX = (await db.query(
+      `SELECT id, name, rebate_percent FROM merchants
+       WHERE is_active = TRUE AND rebate_percent < $1`,
+      [newY]
+    )).rows;
+
+    if (merchantsWithLowX.length > 0) {
+      warnings.push({
+        type: 'Y_EXCEEDS_X',
+        message: `ALERTE : Le taux Y% (${newY}%) dépasse le taux X% de ${merchantsWithLowX.length} marchand(s). Cela entraînerait une commission Z négative pour ces marchands.`,
+        affectedMerchants: merchantsWithLowX.map(m => ({ id: m.id, name: m.name, rebatePercent: m.rebate_percent })),
+      });
+    }
+  }
+
+  res.json({ config: updated, warnings });
 
 // POST /api/v1/loyalty/batch (admin)
 router.post('/batch', requireAdmin, async (req, res) => {

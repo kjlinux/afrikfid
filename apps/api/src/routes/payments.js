@@ -16,6 +16,7 @@ const { checkTransaction } = require('../lib/fraud');
 const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
+const { processDisbursementsForMerchant } = require('../workers/disbursement');
 
 // Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
 function getCardProvider() {
@@ -861,6 +862,11 @@ async function processCompletedPayment(tx) {
     notifyPaymentConfirmed({ client, transaction: { ...completedTx, merchant_name: null }, distribution: distRow });
     notifyCashbackCredit({ client, transaction: completedTx, distribution: distRow });
   }
+
+  // Règlement instantané si settlement_frequency = 'instant' (CDC §4.2.2)
+  processDisbursementsForMerchant(tx.merchant_id, 'instant').catch(err =>
+    console.error(`[DISB/instant] Marchand ${tx.merchant_id}:`, err.message)
+  );
 }
 
 function sanitizeTx(tx) {

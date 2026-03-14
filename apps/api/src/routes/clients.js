@@ -97,10 +97,56 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     [client.id]
   )).rows[0];
 
+  // Score d'activité + éligibilité prochain statut (CDC §4.3.1)
+  const loyaltyConfigs = (await db.query('SELECT * FROM loyalty_config ORDER BY sort_order')).rows;
+  const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+  const currentIdx = statusOrder.indexOf(client.loyalty_status);
+  const nextStatus = currentIdx < statusOrder.length - 1 ? statusOrder[currentIdx + 1] : null;
+
+  let nextStatusEligibility = null;
+  if (nextStatus) {
+    const nextConfig = loyaltyConfigs.find(c => c.status === nextStatus);
+    if (nextConfig) {
+      const evalMonths = nextConfig.evaluation_months || 3;
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - evalMonths);
+      const periodStats = (await db.query(
+        `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+         FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
+        [client.id, cutoff.toISOString()]
+      )).rows[0];
+
+      const purchasesNeeded = Math.max(0, nextConfig.min_purchases - parseInt(periodStats.count));
+      const amountNeeded = Math.max(0, nextConfig.min_cumulative_amount - parseFloat(periodStats.total));
+      const purchasesProgress = nextConfig.min_purchases > 0
+        ? Math.min(100, Math.round((parseInt(periodStats.count) / nextConfig.min_purchases) * 100))
+        : 100;
+      const amountProgress = nextConfig.min_cumulative_amount > 0
+        ? Math.min(100, Math.round((parseFloat(periodStats.total) / nextConfig.min_cumulative_amount) * 100))
+        : 100;
+
+      nextStatusEligibility = {
+        targetStatus: nextStatus,
+        evaluationMonths: evalMonths,
+        currentPurchases: parseInt(periodStats.count),
+        requiredPurchases: nextConfig.min_purchases,
+        purchasesNeeded,
+        purchasesProgress,
+        currentAmount: parseFloat(periodStats.total),
+        requiredAmount: parseFloat(nextConfig.min_cumulative_amount),
+        amountNeeded,
+        amountProgress,
+        overallProgress: Math.round((purchasesProgress + amountProgress) / 2),
+        eligible: purchasesNeeded === 0 && amountNeeded === 0,
+      };
+    }
+  }
+
   res.json({
     client: sanitizeClient(client),
     wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
     stats: txStats,
+    nextStatusEligibility,
   });
 });
 
@@ -159,9 +205,31 @@ router.patch('/:id/loyalty-status', requireAdmin, validate(UpdateLoyaltyStatusSc
   const clientRes = await db.query('SELECT id FROM clients WHERE id = $1', [req.params.id]);
   if (!clientRes.rows[0]) return res.status(404).json({ error: 'Client non trouvé' });
 
-  await applyStatusChange(req.params.id, status);
+  await applyStatusChange(req.params.id, status, { reason: 'admin_override', changedBy: req.admin.id });
   const updated = (await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id])).rows[0];
   res.json({ client: sanitizeClient(updated), message: 'Statut mis à jour' });
+});
+
+// GET /api/v1/clients/:id/loyalty-history — historique des changements de statut (CDC §4.3.1)
+router.get('/:id/loyalty-history', requireAuth, async (req, res) => {
+  const clientRes = await db.query('SELECT id FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+  if (!(await canAccessClient(req, client.id))) return res.status(403).json({ error: 'Accès interdit' });
+
+  const { page = 1, limit = 50 } = req.query;
+  const history = (await db.query(`
+    SELECT * FROM loyalty_status_history
+    WHERE client_id = $1
+    ORDER BY changed_at DESC
+    LIMIT $2 OFFSET $3
+  `, [client.id, parseInt(limit), (page - 1) * limit])).rows;
+
+  const total = parseInt((await db.query(
+    'SELECT COUNT(*) as c FROM loyalty_status_history WHERE client_id = $1', [client.id]
+  )).rows[0].c);
+
+  res.json({ history, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
 // DELETE /api/v1/clients/:id — RGPD droit à l'effacement (admin ou client lui-même)

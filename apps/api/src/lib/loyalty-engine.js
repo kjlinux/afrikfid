@@ -3,6 +3,7 @@
  * Gère le calcul X/Y/Z et les transitions de statut
  */
 
+const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
 
@@ -152,10 +153,20 @@ async function evaluateClientStatus(clientId) {
   };
 }
 
-async function applyStatusChange(clientId, newStatus) {
+async function applyStatusChange(clientId, newStatus, { reason = 'manual', changedBy = 'admin', stats = null } = {}) {
+  const clientRes = await db.query('SELECT loyalty_status FROM clients WHERE id = $1', [clientId]);
+  const oldStatus = clientRes.rows[0]?.loyalty_status || 'OPEN';
+
   await db.query(
     `UPDATE clients SET loyalty_status = $1, status_since = NOW(), updated_at = NOW() WHERE id = $2`,
     [newStatus, clientId]
+  );
+
+  // Enregistrer dans l'historique (CDC §4.3.1)
+  await db.query(
+    `INSERT INTO loyalty_status_history (id, client_id, old_status, new_status, reason, changed_by, stats, changed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+    [uuidv4(), clientId, oldStatus, newStatus, reason, changedBy, stats ? JSON.stringify(stats) : null]
   );
 }
 
@@ -166,7 +177,11 @@ async function runLoyaltyBatch() {
   for (const row of clientsRes.rows) {
     const evaluation = await evaluateClientStatus(row.id);
     if (evaluation && evaluation.changed) {
-      await applyStatusChange(row.id, evaluation.newStatus);
+      await applyStatusChange(row.id, evaluation.newStatus, {
+        reason: evaluation.reason || 'batch_evaluation',
+        changedBy: 'batch',
+        stats: evaluation.stats,
+      });
       const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
       if (client) {
         const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];

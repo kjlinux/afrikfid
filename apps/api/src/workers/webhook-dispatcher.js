@@ -6,10 +6,13 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 
+// Backoff exponentiel conforme CDC §4.5.3 : 3 tentatives étalées sur ~24h
 const RETRY_DELAYS_MS = [
-  3 * 60 * 1000,
-  10 * 60 * 1000,
-  30 * 60 * 1000,
+  5 * 60 * 1000,       // Tentative 2 : +5 min
+  30 * 60 * 1000,      // Tentative 3 : +30 min
+  2 * 3600 * 1000,     // Tentative 4 : +2h
+  8 * 3600 * 1000,     // Tentative 5 : +8h
+  24 * 3600 * 1000,    // Tentative 6 : +24h
 ];
 
 const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;

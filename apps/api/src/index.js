@@ -93,6 +93,7 @@ app.use('/api/v1/payment-links', require('./routes/payment-links'));
 app.use('/api/v1/reports', require('./routes/reports'));
 app.use('/api/v1/fraud', require('./routes/fraud'));
 app.use('/api/v1/distributions', require('./routes/distributions'));
+app.use('/api/v1/disputes', require('./routes/disputes'));
 app.use('/api/v1/audit-logs', require('./routes/audit'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────

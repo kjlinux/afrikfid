@@ -485,6 +485,66 @@ const MIGRATIONS = [
     `,
   },
   {
+    version: 17,
+    name: '017_disputes',
+    up: `
+      -- Gestion des litiges (CDC §4.6.1 — Refunds & Disputes Management)
+      CREATE TABLE IF NOT EXISTS disputes (
+        id TEXT PRIMARY KEY,
+        transaction_id TEXT NOT NULL REFERENCES transactions(id),
+        merchant_id TEXT NOT NULL REFERENCES merchants(id),
+        client_id TEXT REFERENCES clients(id),
+        reason TEXT NOT NULL,
+        description TEXT,
+        amount_disputed NUMERIC,
+        status TEXT NOT NULL DEFAULT 'open'
+          CHECK (status IN ('open', 'investigating', 'resolved', 'rejected')),
+        resolution_note TEXT,
+        initiated_by TEXT NOT NULL DEFAULT 'merchant',
+        initiated_by_id TEXT,
+        resolved_by TEXT,
+        resolved_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS dispute_history (
+        id TEXT PRIMARY KEY,
+        dispute_id TEXT NOT NULL REFERENCES disputes(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        performed_by TEXT NOT NULL,
+        performed_by_id TEXT,
+        note TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_disputes_merchant ON disputes(merchant_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_disputes_tx ON disputes(transaction_id);
+      CREATE INDEX IF NOT EXISTS idx_dispute_history_dispute ON dispute_history(dispute_id, created_at DESC);
+    `,
+  },
+  {
+    version: 16,
+    name: '016_loyalty_status_history',
+    up: `
+      -- Historique complet des changements de statut fidélité (CDC §4.3.1)
+      CREATE TABLE IF NOT EXISTS loyalty_status_history (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        old_status TEXT NOT NULL,
+        new_status TEXT NOT NULL,
+        reason TEXT,
+        changed_by TEXT DEFAULT 'batch',
+        stats JSONB,
+        changed_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_loyalty_history_client ON loyalty_status_history(client_id, changed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_loyalty_history_status ON loyalty_status_history(new_status, changed_at DESC);
+    `,
+  },
+  {
     version: 13,
     name: '013_encryption_key_rotation',
     up: `

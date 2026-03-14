@@ -96,7 +96,41 @@ router.get('/overview', requireAdmin, async (req, res) => {
   const merchantCount = parseInt((await db.query("SELECT COUNT(*) as c FROM merchants WHERE is_active = TRUE")).rows[0].c);
   const clientCount = parseInt((await db.query("SELECT COUNT(*) as c FROM clients WHERE is_active = TRUE")).rows[0].c);
 
-  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, period: `${days}d` });
+  // KPI taux de conversion OPEN→ROYAL (CDC §4.6.1 Analytics)
+  const conversionStats = (await db.query(`
+    SELECT
+      COUNT(*) as total_clients,
+      COUNT(CASE WHEN loyalty_status = 'OPEN'  THEN 1 END) as open_count,
+      COUNT(CASE WHEN loyalty_status = 'LIVE'  THEN 1 END) as live_count,
+      COUNT(CASE WHEN loyalty_status = 'GOLD'  THEN 1 END) as gold_count,
+      COUNT(CASE WHEN loyalty_status = 'ROYAL' THEN 1 END) as royal_count,
+      COUNT(CASE WHEN loyalty_status != 'OPEN' THEN 1 END) as converted_count
+    FROM clients WHERE is_active = TRUE
+  `)).rows[0];
+
+  const conversionRates = {
+    openToAny: conversionStats.total_clients > 0
+      ? Math.round((conversionStats.converted_count / conversionStats.total_clients) * 100 * 100) / 100
+      : 0,
+    openToLive: conversionStats.total_clients > 0
+      ? Math.round(((parseInt(conversionStats.live_count) + parseInt(conversionStats.gold_count) + parseInt(conversionStats.royal_count)) / conversionStats.total_clients) * 100 * 100) / 100
+      : 0,
+    openToGold: conversionStats.total_clients > 0
+      ? Math.round(((parseInt(conversionStats.gold_count) + parseInt(conversionStats.royal_count)) / conversionStats.total_clients) * 100 * 100) / 100
+      : 0,
+    openToRoyal: conversionStats.total_clients > 0
+      ? Math.round((conversionStats.royal_count / conversionStats.total_clients) * 100 * 100) / 100
+      : 0,
+    counts: {
+      open: parseInt(conversionStats.open_count),
+      live: parseInt(conversionStats.live_count),
+      gold: parseInt(conversionStats.gold_count),
+      royal: parseInt(conversionStats.royal_count),
+      total: parseInt(conversionStats.total_clients),
+    },
+  };
+
+  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, period: `${days}d` });
 });
 
 // GET /api/v1/reports/transactions
@@ -462,6 +496,75 @@ router.get('/refunds', requireAdmin, async (req, res) => {
 
   const refunds = (await db.query(sql, params)).rows;
   res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
+// GET /api/v1/reports/by-merchant — Rapport détaillé par marchand (CDC §4.6.1)
+router.get('/by-merchant', requireAdmin, async (req, res) => {
+  const { period = '30d', merchant_id, page = 1, limit = 20 } = req.query;
+  const days = parseInt(period) || 30;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const fromStr = from.toISOString();
+
+  let countSql = `
+    SELECT COUNT(DISTINCT m.id) as c
+    FROM merchants m
+    WHERE m.is_active = TRUE
+  `;
+  let sql = `
+    SELECT
+      m.id as merchant_id,
+      m.name as merchant_name,
+      m.country_id,
+      co.name as country_name,
+      co.currency,
+      m.merchant_rebate_percent as rebate_x,
+      COUNT(t.id) as total_transactions,
+      COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_transactions,
+      COUNT(CASE WHEN t.status = 'failed' THEN 1 END) as failed_transactions,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.gross_amount ELSE 0 END), 0) as gross_volume,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.merchant_receives ELSE 0 END), 0) as merchant_net,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.client_rebate_amount ELSE 0 END), 0) as client_rebates,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.platform_commission_amount ELSE 0 END), 0) as platform_revenue,
+      COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.client_id END) as unique_clients,
+      COUNT(DISTINCT CASE WHEN t.client_loyalty_status = 'ROYAL' AND t.status = 'completed' THEN t.client_id END) as royal_clients,
+      COUNT(DISTINCT CASE WHEN t.client_loyalty_status = 'GOLD' AND t.status = 'completed' THEN t.client_id END) as gold_clients,
+      COUNT(DISTINCT CASE WHEN t.client_loyalty_status = 'LIVE' AND t.status = 'completed' THEN t.client_id END) as live_clients,
+      COUNT(DISTINCT CASE WHEN t.client_loyalty_status = 'OPEN' AND t.status = 'completed' THEN t.client_id END) as open_clients
+    FROM merchants m
+    LEFT JOIN countries co ON m.country_id = co.id
+    LEFT JOIN transactions t ON t.merchant_id = m.id AND t.initiated_at >= $1
+    WHERE m.is_active = TRUE
+  `;
+  const params = [fromStr];
+  let idx = 2;
+
+  if (merchant_id) {
+    sql += ` AND m.id = $${idx}`;
+    countSql += ` AND m.id = $${idx}`;
+    params.push(merchant_id);
+    idx++;
+  }
+
+  const total = parseInt((await db.query(countSql, params.slice(1))).rows[0]?.c || 0);
+
+  sql += `
+    GROUP BY m.id, m.name, m.country_id, co.name, co.currency, m.merchant_rebate_percent
+    ORDER BY gross_volume DESC
+    LIMIT $${idx} OFFSET $${idx + 1}
+  `;
+  params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+  const merchants = (await db.query(sql, params)).rows;
+
+  res.json({
+    merchants,
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    period: `${days}d`,
+    from: fromStr,
+  });
 });
 
 module.exports = router;

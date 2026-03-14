@@ -476,4 +476,33 @@ router.get('/:id/kyc/files/:filename', requireAdmin, async (req, res) => {
   res.sendFile(resolvedPath);
 });
 
+// GET /api/v1/merchants/me/refunds (marchand connecté — CDC §4.6.2)
+router.get('/me/refunds', requireMerchant, async (req, res) => {
+  const { page = 1, limit = 20, status, refund_type } = req.query;
+  let sql = `
+    SELECT r.id, r.transaction_id, r.refund_type, r.amount, r.status, r.reason,
+           r.created_at, r.processed_at,
+           t.reference as transaction_reference, t.currency, t.gross_amount as original_amount,
+           t.client_id, c.full_name as client_name, c.loyalty_status as client_status
+    FROM refunds r
+    JOIN transactions t ON r.transaction_id = t.id
+    LEFT JOIN clients c ON t.client_id = c.id
+    WHERE t.merchant_id = $1
+  `;
+  const params = [req.merchant.id];
+  let idx = 2;
+
+  if (status) { sql += ` AND r.status = $${idx++}`; params.push(status); }
+  if (refund_type) { sql += ` AND r.refund_type = $${idx++}`; params.push(refund_type); }
+
+  const countSql = sql.replace(/SELECT r\.id.*FROM refunds r/, 'SELECT COUNT(*) as c FROM refunds r');
+  const total = parseInt((await db.query(countSql, params)).rows[0]?.c || 0);
+
+  sql += ` ORDER BY r.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+  const refunds = (await db.query(sql, params)).rows;
+  res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
 module.exports = router;

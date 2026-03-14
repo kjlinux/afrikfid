@@ -14,11 +14,13 @@ import AdminFraud from './pages/admin/Fraud.jsx'
 import AdminExchangeRates from './pages/admin/ExchangeRates.jsx'
 import AdminAuditLogs from './pages/admin/AuditLogs.jsx'
 import AdminRefunds from './pages/admin/Refunds.jsx'
+import AdminDisputes from './pages/admin/Disputes.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
 import MerchantClients from './pages/merchant/Clients.jsx'
 import MerchantSettings from './pages/merchant/Settings.jsx'
+import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
 
@@ -71,6 +73,7 @@ function AdminLayout({ children }) {
     { path: '/admin/fraud', label: 'Fraude', icon: '🛡️' },
     { path: '/admin/exchange-rates', label: 'Taux de change', icon: '💱' },
     { path: '/admin/refunds', label: 'Remboursements', icon: '↩️' },
+    { path: '/admin/disputes', label: 'Litiges', icon: '⚖️' },
     { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: '📋' },
   ]
 
@@ -132,6 +135,7 @@ function MerchantLayout({ children }) {
     { path: '/merchant/transactions', label: 'Transactions', icon: '💳' },
     { path: '/merchant/links', label: 'Liens de paiement', icon: '🔗' },
     { path: '/merchant/clients', label: 'Clients fidélisés', icon: '👥' },
+    { path: '/merchant/refunds', label: 'Remboursements', icon: '↩️' },
     { path: '/merchant/settings', label: 'Paramètres', icon: '⚙️' },
   ]
 
@@ -189,6 +193,7 @@ export default function App() {
           <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
           <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
           <Route path="/admin/refunds" element={<Protected role="admin"><AdminLayout><AdminRefunds /></AdminLayout></Protected>} />
+          <Route path="/admin/disputes" element={<Protected role="admin"><AdminLayout><AdminDisputes /></AdminLayout></Protected>} />
           <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
 
           {/* Merchant */}
@@ -196,6 +201,7 @@ export default function App() {
           <Route path="/merchant/transactions" element={<Protected role="merchant"><MerchantLayout><MerchantTransactions /></MerchantLayout></Protected>} />
           <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
           <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
+          <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
           <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
 
           <Route path="/" element={<Navigate to="/login" replace />} />

@@ -158,4 +158,90 @@ async function processDisbursements() {
   return { processed, totalAmount };
 }
 
-module.exports = { processDisbursements };
+/**
+ * Règlement immédiat pour un marchand spécifique.
+ * Appelé après chaque payment.success si settlement_frequency = 'instant'.
+ * @param {string} merchantId
+ * @param {string} [mode='instant'] - filtre sur settlement_frequency
+ */
+async function processDisbursementsForMerchant(merchantId, mode = 'instant') {
+  const res = await db.query(`
+    SELECT m.*, c.currency as country_currency
+    FROM merchants m
+    LEFT JOIN countries c ON m.country_id = c.id
+    WHERE m.id = $1 AND m.status = 'active' AND m.is_active = TRUE AND m.settlement_frequency = $2
+  `, [merchantId, mode]);
+
+  const merchant = res.rows[0];
+  if (!merchant) return; // Pas en mode instant, rien à faire
+
+  // Réutilise la logique principale mais sans vérifier l'éligibilité temporelle
+  const pendingRes = await db.query(`
+    SELECT COALESCE(SUM(merchant_receives), 0) as amount, COUNT(*) as count, currency
+    FROM transactions
+    WHERE merchant_id = $1
+      AND status = 'completed'
+      AND id NOT IN (
+        SELECT DISTINCT d.transaction_id FROM disbursements d
+        WHERE d.beneficiary_type = 'merchant' AND d.beneficiary_id = $1
+      )
+    GROUP BY currency
+  `, [merchantId]);
+
+  for (const row of pendingRes.rows) {
+    const amount = parseFloat(row.amount);
+    if (amount <= 0) continue;
+
+    const disbId = uuidv4();
+    const currency = row.currency || merchant.country_currency || 'XOF';
+
+    await db.query(`
+      INSERT INTO disbursements (id, beneficiary_type, beneficiary_id, amount, currency, status, operator, created_at)
+      VALUES ($1, 'merchant', $2, $3, $4, 'pending', $5, NOW())
+    `, [disbId, merchantId, amount, currency, merchant.mm_operator || 'manual']);
+
+    let disbStatus = 'pending_manual';
+    let operatorRef = null;
+
+    if (merchant.mm_phone && merchant.mm_operator) {
+      try {
+        const { initiatePayout } = require('../lib/adapters/mobile-money');
+        if (typeof initiatePayout === 'function') {
+          const result = await initiatePayout({
+            operator: merchant.mm_operator,
+            phone: merchant.mm_phone,
+            amount,
+            currency,
+            reference: `DISB-${disbId.slice(0, 8).toUpperCase()}`,
+            merchantName: merchant.name,
+          });
+          if (result.success) {
+            disbStatus = 'completed';
+            operatorRef = result.operatorRef;
+          }
+        }
+      } catch (payErr) {
+        console.error(`[DISB/instant] Payout failed for merchant ${merchantId}:`, payErr.message);
+        disbStatus = 'failed';
+      }
+    }
+
+    await db.query(`
+      UPDATE disbursements SET status = $1, operator_ref = $2, executed_at = NOW() WHERE id = $3
+    `, [disbStatus, operatorRef, disbId]);
+
+    if (merchant.webhook_url) {
+      dispatchWebhook(merchantId, WebhookEvents.DISTRIBUTION_COMPLETED, {
+        disbursement_id: disbId,
+        amount,
+        currency,
+        status: disbStatus,
+        operator: merchant.mm_operator || 'manual',
+        operator_ref: operatorRef,
+        executed_at: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }
+}
+
+module.exports = { processDisbursements, processDisbursementsForMerchant };
