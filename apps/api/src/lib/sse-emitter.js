@@ -13,6 +13,7 @@ const SSE_EVENTS = {
   LOYALTY_CHANGED: 'loyalty.status_changed',
   TRANSACTION_STATUS: 'transaction.status',
   FRAUD_BLOCKED: 'fraud.blocked',
+  SYSTEM_ALERT: 'system.alert',
 };
 
 /**

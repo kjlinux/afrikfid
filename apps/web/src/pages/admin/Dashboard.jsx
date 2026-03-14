@@ -191,6 +191,9 @@ export default function AdminDashboard() {
         </table>
       </Card>
 
+      {/* Rapport par pays */}
+      <ByCountrySection period={period} />
+
       {/* Liens rapides Admin */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
@@ -208,4 +211,72 @@ export default function AdminDashboard() {
       </div>
     </div>
   )
+}
+
+// ─── Composant rapport par pays ───────────────────────────────────────────────
+function ByCountrySection({ period }) {
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    api.get(`/reports/by-country?period=${period}d`).then(r => setData(r.data)).catch(() => {})
+  }, [period])
+
+  if (!data) return null
+
+  const ZONE_COLOR = { UEMOA: '#f59e0b', CEMAC: '#3b82f6', EAC: '#10b981' }
+
+  return (
+    <Card title="Volume par pays" style={{ marginBottom: 20 }}>
+      {/* Résumé par zone */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        {data.byZone.map(z => (
+          <div key={z.zone} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 16px', flex: 1 }}>
+            <div style={{ fontSize: 11, color: ZONE_COLOR[z.zone] || '#64748b', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase' }}>{z.zone}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{new Intl.NumberFormat('fr-FR').format(Math.round(z.total_volume || 0))}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{z.completed} tx · {new Intl.NumberFormat('fr-FR').format(Math.round(z.platform_revenue || 0))} Z%</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tableau par pays */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #334155' }}>
+            {['Pays', 'Zone', 'Volume', 'Commissions Z%', 'Marchands', 'Clients', 'Succès'].map(h => (
+              <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.byCountry.filter(c => parseFloat(c.total_volume) > 0).map(c => (
+            <tr key={c.country_id} style={{ borderBottom: '1px solid #1e293b' }}>
+              <td style={{ padding: '8px 10px', color: '#f1f5f9', fontWeight: 500 }}>
+                <span style={{ marginRight: 6, fontSize: 14 }}>{COUNTRY_FLAG[c.country_id] || '🌍'}</span>
+                {c.country_name}
+              </td>
+              <td style={{ padding: '8px 10px' }}>
+                <span style={{ color: ZONE_COLOR[c.zone] || '#64748b', fontWeight: 600, fontSize: 11 }}>{c.zone}</span>
+              </td>
+              <td style={{ padding: '8px 10px', color: '#f59e0b', fontWeight: 600 }}>
+                {new Intl.NumberFormat('fr-FR').format(Math.round(c.total_volume))} {c.currency}
+              </td>
+              <td style={{ padding: '8px 10px', color: '#10b981' }}>
+                {new Intl.NumberFormat('fr-FR').format(Math.round(c.platform_revenue))}
+              </td>
+              <td style={{ padding: '8px 10px', color: '#94a3b8' }}>{c.active_merchants}</td>
+              <td style={{ padding: '8px 10px', color: '#94a3b8' }}>{c.unique_clients}</td>
+              <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                {c.total_transactions > 0 ? `${Math.round((c.completed / c.total_transactions) * 100)}%` : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  )
+}
+
+const COUNTRY_FLAG = {
+  CI: '🇨🇮', SN: '🇸🇳', BF: '🇧🇫', ML: '🇲🇱', NE: '🇳🇪', TG: '🇹🇬', BJ: '🇧🇯', GW: '🇬🇼',
+  CM: '🇨🇲', TD: '🇹🇩', GQ: '🇬🇶', GA: '🇬🇦', CG: '🇨🇬', CF: '🇨🇫', KE: '🇰🇪',
 }

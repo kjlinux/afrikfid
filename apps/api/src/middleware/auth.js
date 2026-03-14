@@ -33,8 +33,14 @@ async function requireAdmin(req, res, next) {
   }
 }
 
+// ─── Constantes rate limiting par clé API (CDC §5.4.2) ──────────────────────
+// Fenêtre glissante : API_KEY_RATE_LIMIT_MAX requêtes par API_KEY_RATE_LIMIT_WINDOW_MS
+const API_KEY_RATE_LIMIT_MAX = parseInt(process.env.API_KEY_RATE_LIMIT_MAX) || 100;
+const API_KEY_RATE_LIMIT_WINDOW_MS = parseInt(process.env.API_KEY_RATE_LIMIT_WINDOW_MS) || 60000; // 1 minute
+
 /**
  * Middleware d'authentification par clé API pour les marchands
+ * Inclut un rate limiting par clé API stocké dans Redis (CDC §5.4.2)
  */
 async function requireApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
@@ -53,6 +59,40 @@ async function requireApiKey(req, res, next) {
   if (!merchant) return res.status(401).json({ error: 'Clé API invalide' });
   if (merchant.status !== 'active') return res.status(403).json({ error: 'Compte marchand inactif ou suspendu' });
   if (merchant.kyc_status !== 'approved') return res.status(403).json({ error: 'KYC_PENDING', message: 'Vérification KYC requise avant de pouvoir accepter des paiements' });
+
+  // ── Rate limiting par clé API (fenêtre glissante via Redis) ──────────────
+  try {
+    const rateLimitKey = `ratelimit:apikey:${apiKey}`;
+    const windowSecs = Math.ceil(API_KEY_RATE_LIMIT_WINDOW_MS / 1000);
+
+    // Incrémenter le compteur ; s'il n'existe pas, Redis setEx l'initialise à 1
+    const currentStr = await redis.get(rateLimitKey);
+    const current = currentStr ? parseInt(currentStr) : 0;
+
+    if (current >= API_KEY_RATE_LIMIT_MAX) {
+      res.set('X-RateLimit-Limit', String(API_KEY_RATE_LIMIT_MAX));
+      res.set('X-RateLimit-Remaining', '0');
+      res.set('Retry-After', String(windowSecs));
+      return res.status(429).json({
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: `Limite de ${API_KEY_RATE_LIMIT_MAX} requêtes par minute dépassée pour cette clé API. Réessayez dans ${windowSecs}s.`,
+      });
+    }
+
+    // Incrémenter avec TTL (setEx remet le TTL à chaque appel — comportement fenêtre fixe)
+    // Pour une fenêtre glissante exacte on utiliserait ZADD, mais setEx suffit pour la protection contre les abus
+    if (current === 0) {
+      await redis.setEx(rateLimitKey, windowSecs, '1');
+    } else {
+      // Juste incrémenter sans reset du TTL (fenêtre fixe)
+      await redis.setEx(rateLimitKey, windowSecs, String(current + 1));
+    }
+
+    res.set('X-RateLimit-Limit', String(API_KEY_RATE_LIMIT_MAX));
+    res.set('X-RateLimit-Remaining', String(API_KEY_RATE_LIMIT_MAX - current - 1));
+  } catch {
+    // En cas d'erreur Redis, on laisse passer (dégradation gracieuse)
+  }
 
   req.merchant = merchant;
   req.isSandbox = isSandbox;

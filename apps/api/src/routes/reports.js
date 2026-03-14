@@ -266,6 +266,177 @@ router.get('/transactions/pdf', requireAdmin, async (req, res) => {
   doc.end();
 });
 
+// GET /api/v1/reports/transactions/excel — Export Excel transactions (CDC §4.6.1)
+router.get('/transactions/excel', requireAdmin, async (req, res) => {
+  let ExcelJS;
+  try { ExcelJS = require('exceljs'); } catch {
+    return res.status(501).json({ error: 'exceljs non installé. Exécutez: npm install exceljs' });
+  }
+
+  const { from, to, merchant_id, status } = req.query;
+  let sql = `
+    SELECT t.reference, t.gross_amount, t.currency, t.status,
+           t.merchant_rebate_percent, t.client_rebate_percent, t.platform_commission_percent,
+           t.client_rebate_amount, t.platform_commission_amount, t.merchant_receives,
+           t.client_loyalty_status, t.rebate_mode, t.payment_method, t.payment_operator,
+           t.initiated_at, t.completed_at,
+           m.name as merchant_name, c.full_name as client_name
+    FROM transactions t
+    JOIN merchants m ON t.merchant_id = m.id
+    LEFT JOIN clients c ON t.client_id = c.id
+    WHERE 1=1
+  `;
+  const params = [];
+  let idx = 1;
+  if (from) { sql += ` AND t.initiated_at >= $${idx++}`; params.push(from); }
+  if (to) { sql += ` AND t.initiated_at <= $${idx++}`; params.push(to); }
+  if (merchant_id) { sql += ` AND t.merchant_id = $${idx++}`; params.push(merchant_id); }
+  if (status) { sql += ` AND t.status = $${idx++}`; params.push(status); }
+  sql += ` ORDER BY t.initiated_at DESC LIMIT 10000`;
+
+  const transactions = (await db.query(sql, params)).rows;
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Afrik'Fid";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Transactions', { views: [{ state: 'frozen', ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: 'Référence',         key: 'reference',                   width: 26 },
+    { header: 'Marchand',          key: 'merchant_name',               width: 22 },
+    { header: 'Client',            key: 'client_name',                 width: 22 },
+    { header: 'Statut fidélité',   key: 'client_loyalty_status',       width: 14 },
+    { header: 'Montant brut',      key: 'gross_amount',                width: 14 },
+    { header: 'Devise',            key: 'currency',                    width: 8  },
+    { header: 'X% marchand',       key: 'merchant_rebate_percent',     width: 12 },
+    { header: 'Y% client',         key: 'client_rebate_percent',       width: 10 },
+    { header: 'Z% Afrik\'Fid',     key: 'platform_commission_percent', width: 12 },
+    { header: 'Remise client',     key: 'client_rebate_amount',        width: 14 },
+    { header: 'Commission Z',      key: 'platform_commission_amount',  width: 14 },
+    { header: 'Marchand reçoit',   key: 'merchant_receives',           width: 14 },
+    { header: 'Mode remise',       key: 'rebate_mode',                 width: 12 },
+    { header: 'Méthode',           key: 'payment_method',              width: 12 },
+    { header: 'Opérateur',         key: 'payment_operator',            width: 12 },
+    { header: 'Statut',            key: 'status',                      width: 12 },
+    { header: 'Initié le',         key: 'initiated_at',                width: 20 },
+    { header: 'Complété le',       key: 'completed_at',                width: 20 },
+  ];
+
+  // Style en-tête
+  const headerRow = sheet.getRow(1);
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A5E' } };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFF59E0B' } } };
+  });
+  headerRow.height = 20;
+
+  // Couleurs statut
+  const STATUS_FILL = {
+    completed: 'FFD1FAE5',
+    failed: 'FFFEE2E2',
+    pending: 'FFFEF3C7',
+    refunded: 'FFEDE9FE',
+  };
+
+  transactions.forEach((tx, i) => {
+    const row = sheet.addRow({
+      ...tx,
+      gross_amount: parseFloat(tx.gross_amount),
+      merchant_rebate_percent: parseFloat(tx.merchant_rebate_percent),
+      client_rebate_percent: parseFloat(tx.client_rebate_percent),
+      platform_commission_percent: parseFloat(tx.platform_commission_percent),
+      client_rebate_amount: parseFloat(tx.client_rebate_amount),
+      platform_commission_amount: parseFloat(tx.platform_commission_amount),
+      merchant_receives: parseFloat(tx.merchant_receives),
+      initiated_at: tx.initiated_at ? new Date(tx.initiated_at).toLocaleString('fr-FR') : '',
+      completed_at: tx.completed_at ? new Date(tx.completed_at).toLocaleString('fr-FR') : '',
+    });
+    const bg = i % 2 === 0 ? 'FFF8FAFC' : 'FFFFFFFF';
+    row.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      cell.alignment = { vertical: 'middle' };
+    });
+    // Colonne statut colorée
+    const statusCell = row.getCell('status');
+    const statusBg = STATUS_FILL[tx.status] || 'FFFFFFFF';
+    statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusBg } };
+    statusCell.font = { bold: true };
+  });
+
+  // Feuille résumé
+  const summary = workbook.addWorksheet('Résumé');
+  summary.columns = [
+    { header: 'Indicateur', key: 'label', width: 30 },
+    { header: 'Valeur', key: 'value', width: 20 },
+  ];
+  const completed = transactions.filter(t => t.status === 'completed');
+  const totalVol = completed.reduce((s, t) => s + parseFloat(t.gross_amount || 0), 0);
+  const totalZ = completed.reduce((s, t) => s + parseFloat(t.platform_commission_amount || 0), 0);
+  const totalRebates = completed.reduce((s, t) => s + parseFloat(t.client_rebate_amount || 0), 0);
+  [
+    ['Généré le', new Date().toLocaleString('fr-FR')],
+    ['Total transactions', transactions.length],
+    ['Transactions complétées', completed.length],
+    ['Taux de succès', `${Math.round((completed.length / (transactions.length || 1)) * 100)}%`],
+    ['Volume total (complétées)', totalVol.toLocaleString('fr-FR')],
+    ['Commissions Afrik\'Fid (Z)', totalZ.toLocaleString('fr-FR')],
+    ['Remises clients (Y)', totalRebates.toLocaleString('fr-FR')],
+  ].forEach(([label, value]) => summary.addRow({ label, value }));
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="transactions-${new Date().toISOString().split('T')[0]}.xlsx"`);
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+// GET /api/v1/reports/by-country — Revenus Afrik'Fid par pays (CDC §4.6.1)
+router.get('/by-country', requireAdmin, async (req, res) => {
+  const { period = '30d' } = req.query;
+  const days = parseInt(period) || 30;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const fromStr = from.toISOString();
+
+  const byCountry = (await db.query(`
+    SELECT
+      co.id as country_id,
+      co.name as country_name,
+      co.currency,
+      co.zone,
+      COUNT(t.id) as total_transactions,
+      COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.gross_amount ELSE 0 END), 0) as total_volume,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.platform_commission_amount ELSE 0 END), 0) as platform_revenue,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.client_rebate_amount ELSE 0 END), 0) as client_rebates,
+      COUNT(DISTINCT t.merchant_id) as active_merchants,
+      COUNT(DISTINCT t.client_id) as unique_clients
+    FROM countries co
+    LEFT JOIN merchants m ON m.country_id = co.id
+    LEFT JOIN transactions t ON t.merchant_id = m.id AND t.initiated_at >= $1
+    WHERE co.is_active = TRUE
+    GROUP BY co.id, co.name, co.currency, co.zone
+    ORDER BY total_volume DESC
+  `, [fromStr])).rows;
+
+  const byZone = (await db.query(`
+    SELECT
+      co.zone,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.gross_amount ELSE 0 END), 0) as total_volume,
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.platform_commission_amount ELSE 0 END), 0) as platform_revenue,
+      COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed
+    FROM countries co
+    LEFT JOIN merchants m ON m.country_id = co.id
+    LEFT JOIN transactions t ON t.merchant_id = m.id AND t.initiated_at >= $1
+    WHERE co.is_active = TRUE
+    GROUP BY co.zone ORDER BY total_volume DESC
+  `, [fromStr])).rows;
+
+  res.json({ byCountry, byZone, period: `${days}d` });
+});
+
 // GET /api/v1/reports/refunds (admin) — liste paginée des remboursements (CDC §4.6.1)
 router.get('/refunds', requireAdmin, async (req, res) => {
   const { page = 1, limit = 20, status, refund_type, q } = req.query;

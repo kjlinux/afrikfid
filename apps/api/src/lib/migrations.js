@@ -458,6 +458,33 @@ const MIGRATIONS = [
     `,
   },
   {
+    version: 14,
+    name: '014_seed_countries',
+    up: `
+      -- Seed des pays couverts par la passerelle (CDC §1.3 — zones UEMOA, CEMAC, Est-Afrique)
+      INSERT INTO countries (id, name, currency, zone) VALUES
+        -- Zone UEMOA (XOF)
+        ('CI', 'Côte d\'Ivoire',  'XOF', 'UEMOA'),
+        ('SN', 'Sénégal',         'XOF', 'UEMOA'),
+        ('BF', 'Burkina Faso',    'XOF', 'UEMOA'),
+        ('ML', 'Mali',            'XOF', 'UEMOA'),
+        ('NE', 'Niger',           'XOF', 'UEMOA'),
+        ('TG', 'Togo',            'XOF', 'UEMOA'),
+        ('BJ', 'Bénin',           'XOF', 'UEMOA'),
+        ('GW', 'Guinée-Bissau',   'XOF', 'UEMOA'),
+        -- Zone CEMAC (XAF)
+        ('CM', 'Cameroun',        'XAF', 'CEMAC'),
+        ('TD', 'Tchad',           'XAF', 'CEMAC'),
+        ('GQ', 'Guinée Équatoriale', 'XAF', 'CEMAC'),
+        ('GA', 'Gabon',           'XAF', 'CEMAC'),
+        ('CG', 'Congo',           'XAF', 'CEMAC'),
+        ('CF', 'RCA',             'XAF', 'CEMAC'),
+        -- Afrique de l'Est
+        ('KE', 'Kenya',           'KES', 'EAC')
+      ON CONFLICT (id) DO NOTHING;
+    `,
+  },
+  {
     version: 13,
     name: '013_encryption_key_rotation',
     up: `
@@ -472,6 +499,33 @@ const MIGRATIONS = [
       );
 
       CREATE INDEX IF NOT EXISTS idx_encryption_keys_active ON encryption_keys(is_active, version DESC);
+    `,
+  },
+  {
+    version: 15,
+    name: '015_refund_overdue_and_disbursements_table',
+    up: `
+      -- Statut 'overdue' pour les remboursements dépassant le SLA 72h (CDC §4.4)
+      -- (pas de contrainte ENUM en PG natif, le statut est un TEXT libre)
+      -- Index pour le worker de surveillance
+      CREATE INDEX IF NOT EXISTS idx_refunds_status_created ON refunds(status, created_at) WHERE status = 'pending';
+
+      -- Table disbursements (si inexistante — certaines migrations antérieures l'ont créée différemment)
+      CREATE TABLE IF NOT EXISTS disbursements (
+        id TEXT PRIMARY KEY,
+        beneficiary_type TEXT NOT NULL,
+        beneficiary_id TEXT NOT NULL,
+        amount NUMERIC NOT NULL,
+        currency TEXT DEFAULT 'XOF',
+        status TEXT DEFAULT 'pending',
+        operator TEXT,
+        operator_ref TEXT,
+        transaction_id TEXT REFERENCES transactions(id),
+        executed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_disbursements_beneficiary ON disbursements(beneficiary_type, beneficiary_id);
     `,
   },
 ];

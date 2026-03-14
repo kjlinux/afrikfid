@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { requireApiKey, requireMerchant } = require('../middleware/auth');
 const { calculateDistribution } = require('../lib/loyalty-engine');
+const { decrypt, hashField } = require('../lib/crypto');
 
 // POST /api/v1/payment-links (marchand)
 router.post('/', requireMerchant, async (req, res) => {
@@ -74,7 +75,7 @@ router.post('/:code/identify-client', async (req, res) => {
 
   const client = afrikfid_id
     ? (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [afrikfid_id])).rows[0]
-    : (await db.query("SELECT * FROM clients WHERE phone = $1 AND is_active = TRUE", [phone])).rows[0];
+    : (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(phone)])).rows[0];
 
   if (!client) return res.json({ found: false });
 
@@ -86,7 +87,7 @@ router.post('/:code/identify-client', async (req, res) => {
     client: {
       afrikfidId: client.afrikfid_id,
       fullName: client.full_name,
-      phone: client.phone,
+      phone: decrypt(client.phone),
       loyaltyStatus: client.loyalty_status,
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,

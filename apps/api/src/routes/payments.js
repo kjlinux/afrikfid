@@ -4,7 +4,9 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { calculateDistribution } = require('../lib/loyalty-engine');
 const { requireApiKey, requireClient } = require('../middleware/auth');
+const { verifyHmacSignature } = require('../middleware/hmac-verify');
 const mobileMoney = require('../lib/adapters/mobile-money');
+const { getOperatorsForCountry } = mobileMoney;
 const { validate } = require('../middleware/validate');
 const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
@@ -23,7 +25,7 @@ function getCardProvider() {
 }
 
 // POST /api/v1/payments/initiate
-router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (req, res) => {
+router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePaymentSchema), async (req, res) => {
   const {
     amount, currency, client_phone, client_afrikfid_id,
     payment_method, payment_operator, description, idempotency_key,
@@ -53,6 +55,21 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
   }
 
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
+
+  // Validation opérateur mobile money vs pays (CDC §3.2 — extensibilité par pays)
+  if (payment_method === 'mobile_money' && payment_operator) {
+    const countryCode = client?.country_id || merchant.country_id;
+    if (countryCode) {
+      const supportedOps = getOperatorsForCountry(countryCode).map(op => op.code);
+      if (supportedOps.length > 0 && !supportedOps.includes((payment_operator || '').toUpperCase())) {
+        return res.status(422).json({
+          error: 'OPERATOR_NOT_AVAILABLE',
+          message: `L'opérateur ${payment_operator} n'est pas disponible dans ce pays. Opérateurs supportés : ${supportedOps.join(', ')}`,
+          supportedOperators: supportedOps,
+        });
+      }
+    }
+  }
 
   // Vérification seuil maximum par transaction (CDC §4.2.2)
   if (merchant.max_transaction_amount && amount > parseFloat(merchant.max_transaction_amount)) {
@@ -161,12 +178,41 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
       currency, reference, description,
     });
 
+    // Basculement vers opérateur alternatif si indisponible (CDC §4.1.4)
+    if (!mmResult.success && mmResult.error === 'OPERATOR_UNAVAILABLE') {
+      const countryCode = merchant.country_id || client?.country_id;
+      const alternatives = countryCode
+        ? getOperatorsForCountry(countryCode)
+            .map(op => op.code)
+            .filter(code => code !== (payment_operator || '').toUpperCase() && code !== 'MPESA')
+        : [];
+
+      for (const altOperator of alternatives) {
+        try {
+          const altResult = await mobileMoney.initiatePayment({
+            operator: altOperator, phone: client_phone, amount: clientAmount,
+            currency, reference: `${reference}-ALT`, description,
+          });
+          if (altResult.success) {
+            mmResult = { ...altResult, usedFallback: true, originalOperator: payment_operator, fallbackOperator: altOperator };
+            await db.query(
+              "UPDATE transactions SET payment_operator = $1, operator_ref = $2, failure_reason = $3 WHERE id = $4",
+              [altOperator, altResult.operatorRef, `Basculement depuis ${payment_operator} (indisponible)`, txId]
+            );
+            break;
+          }
+        } catch { /* essayer le suivant */ }
+      }
+    }
+
     if (!mmResult.success) {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [mmResult.message, txId]);
       notifyPaymentFailed({ client, transaction: { gross_amount: amount, currency, merchant_name: merchant.name }, errorMessage: mmResult.message });
       return res.status(422).json({ error: mmResult.error, message: mmResult.message });
     }
-    await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [mmResult.operatorRef, txId]);
+    if (!mmResult.usedFallback) {
+      await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [mmResult.operatorRef, txId]);
+    }
   }
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [txId])).rows[0];
@@ -184,6 +230,7 @@ router.post('/initiate', requireApiKey, validate(InitiatePaymentSchema), async (
     },
     client: client ? { afrikfidId: client.afrikfid_id, loyaltyStatus, fullName: client.full_name } : null,
     payment: mmResult || (cardResult ? { paymentUrl: cardResult.paymentUrl, type: 'card_redirect' } : null),
+    fallback: mmResult?.usedFallback ? { originalOperator: mmResult.originalOperator, fallbackOperator: mmResult.fallbackOperator } : undefined,
   });
 });
 
@@ -479,7 +526,7 @@ router.get('/:id/status', requireApiKey, async (req, res) => {
 });
 
 // POST /api/v1/payments/:id/refund
-router.post('/:id/refund', requireApiKey, validate(RefundSchema), async (req, res) => {
+router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSchema), async (req, res) => {
   const { amount, reason, refund_type } = req.body;
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2', [req.params.id, req.merchant.id])).rows[0];
@@ -725,18 +772,31 @@ async function processCompletedPayment(tx) {
         await db.query('INSERT INTO wallets (id, client_id, currency) VALUES ($1, $2, $3)', [walletId, tx.client_id, tx.currency]);
         wallet = (await db.query('SELECT * FROM wallets WHERE id = $1', [walletId])).rows[0];
       }
-      const newBalance = parseFloat(wallet.balance) + parseFloat(tx.client_rebate_amount);
-      await db.query(
-        'UPDATE wallets SET balance = $1, total_earned = total_earned + $2, updated_at = NOW() WHERE id = $3',
-        [newBalance, tx.client_rebate_amount, wallet.id]
-      );
-      await db.query(
-        `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'credit', $4, $5, $6, $7)`,
-        [uuidv4(), wallet.id, tx.id, tx.client_rebate_amount, wallet.balance, newBalance, `Cashback - ${tx.reference}`]
-      );
+      // Respect du plafond wallet (CDC §4.3.2) : max_balance propre au wallet ou global (wallet_config)
+      const walletConfigRes = await db.query("SELECT default_max_balance FROM wallet_config WHERE id = 'global'");
+      const globalCap = walletConfigRes.rows[0]?.default_max_balance != null
+        ? parseFloat(walletConfigRes.rows[0].default_max_balance) : null;
+      const effectiveCap = wallet.max_balance != null ? parseFloat(wallet.max_balance) : globalCap;
+      const currentBalance = parseFloat(wallet.balance);
+      const rawRebate = parseFloat(tx.client_rebate_amount);
+      const rebateToCredit = effectiveCap != null
+        ? Math.max(0, Math.min(rawRebate, effectiveCap - currentBalance))
+        : rawRebate;
+
+      if (rebateToCredit > 0) {
+        const newBalance = currentBalance + rebateToCredit;
+        await db.query(
+          'UPDATE wallets SET balance = $1, total_earned = total_earned + $2, updated_at = NOW() WHERE id = $3',
+          [newBalance, rebateToCredit, wallet.id]
+        );
+        await db.query(
+          `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'credit', $4, $5, $6, $7)`,
+          [uuidv4(), wallet.id, tx.id, rebateToCredit, currentBalance, newBalance, `Cashback - ${tx.reference}`]
+        );
+      }
       await db.query(
         `INSERT INTO distributions (id, transaction_id, beneficiary_type, beneficiary_id, amount, currency, status, executed_at) VALUES ($1, $2, 'client_cashback', $3, $4, $5, 'completed', $6)`,
-        [distId3, tx.id, tx.client_id, tx.client_rebate_amount, tx.currency, now]
+        [distId3, tx.id, tx.client_id, rawRebate, tx.currency, now]
       );
     }
 

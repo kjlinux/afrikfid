@@ -117,4 +117,43 @@ router.delete('/config-country/:countryId/:status', requireAdmin, async (req, re
   res.json({ message: 'Surcharge supprimée, taux global restauré' });
 });
 
+// ─── Configuration plafond wallet (CDC §4.3.2) ────────────────────────────────
+
+// GET /api/v1/loyalty/wallet-config — lire la config globale des plafonds
+router.get('/wallet-config', requireAdmin, async (req, res) => {
+  const config = (await db.query("SELECT * FROM wallet_config WHERE id = 'global'")).rows[0];
+  res.json({ walletConfig: config || { id: 'global', default_max_balance: null } });
+});
+
+// PUT /api/v1/loyalty/wallet-config — mettre à jour le plafond global
+router.put('/wallet-config', requireAdmin, async (req, res) => {
+  const { default_max_balance } = req.body;
+  if (default_max_balance !== null && (isNaN(parseFloat(default_max_balance)) || parseFloat(default_max_balance) < 0)) {
+    return res.status(400).json({ error: 'default_max_balance doit être un nombre positif ou null (illimité)' });
+  }
+  const cap = default_max_balance != null ? parseFloat(default_max_balance) : null;
+  await db.query(
+    `INSERT INTO wallet_config (id, default_max_balance, updated_at) VALUES ('global', $1, NOW())
+     ON CONFLICT (id) DO UPDATE SET default_max_balance = EXCLUDED.default_max_balance, updated_at = NOW()`,
+    [cap]
+  );
+  const updated = (await db.query("SELECT * FROM wallet_config WHERE id = 'global'")).rows[0];
+  res.json({ walletConfig: updated, message: cap ? `Plafond global fixé à ${cap}` : 'Plafond supprimé (illimité)' });
+});
+
+// PATCH /api/v1/loyalty/wallet/:clientId/cap — plafond individuel pour un client
+router.patch('/wallet/:clientId/cap', requireAdmin, async (req, res) => {
+  const { max_balance } = req.body;
+  if (max_balance !== null && (isNaN(parseFloat(max_balance)) || parseFloat(max_balance) < 0)) {
+    return res.status(400).json({ error: 'max_balance doit être un nombre positif ou null (illimité)' });
+  }
+  const cap = max_balance != null ? parseFloat(max_balance) : null;
+  const result = await db.query(
+    'UPDATE wallets SET max_balance = $1, updated_at = NOW() WHERE client_id = $2',
+    [cap, req.params.clientId]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Portefeuille client non trouvé' });
+  res.json({ message: cap ? `Plafond individuel fixé à ${cap}` : 'Plafond individuel supprimé', clientId: req.params.clientId, maxBalance: cap });
+});
+
 module.exports = router;

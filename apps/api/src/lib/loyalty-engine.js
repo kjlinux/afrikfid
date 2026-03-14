@@ -4,7 +4,7 @@
  */
 
 const db = require('./db');
-const { notifyLoyaltyUpgrade } = require('./notifications');
+const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
 
 async function getLoyaltyConfig() {
   const res = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order');
@@ -167,11 +167,24 @@ async function runLoyaltyBatch() {
     const evaluation = await evaluateClientStatus(row.id);
     if (evaluation && evaluation.changed) {
       await applyStatusChange(row.id, evaluation.newStatus);
-      // Notifier le client si montée en statut (pas pour les rétrogradations vers OPEN)
-      if (evaluation.newStatus !== 'OPEN' && evaluation.newStatus !== evaluation.currentStatus) {
-        const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
-        if (client) {
+      const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
+      if (client) {
+        const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+        const isUpgrade = statusOrder.indexOf(evaluation.newStatus) > statusOrder.indexOf(evaluation.currentStatus);
+        const isDowngrade = statusOrder.indexOf(evaluation.newStatus) < statusOrder.indexOf(evaluation.currentStatus);
+
+        if (isUpgrade) {
           notifyLoyaltyUpgrade({ client, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
+        } else if (isDowngrade) {
+          // CDC §2.6 — Notifier le client lors d'une rétrogradation par inactivité
+          const inactivityMonths = evaluation.inactivityMonths ||
+            (await db.query('SELECT inactivity_months FROM loyalty_config WHERE status = $1', [evaluation.currentStatus])).rows[0]?.inactivity_months;
+          notifyLoyaltyDowngrade({
+            client,
+            oldStatus: evaluation.currentStatus,
+            newStatus: evaluation.newStatus,
+            inactivityMonths,
+          });
         }
       }
       results.push(evaluation);

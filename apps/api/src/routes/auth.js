@@ -13,17 +13,46 @@ const { generateTotpSecret, generateQrCode, verifyTotp, generateBackupCodes } = 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const REFRESH_TTL = 7 * 24 * 3600; // 7 jours en secondes
 
-// ─── Anti-brute force sur les endpoints de login (CDC §5.4) ──────────────────
-// Blocage après 5 tentatives par email ou par IP
+// ─── Anti-brute force sur les endpoints de login (CDC §5.4.2) ────────────────
+// Rate limit IP-level (mémoire) : premier filet de sécurité
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => (req.body && req.body.email) || req.ip,
+  max: 20, // souple car le lockout Redis par email est le vrai garde-fou
+  keyGenerator: (req) => req.ip,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives de connexion. Compte temporairement bloqué (15 minutes).' },
+  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives depuis cette adresse IP. Réessayez dans 15 minutes.' },
   skipSuccessfulRequests: true,
 });
+
+// Lockout persistant Redis par identifiant (email ou phone)
+// 5 échecs => blocage 15 minutes, résistant aux redémarrages serveur
+const LOCKOUT_MAX = 5;
+const LOCKOUT_TTL = 15 * 60; // 15 minutes en secondes
+
+function lockoutKey(identifier) { return `lockout:${identifier}`; }
+function failKey(identifier) { return `login_fails:${identifier}`; }
+
+async function checkLockout(identifier) {
+  const locked = await redis.exists(lockoutKey(identifier));
+  return !!locked;
+}
+
+async function recordFailure(identifier) {
+  const key = failKey(identifier);
+  const fails = await redis.incr(key);
+  if (fails === 1) await redis.expire(key, LOCKOUT_TTL);
+  if (fails >= LOCKOUT_MAX) {
+    await redis.setEx(lockoutKey(identifier), LOCKOUT_TTL, '1');
+    await redis.del(key);
+  }
+  return fails;
+}
+
+async function clearFailures(identifier) {
+  await redis.del(failKey(identifier));
+  await redis.del(lockoutKey(identifier));
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -42,12 +71,22 @@ function extractJti(token) {
 router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req, res) => {
   const { email, password, totp_code } = req.body;
 
+  if (await checkLockout(email)) {
+    return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+  }
+
   const result = await db.query('SELECT * FROM admins WHERE email = $1 AND is_active = TRUE', [email]);
   const admin = result.rows[0];
-  if (!admin) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!admin) {
+    await recordFailure(email);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
   const valid = await bcrypt.compare(password, admin.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!valid) {
+    await recordFailure(email);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
   // Vérification 2FA si activé
   if (admin.totp_enabled && admin.totp_secret) {
@@ -69,6 +108,7 @@ router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req
     }
   }
 
+  await clearFailures(email);
   await db.query('UPDATE admins SET last_login = NOW() WHERE id = $1', [admin.id]);
 
   const tokens = generateTokens({ sub: admin.id, role: 'admin', email: admin.email });
@@ -89,13 +129,24 @@ router.post('/admin/login', loginLimiter, validate(AdminLoginSchema), async (req
 router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), async (req, res) => {
   const { email, password } = req.body;
 
+  if (await checkLockout(email)) {
+    return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+  }
+
   const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);
   const merchant = result.rows[0];
-  if (!merchant || !merchant.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!merchant || !merchant.password_hash) {
+    await recordFailure(email);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
   const valid = await bcrypt.compare(password, merchant.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!valid) {
+    await recordFailure(email);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
+  await clearFailures(email);
   const tokens = generateTokens({ sub: merchant.id, role: 'merchant', email: merchant.email });
 
   // Stocker le refresh token dans Redis
@@ -254,17 +305,28 @@ router.post('/client/login', loginLimiter, async (req, res) => {
   const { phone, password } = req.body;
   if (!phone || !password) return res.status(400).json({ error: 'phone et password requis' });
 
+  if (await checkLockout(phone)) {
+    return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+  }
+
   const { hashField } = require('../lib/crypto');
   const { decrypt } = require('../lib/crypto');
   const phoneHash = hashField(phone);
 
   const result = await db.query('SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE', [phoneHash]);
   const client = result.rows[0];
-  if (!client || !client.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!client || !client.password_hash) {
+    await recordFailure(phone);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
   const valid = await bcrypt.compare(password, client.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+  if (!valid) {
+    await recordFailure(phone);
+    return res.status(401).json({ error: 'Identifiants invalides' });
+  }
 
+  await clearFailures(phone);
   const tokens = generateTokens({ sub: client.id, role: 'client', afrikfidId: client.afrikfid_id });
 
   const refreshJti = extractJti(tokens.refreshToken);

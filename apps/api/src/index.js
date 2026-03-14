@@ -10,6 +10,7 @@ const { runMigrations } = require('./lib/migrations');
 const { processRetryQueue, dispatchWebhook, WebhookEvents } = require('./workers/webhook-dispatcher');
 const { processExpiredTransactions } = require('./workers/transaction-expiry');
 const { processDisbursements } = require('./workers/disbursement');
+const { checkOverdueRefunds } = require('./workers/refund-monitor');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
@@ -298,6 +299,18 @@ if (process.env.NODE_ENV !== 'test') {
     const result = await processDisbursements();
     if (result.processed > 0) {
       console.log(`✅ Disbursement terminé: ${result.processed} règlements, total ${result.totalAmount}`);
+    }
+  }, null, true, 'Africa/Abidjan');
+
+  // Surveillance remboursements en attente > 72h (CDC §4.4 — SLA 72h)
+  new CronJob('0 * * * *', async () => {
+    try {
+      const result = await checkOverdueRefunds();
+      if (result.overdue > 0) {
+        console.warn(`⚠️  [REFUND-MONITOR] ${result.overdue} remboursement(s) dépassent le SLA de 72h`);
+      }
+    } catch (err) {
+      console.error('[REFUND-MONITOR] Erreur:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
 }

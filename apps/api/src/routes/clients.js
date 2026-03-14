@@ -3,7 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const db = require('../lib/db');
-const { requireAdmin, requireApiKey, requireClient } = require('../middleware/auth');
+const { requireAdmin, requireApiKey, requireClient, requireAuth } = require('../middleware/auth');
 const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engine');
 const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
@@ -64,8 +64,23 @@ router.get('/', requireAdmin, async (req, res) => {
   res.json({ clients: clients.map(sanitizeClient), total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// GET /api/v1/clients/:id/profile
-router.get('/:id/profile', async (req, res) => {
+// Helper : vérifie que le demandeur est autorisé à accéder aux données d'un client donné.
+// Accès autorisé si : admin | client lui-même | marchand ayant fait au moins une tx avec ce client
+async function canAccessClient(req, clientId) {
+  if (req.admin) return true;
+  if (req.client && req.client.id === clientId) return true;
+  if (req.merchant) {
+    const tx = (await db.query(
+      'SELECT id FROM transactions WHERE client_id = $1 AND merchant_id = $2 LIMIT 1',
+      [clientId, req.merchant.id]
+    )).rows[0];
+    return !!tx;
+  }
+  return false;
+}
+
+// GET /api/v1/clients/:id/profile — client lui-même, admin ou marchand ayant transigé avec ce client
+router.get('/:id/profile', requireAuth, async (req, res) => {
   const result = await db.query(`
     SELECT c.*, co.name as country_name, co.currency
     FROM clients c LEFT JOIN countries co ON c.country_id = co.id
@@ -74,6 +89,7 @@ router.get('/:id/profile', async (req, res) => {
   const client = result.rows[0];
 
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+  if (!(await canAccessClient(req, client.id))) return res.status(403).json({ error: 'Accès interdit' });
 
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   const txStats = (await db.query(
@@ -88,11 +104,15 @@ router.get('/:id/profile', async (req, res) => {
   });
 });
 
-// GET /api/v1/clients/:id/wallet
-router.get('/:id/wallet', async (req, res) => {
+// GET /api/v1/clients/:id/wallet — client lui-même ou admin uniquement (données financières sensibles)
+router.get('/:id/wallet', requireAuth, async (req, res) => {
   const clientRes = await db.query('SELECT id FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  // Wallet : accès restreint au client lui-même ou admin (pas les marchands)
+  const isOwner = req.client && req.client.id === client.id;
+  if (!req.admin && !isOwner) return res.status(403).json({ error: 'Accès interdit' });
 
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   if (!wallet) return res.status(404).json({ error: 'Portefeuille non trouvé' });
@@ -109,11 +129,14 @@ router.get('/:id/wallet', async (req, res) => {
   res.json({ wallet: { ...wallet, movements } });
 });
 
-// GET /api/v1/clients/:id/transactions
-router.get('/:id/transactions', async (req, res) => {
+// GET /api/v1/clients/:id/transactions — client lui-même ou admin
+router.get('/:id/transactions', requireAuth, async (req, res) => {
   const clientRes = await db.query('SELECT id FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  const isOwner = req.client && req.client.id === client.id;
+  if (!req.admin && !isOwner) return res.status(403).json({ error: 'Accès interdit' });
 
   const { page = 1, limit = 20 } = req.query;
   const transactions = (await db.query(`
@@ -230,7 +253,7 @@ router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, 
     client: {
       afrikfidId: client.afrikfid_id,
       fullName: client.full_name,
-      phone: client.phone,
+      phone: decrypt(client.phone),
       loyaltyStatus: client.loyalty_status,
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,

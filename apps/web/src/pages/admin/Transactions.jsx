@@ -52,6 +52,10 @@ export default function AdminTransactions() {
             style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             ↓ PDF
           </button>
+          <button onClick={() => { const params = new URLSearchParams(filters); window.location.href = `/api/v1/reports/transactions/excel?${params}` }}
+            style={{ padding: '7px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#22c55e', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ Excel
+          </button>
         </div>
       </div>
 

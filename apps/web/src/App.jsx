@@ -17,6 +17,8 @@ import AdminRefunds from './pages/admin/Refunds.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
+import MerchantClients from './pages/merchant/Clients.jsx'
+import MerchantSettings from './pages/merchant/Settings.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
 
@@ -129,6 +131,8 @@ function MerchantLayout({ children }) {
     { path: '/merchant', label: 'Dashboard', icon: '📊' },
     { path: '/merchant/transactions', label: 'Transactions', icon: '💳' },
     { path: '/merchant/links', label: 'Liens de paiement', icon: '🔗' },
+    { path: '/merchant/clients', label: 'Clients fidélisés', icon: '👥' },
+    { path: '/merchant/settings', label: 'Paramètres', icon: '⚙️' },
   ]
 
   return (
@@ -191,6 +195,8 @@ export default function App() {
           <Route path="/merchant" element={<Protected role="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></Protected>} />
           <Route path="/merchant/transactions" element={<Protected role="merchant"><MerchantLayout><MerchantTransactions /></MerchantLayout></Protected>} />
           <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
+          <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
+          <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />

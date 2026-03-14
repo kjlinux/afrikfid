@@ -483,9 +483,26 @@ function hasMoovCredentials() {
   return !!(process.env.MOOV_CLIENT_ID && process.env.MOOV_CLIENT_SECRET);
 }
 
+// ─── Table de failover par devise/pays (CDC §4.1.4) ──────────────────────────
+// Si l'opérateur principal échoue, on tente les suivants dans l'ordre.
+const FAILOVER_CHAINS = {
+  XOF: ['ORANGE', 'MTN', 'WAVE', 'MOOV'],
+  XAF: ['ORANGE', 'MTN'],
+  KES: ['MPESA', 'AIRTEL'],
+};
+
+function getFailoverChain(operator, currency) {
+  const chain = FAILOVER_CHAINS[currency] || [];
+  const opUpper = operator.toUpperCase();
+  // Placer l'opérateur demandé en premier, puis les alternatives
+  const alternatives = chain.filter(o => o !== opUpper);
+  return [opUpper, ...alternatives];
+}
+
 /**
- * Lance une demande de paiement vers l'opérateur approprié.
- * Utilise l'API réelle si les credentials sont configurés, sinon le mode sandbox.
+ * Tente l'initiation sur l'opérateur demandé.
+ * En cas d'erreur technique (timeout, API down), bascule automatiquement
+ * vers un opérateur alternatif disponible sur la même devise (CDC §4.1.4).
  */
 async function initiatePayment({ operator, phone, amount, currency, reference, description, notifyUrl }) {
   const op = Object.values(OPERATORS).find(o => o.code === operator.toUpperCase());
@@ -501,37 +518,58 @@ async function initiatePayment({ operator, phone, amount, currency, reference, d
     };
   }
 
-  try {
-    if (!isSandbox()) {
-      const code = operator.toUpperCase();
-      if (code === 'ORANGE' && hasOrangeCredentials()) {
-        return await orangeInitiatePayment({ phone, amount, currency, reference, description, notifyUrl });
+  const chain = isSandbox() ? [operator.toUpperCase()] : getFailoverChain(operator, currency);
+  let lastError = null;
+
+  for (const code of chain) {
+    try {
+      let result = null;
+
+      if (!isSandbox()) {
+        if (code === 'ORANGE' && hasOrangeCredentials()) {
+          result = await orangeInitiatePayment({ phone, amount, currency, reference, description, notifyUrl });
+        } else if (code === 'MTN' && hasMtnCredentials()) {
+          result = await mtnInitiatePayment({ phone, amount, currency, reference, description });
+        } else if (code === 'MPESA' && hasMpesaCredentials()) {
+          result = await mpesaInitiatePayment({ phone, amount, reference, description });
+        } else if (code === 'AIRTEL' && hasAirtelCredentials()) {
+          result = await airtelInitiatePayment({ phone, amount, currency, reference });
+        } else if (code === 'WAVE' && hasWaveCredentials()) {
+          result = await waveInitiatePayment({ phone, amount, currency, reference, description, notifyUrl });
+        } else if (code === 'MOOV' && hasMoovCredentials()) {
+          result = await moovInitiatePayment({ phone, amount, currency, reference, description });
+        }
       }
-      if (code === 'MTN' && hasMtnCredentials()) {
-        return await mtnInitiatePayment({ phone, amount, currency, reference, description });
+
+      if (!result) {
+        // Pas de credentials pour cet opérateur, passer au suivant si c'est un failover
+        if (code !== operator.toUpperCase()) continue;
+        result = await sandboxInitiatePayment({ operator: code, phone, amount, currency, reference });
       }
-      if (code === 'MPESA' && hasMpesaCredentials()) {
-        return await mpesaInitiatePayment({ phone, amount, reference, description });
+
+      if (result.success) {
+        if (code !== operator.toUpperCase()) {
+          console.warn(`[MobileMoney] Failover: ${operator} → ${code} pour ref ${reference}`);
+          result.failover = true;
+          result.originalOperator = operator.toUpperCase();
+        }
+        return result;
       }
-      if (code === 'AIRTEL' && hasAirtelCredentials()) {
-        return await airtelInitiatePayment({ phone, amount, currency, reference });
+
+      // Erreur métier (solde insuffisant, numéro invalide) — ne pas essayer d'autres opérateurs
+      if (['INSUFFICIENT_FUNDS', 'INVALID_PHONE', 'AMOUNT_OUT_OF_RANGE'].includes(result.error)) {
+        return result;
       }
-      if (code === 'WAVE' && hasWaveCredentials()) {
-        return await waveInitiatePayment({ phone, amount, currency, reference, description, notifyUrl });
-      }
-      if (code === 'MOOV' && hasMoovCredentials()) {
-        return await moovInitiatePayment({ phone, amount, currency, reference, description });
-      }
+
+      lastError = result;
+    } catch (err) {
+      console.error(`[MobileMoney] Erreur opérateur ${code}:`, err.response?.data || err.message);
+      lastError = { success: false, error: 'OPERATOR_ERROR', message: err.response?.data?.message || err.message };
+      // Continuer sur le prochain opérateur du failover
     }
-    return await sandboxInitiatePayment({ operator, phone, amount, currency, reference });
-  } catch (err) {
-    console.error(`[MobileMoney] Erreur opérateur ${operator}:`, err.response?.data || err.message);
-    return {
-      success: false,
-      error: 'OPERATOR_ERROR',
-      message: err.response?.data?.message || err.message,
-    };
   }
+
+  return lastError || { success: false, error: 'ALL_OPERATORS_FAILED', message: 'Tous les opérateurs disponibles ont échoué.' };
 }
 
 /**

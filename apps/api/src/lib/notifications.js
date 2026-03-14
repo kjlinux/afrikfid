@@ -125,6 +125,22 @@ const templates = {
     ].join('\n'),
   }),
 
+  loyalty_downgrade: ({ clientName, oldStatus, newStatus, inactivityMonths }) => ({
+    sms: `Afrik'Fid: Votre statut fidelite a ete mis a jour: ${oldStatus} -> ${newStatus} en raison d'inactivite. Faites un achat pour progresser de nouveau.`,
+    subject: `Mise à jour de votre statut fidélité Afrik'Fid`,
+    text: [
+      `Bonjour ${clientName || 'Client'},`,
+      ``,
+      `Votre statut fidélité Afrik'Fid a été mis à jour de ${oldStatus} à ${newStatus}.`,
+      ``,
+      `Cette modification est due à une période d'inactivité de ${inactivityMonths} mois sans achat via la plateforme.`,
+      ``,
+      `Bonne nouvelle : vous pouvez retrouver votre statut précédent en effectuant de nouveaux achats chez nos marchands partenaires !`,
+      ``,
+      `L'équipe Afrik'Fid`,
+    ].join('\n'),
+  }),
+
   fraud_alert: ({ amount, currency, merchantName, clientPhone, reason, riskScore }) => ({
     sms: null,
     subject: `[ALERTE FRAUDE] Transaction bloquée — Score ${riskScore}/100`,
@@ -434,10 +450,48 @@ async function notifyFraudBlocked({ amount, currency, merchantName, clientPhone,
   });
 }
 
+/**
+ * Notifie le client d'une rétrogradation de statut fidélité (CDC §2.6 — inactivité).
+ */
+function notifyLoyaltyDowngrade({ client, oldStatus, newStatus, inactivityMonths }) {
+  if (!client?.phone && !client?.email) return;
+
+  const tplData = {
+    clientName: client.full_name,
+    oldStatus,
+    newStatus,
+    inactivityMonths: inactivityMonths || '?',
+  };
+  const tpl = templates.loyalty_downgrade(tplData);
+
+  if (client.phone) {
+    enqueue(async () => {
+      try {
+        await sendSMS(client.phone, tpl.sms);
+        logNotification('loyalty_downgrade', client.phone, 'sms', 'sent');
+      } catch (e) {
+        logNotification('loyalty_downgrade', client.phone, 'sms', 'failed', e.message);
+      }
+    });
+  }
+
+  if (client.email) {
+    enqueue(async () => {
+      try {
+        await sendEmail(client.email, tpl.subject, tpl.text);
+        logNotification('loyalty_downgrade', client.email, 'email', 'sent');
+      } catch (e) {
+        logNotification('loyalty_downgrade', client.email, 'email', 'failed', e.message);
+      }
+    });
+  }
+}
+
 module.exports = {
   notifyPaymentConfirmed,
   notifyCashbackCredit,
   notifyLoyaltyUpgrade,
+  notifyLoyaltyDowngrade,
   notifyPaymentFailed,
   notifyKycApproved,
   notifyKycRejected,

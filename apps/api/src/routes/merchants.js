@@ -8,6 +8,7 @@ const { validate } = require('../middleware/validate');
 const { CreateMerchantSchema, UpdateMerchantSchema, MerchantLoginSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
 const { notifyKycApproved, notifyKycRejected } = require('../lib/notifications');
+const { kycUpload, toFileMetadata } = require('../lib/upload');
 
 // POST /api/v1/merchants (admin)
 router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) => {
@@ -228,20 +229,99 @@ router.get('/me/stats', requireMerchant, async (req, res) => {
   res.json({ stats: statsRes.rows[0], byLoyaltyStatus: byStatusRes.rows });
 });
 
-// POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC (CDC §6.3)
-router.post('/me/kyc', requireMerchant, async (req, res) => {
+// GET /api/v1/merchants/me/clients — Clients fidélisés du marchand (CDC §4.6.2)
+router.get('/me/clients', requireMerchant, async (req, res) => {
+  const { page = 1, limit = 20, loyalty_status } = req.query;
+  const mid = req.merchant.id;
+
+  let sql = `
+    SELECT
+      c.id as "clientId", c.afrikfid_id as "afrikfidId", c.full_name as "clientName",
+      c.loyalty_status as "loyaltyStatus",
+      COUNT(t.id) as "txCount",
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.gross_amount ELSE 0 END), 0) as "totalVolume",
+      COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.client_rebate_amount ELSE 0 END), 0) as "totalRebates",
+      MAX(t.initiated_at) as "lastTx"
+    FROM clients c
+    JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1
+    WHERE c.is_active = TRUE
+  `;
+  const params = [mid];
+  let idx = 2;
+
+  if (loyalty_status) { sql += ` AND c.loyalty_status = $${idx++}`; params.push(loyalty_status); }
+
+  sql += ` GROUP BY c.id, c.afrikfid_id, c.full_name, c.loyalty_status ORDER BY "totalVolume" DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+  const clients = (await db.query(sql, params)).rows;
+
+  // Total + stats par statut
+  const countSql = `
+    SELECT COUNT(DISTINCT c.id) as total
+    FROM clients c JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1
+    WHERE c.is_active = TRUE ${loyalty_status ? `AND c.loyalty_status = $2` : ''}
+  `;
+  const countParams = loyalty_status ? [mid, loyalty_status] : [mid];
+  const total = parseInt((await db.query(countSql, countParams)).rows[0].total);
+
+  const byStatusRes = (await db.query(`
+    SELECT c.loyalty_status, COUNT(DISTINCT c.id) as count
+    FROM clients c JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1
+    WHERE c.is_active = TRUE GROUP BY c.loyalty_status
+  `, [mid])).rows;
+
+  res.json({ clients, total, page: parseInt(page), limit: parseInt(limit), stats: { byStatus: byStatusRes } });
+});
+
+// POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC (CDC §4.2.1)
+// Accepte un multipart/form-data avec jusqu'à 5 fichiers (PDF, JPEG, PNG, WEBP)
+// ET/OU un champ JSON "documents" pour les métadonnées textuelles
+router.post('/me/kyc', requireMerchant, (req, res, next) => {
+  // Multer gère l'upload des fichiers avant le handler principal
+  kycUpload.array('files', 5)(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: 'UPLOAD_ERROR', message: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   const merchant = (await db.query('SELECT kyc_status FROM merchants WHERE id = $1', [req.merchant.id])).rows[0];
   if (!merchant) return res.status(404).json({ error: 'Marchand introuvable' });
   if (merchant.kyc_status === 'approved') return res.status(400).json({ error: 'KYC déjà approuvé' });
 
-  const { documents } = req.body; // JSONB libre : liens, numéros de documents, etc.
+  // Métadonnées textuelles (champ "documents" JSON ou champs individuels du formulaire)
+  let textDocuments = {};
+  if (req.body.documents) {
+    try {
+      textDocuments = typeof req.body.documents === 'string'
+        ? JSON.parse(req.body.documents)
+        : req.body.documents;
+    } catch {
+      textDocuments = {};
+    }
+  }
+
+  // Fichiers uploadés
+  const uploadedFiles = (req.files || []).map(toFileMetadata);
+
+  // Fusionner métadonnées textuelles + fichiers uploadés
+  const kycData = {
+    ...textDocuments,
+    files: uploadedFiles,
+    submittedAt: new Date().toISOString(),
+  };
 
   await db.query(
     `UPDATE merchants SET kyc_status = 'submitted', kyc_submitted_at = NOW(), kyc_documents = $1, updated_at = NOW() WHERE id = $2`,
-    [documents ? JSON.stringify(documents) : null, req.merchant.id]
+    [JSON.stringify(kycData), req.merchant.id]
   );
 
-  res.json({ message: 'Dossier KYC soumis. Notre équipe le traitera sous 24-48h.', kycStatus: 'submitted' });
+  res.json({
+    message: 'Dossier KYC soumis. Notre équipe le traitera sous 24-48h.',
+    kycStatus: 'submitted',
+    filesUploaded: uploadedFiles.length,
+  });
 });
 
 // PATCH /api/v1/merchants/:id/kyc/review — Admin approuve ou rejette le KYC
@@ -276,6 +356,31 @@ router.patch('/:id/kyc/review', requireAdmin, async (req, res) => {
   }
 
   res.json({ message: `KYC ${action === 'approve' ? 'approuvé' : 'rejeté'}`, kycStatus: newKycStatus, merchantStatus: newMerchantStatus });
+});
+
+// DELETE /api/v1/merchants/:id (admin — désactivation + suppression si aucune transaction)
+router.delete('/:id', requireAdmin, async (req, res) => {
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand non trouvé' });
+
+  // Vérifier s'il y a des transactions
+  const txCount = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = $1', [req.params.id])).rows[0].c);
+
+  if (txCount > 0) {
+    // Ne pas supprimer physiquement si des transactions existent — désactiver seulement
+    await db.query(
+      `UPDATE merchants SET status = 'suspended', is_active = FALSE, updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    return res.json({ message: `Marchand désactivé (${txCount} transactions liées — suppression physique impossible).`, suspended: true });
+  }
+
+  // Suppression physique si aucune transaction
+  await db.query('DELETE FROM payment_links WHERE merchant_id = $1', [req.params.id]);
+  await db.query('DELETE FROM webhook_events WHERE merchant_id = $1', [req.params.id]);
+  await db.query('DELETE FROM merchants WHERE id = $1', [req.params.id]);
+
+  res.json({ message: 'Marchand supprimé définitivement.', deleted: true });
 });
 
 // POST /api/v1/merchants/register (self-service)
@@ -344,5 +449,31 @@ function sanitizeMerchant(m, includeKeys = false) {
   }
   return base;
 }
+
+// GET /api/v1/merchants/:id/kyc/files/:filename — Télécharger un fichier KYC (admin)
+router.get('/:id/kyc/files/:filename', requireAdmin, async (req, res) => {
+  const { getFileUrl, UPLOAD_DIR } = require('../lib/upload');
+  const path = require('path');
+  const fs = require('fs');
+
+  const merchant = (await db.query('SELECT id, kyc_documents FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand introuvable' });
+
+  const filename = path.basename(req.params.filename); // Sanitize — basename only
+  const filePath = path.join(UPLOAD_DIR, merchant.id, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Fichier introuvable' });
+  }
+
+  // Vérifier que le fichier appartient bien au merchant (dans son dossier)
+  const resolvedPath = fs.realpathSync(filePath);
+  const expectedDir = fs.realpathSync(path.join(UPLOAD_DIR, merchant.id));
+  if (!resolvedPath.startsWith(expectedDir)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  res.sendFile(resolvedPath);
+});
 
 module.exports = router;

@@ -62,6 +62,9 @@ Desktop.ini
 # ─── Docker ───────────────────────────────────────────────────────────────────
 .docker/
 
+# ─── Uploads KYC (fichiers sensibles — ne pas versionner) ────────────────────
+apps/api/uploads/
+
 # ─── Temp ─────────────────────────────────────────────────────────────────────
 tmp/
 temp/
