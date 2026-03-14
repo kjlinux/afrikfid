@@ -588,6 +588,35 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_disbursements_beneficiary ON disbursements(beneficiary_type, beneficiary_id);
     `,
   },
+  {
+    version: 18,
+    name: '018_merchant_category_rates',
+    up: `
+      -- Taux X% par catégorie de produit par marchand (CDC §2.1 — X% variable par catégorie)
+      CREATE TABLE IF NOT EXISTS merchant_category_rates (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        discount_rate NUMERIC NOT NULL CHECK (discount_rate >= 0 AND discount_rate <= 100),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(merchant_id, category)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_merchant_category_rates ON merchant_category_rates(merchant_id, category);
+
+      -- Catégorie produit sur la transaction (pour traçabilité du taux appliqué)
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS product_category TEXT;
+    `,
+  },
+  {
+    version: 19,
+    name: '019_api_key_rotation',
+    up: `
+      -- Date de création des clés API marchands pour rotation automatique (CDC §5.4.1 — rotation 90j)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS api_key_created_at TIMESTAMPTZ DEFAULT NOW();
+      UPDATE merchants SET api_key_created_at = created_at WHERE api_key_created_at IS NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {
@@ -609,22 +638,22 @@ async function runMigrations() {
   const pending = MIGRATIONS.filter(m => m.version > currentVersion);
 
   if (pending.length === 0) {
-    console.log(`✅ Base de données à jour (version ${currentVersion})`);
+    console.log(`[DB] Base de données à jour (version ${currentVersion})`);
     return;
   }
 
   for (const migration of pending) {
-    console.log(`🔄 Migration ${migration.version}: ${migration.name}...`);
+    console.log(`[DB] Migration ${migration.version}: ${migration.name}...`);
     await pool.query(migration.up);
     await pool.query(
       'INSERT INTO schema_migrations (version, name) VALUES ($1, $2)',
       [migration.version, migration.name]
     );
-    console.log(`✅ Migration ${migration.version} appliquée`);
+    console.log(`[DB] Migration ${migration.version} appliquée`);
   }
 
   const finalVersion = await getCurrentVersion();
-  console.log(`✅ Base de données mise à jour (version ${finalVersion})`);
+  console.log(`[DB] Base de données mise à jour (version ${finalVersion})`);
 }
 
 module.exports = { runMigrations, getCurrentVersion };

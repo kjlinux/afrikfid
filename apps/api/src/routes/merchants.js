@@ -505,4 +505,64 @@ router.get('/me/refunds', requireMerchant, async (req, res) => {
   res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
+// ─── Taux X% par catégorie de produit (CDC §2.1) ──────────────────────────────
+
+// GET /api/v1/merchants/:id/category-rates
+router.get('/:id/category-rates', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const merchant = (await db.query('SELECT id FROM merchants WHERE id = $1', [id])).rows[0];
+    if (!merchant) return res.status(404).json({ error: 'NOT_FOUND', message: 'Marchand introuvable' });
+
+    const rates = (await db.query(
+      'SELECT id, category, discount_rate, updated_at FROM merchant_category_rates WHERE merchant_id = $1 ORDER BY category',
+      [id]
+    )).rows;
+    res.json({ merchant_id: id, category_rates: rates });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/v1/merchants/:id/category-rates/:category
+router.put('/:id/category-rates/:category', requireAdmin, async (req, res, next) => {
+  try {
+    const { id, category } = req.params;
+    const { discount_rate } = req.body;
+
+    if (discount_rate === undefined || discount_rate === null) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'discount_rate requis' });
+    }
+    const rate = parseFloat(discount_rate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'discount_rate doit être entre 0 et 100' });
+    }
+
+    const merchant = (await db.query('SELECT id, rebate_percent FROM merchants WHERE id = $1', [id])).rows[0];
+    if (!merchant) return res.status(404).json({ error: 'NOT_FOUND', message: 'Marchand introuvable' });
+
+    const result = await db.query(
+      `INSERT INTO merchant_category_rates (id, merchant_id, category, discount_rate, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (merchant_id, category) DO UPDATE SET discount_rate = $4, updated_at = NOW()
+       RETURNING *`,
+      [uuidv4(), id, category, rate]
+    );
+    res.json({ category_rate: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/v1/merchants/:id/category-rates/:category
+router.delete('/:id/category-rates/:category', requireAdmin, async (req, res, next) => {
+  try {
+    const { id, category } = req.params;
+    const result = await db.query(
+      'DELETE FROM merchant_category_rates WHERE merchant_id = $1 AND category = $2 RETURNING id',
+      [id, category]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Taux catégorie introuvable' });
+    }
+    res.json({ message: 'Taux catégorie supprimé' });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

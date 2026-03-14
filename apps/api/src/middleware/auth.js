@@ -129,7 +129,8 @@ async function requireMerchant(req, res, next) {
 }
 
 /**
- * Admin ou Merchant (pour les routes communes)
+ * Admin, Merchant (JWT dashboard) ou Client — pour les routes partagées.
+ * Vérifie aussi la révocation JTI (logout).
  */
 async function requireAuth(req, res, next) {
   const token = extractToken(req);
@@ -137,6 +138,12 @@ async function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Vérifier révocation JTI (logout)
+    if (decoded.jti && await redis.exists(`revoked:${decoded.jti}`)) {
+      return res.status(401).json({ error: 'Token révoqué. Reconnectez-vous.' });
+    }
+
     req.user = decoded;
 
     if (decoded.role === 'admin') {
@@ -149,6 +156,13 @@ async function requireAuth(req, res, next) {
       const merchant = result.rows[0];
       if (!merchant) return res.status(401).json({ error: 'Session invalide' });
       req.merchant = merchant;
+    } else if (decoded.role === 'client') {
+      const result = await db.query('SELECT * FROM clients WHERE id = $1 AND is_active = TRUE', [decoded.sub]);
+      const client = result.rows[0];
+      if (!client) return res.status(401).json({ error: 'Session invalide' });
+      req.client = client;
+    } else {
+      return res.status(403).json({ error: 'Rôle non reconnu' });
     }
 
     next();

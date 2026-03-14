@@ -7,6 +7,7 @@
 
 const db = require('./db');
 const FormData = require('form-data');
+const { enqueue } = require('./notification-queue');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -202,33 +203,6 @@ const templates = {
     ].filter(Boolean).join('\n'),
   }),
 };
-
-// ─── File de notifications asynchrone ────────────────────────────────────────
-
-const notificationQueue = [];
-let processingQueue = false;
-
-async function processNotificationQueue() {
-  if (processingQueue || notificationQueue.length === 0) return;
-  processingQueue = true;
-
-  while (notificationQueue.length > 0) {
-    const job = notificationQueue.shift();
-    try {
-      await job();
-    } catch (err) {
-      console.error('[NOTIF/QUEUE] job failed:', err.message);
-    }
-  }
-
-  processingQueue = false;
-}
-
-function enqueue(fn) {
-  notificationQueue.push(fn);
-  // Non-blocking: process next tick
-  setImmediate(processNotificationQueue);
-}
 
 // ─── Helpers de log ───────────────────────────────────────────────────────────
 
@@ -487,6 +461,29 @@ function notifyLoyaltyDowngrade({ client, oldStatus, newStatus, inactivityMonths
   }
 }
 
+/**
+ * Notifie un marchand que ses clés API ont été automatiquement renouvelées (CDC §5.4.1 — rotation 90j).
+ */
+function notifyApiKeyRotated({ merchant, newApiKeyPublic }) {
+  if (!merchant?.email) return;
+
+  enqueue(async () => {
+    try {
+      const subject = 'Afrik\'Fid — Renouvellement automatique de vos clés API';
+      const text = `Bonjour ${merchant.name || merchant.email},\n\n` +
+        `Vos clés API ont été automatiquement renouvelées conformément à notre politique de sécurité (rotation tous les 90 jours).\n\n` +
+        `Nouvelle clé publique : ${newApiKeyPublic}\n` +
+        `Votre nouvelle clé secrète est disponible dans votre espace marchand.\n\n` +
+        `Merci de mettre à jour vos intégrations dans les plus brefs délais.\n\n` +
+        `L'équipe Afrik'Fid`;
+      await sendEmail(merchant.email, subject, text);
+      logNotification('api_key_rotated', merchant.email, 'email', 'sent');
+    } catch (e) {
+      logNotification('api_key_rotated', merchant.email, 'email', 'failed', e.message);
+    }
+  });
+}
+
 module.exports = {
   notifyPaymentConfirmed,
   notifyCashbackCredit,
@@ -496,6 +493,7 @@ module.exports = {
   notifyKycApproved,
   notifyKycRejected,
   notifyFraudBlocked,
+  notifyApiKeyRotated,
   // Exposed for testing
   sendSMS,
   sendEmail,

@@ -41,8 +41,17 @@ async function getClientRebatePercent(loyaltyStatus, countryId = null, merchantC
   return res.rows[0] ? parseFloat(res.rows[0].client_rebate_percent) : 0;
 }
 
-async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null, merchantCategory = null) {
-  const X = merchantRebatePercent;
+async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null, merchantCategory = null, merchantId = null) {
+  // Priorité X% : taux par catégorie produit marchand > taux global marchand (CDC §2.1)
+  let effectiveX = merchantRebatePercent;
+  if (merchantId && merchantCategory) {
+    const catRate = await db.query(
+      'SELECT discount_rate FROM merchant_category_rates WHERE merchant_id = $1 AND category = $2',
+      [merchantId, merchantCategory]
+    );
+    if (catRate.rows[0]) effectiveX = parseFloat(catRate.rows[0].discount_rate);
+  }
+  const X = effectiveX;
   const Y = await getClientRebatePercent(clientLoyaltyStatus, countryId, merchantCategory);
 
   const effectiveY = Math.min(Y, X);

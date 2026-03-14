@@ -11,6 +11,7 @@ const { processRetryQueue, dispatchWebhook, WebhookEvents } = require('./workers
 const { processExpiredTransactions } = require('./workers/transaction-expiry');
 const { processDisbursements } = require('./workers/disbursement');
 const { checkOverdueRefunds } = require('./workers/refund-monitor');
+const { rotateExpiredApiKeys } = require('./workers/key-rotation');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
@@ -229,7 +230,7 @@ app.use(errorHandler);
 if (process.env.NODE_ENV !== 'test') {
   // Batch fidélité: tous les jours à 2h (heure Abidjan)
   new CronJob('0 2 * * *', async () => {
-    console.log('🔄 Exécution du batch de fidélité...');
+    console.log('[CRON] Exécution du batch de fidélité...');
     const db = require('./lib/db');
     const results = await runLoyaltyBatch();
     for (const r of results) {
@@ -256,13 +257,13 @@ if (process.env.NODE_ENV !== 'test') {
         }
       }
     }
-    console.log(`✅ Batch terminé: ${results.length} changements de statut`);
+    console.log(`[CRON] Batch terminé: ${results.length} changements de statut`);
   }, null, true, 'Africa/Abidjan');
 
   // File de retry webhooks: toutes les 2 minutes
   new CronJob('*/2 * * * *', async () => {
     const count = await processRetryQueue();
-    if (count > 0) console.log(`🔔 Webhooks retry: ${count} traité(s)`);
+    if (count > 0) console.log(`[CRON] Webhooks retry: ${count} traité(s)`);
   }, null, true, 'Africa/Abidjan');
 
   // Expiration transactions pending: toutes les 30 secondes (CDC §4.1.4)
@@ -274,7 +275,7 @@ if (process.env.NODE_ENV !== 'test') {
   new CronJob('0 * * * *', async () => {
     if (process.env.OPENEXCHANGERATES_APP_ID || process.env.FIXER_API_KEY) {
       const result = await refreshExchangeRates();
-      if (result.updated > 0) console.log(`💱 Taux de change mis à jour (${result.source}): ${result.updated} paires`);
+      if (result.updated > 0) console.log(`[CRON] Taux de change mis à jour (${result.source}): ${result.updated} paires`);
     }
   }, null, true, 'Africa/Abidjan');
 
@@ -282,24 +283,34 @@ if (process.env.NODE_ENV !== 'test') {
   new CronJob('0 3 * * *', async () => {
     try {
       if (await isRotationDue()) {
-        console.log('🔑 Rotation des clés de chiffrement déclenchée...');
+        console.log('[CRON] Rotation des clés de chiffrement déclenchée...');
         const { version } = await rotateKey();
-        console.log(`✅ Clé v${version} activée`);
+        console.log(`[CRON] Clé v${version} activée`);
       }
       // Re-chiffrement progressif des enregistrements avec l'ancienne clé
       const { reencrypted } = await reencryptPendingRecords();
-      if (reencrypted > 0) console.log(`🔒 ${reencrypted} enregistrements re-chiffrés`);
+      if (reencrypted > 0) console.log(`[CRON] ${reencrypted} enregistrements re-chiffrés`);
     } catch (err) {
       console.error('[key-rotation] Erreur:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
 
+  // Rotation automatique des clés API marchands: quotidien à 03h30 (CDC §5.4.1 — rotation 90j)
+  new CronJob('30 3 * * *', async () => {
+    try {
+      const result = await rotateExpiredApiKeys();
+      if (result.rotated > 0) console.log(`[api-key-rotation] ${result.rotated} clé(s) API marchand(s) renouvelée(s)`);
+    } catch (err) {
+      console.error('[api-key-rotation] Erreur:', err.message);
+    }
+  }, null, true, 'Africa/Abidjan');
+
   // Disbursement automatique vers marchands: tous les jours à 06h00 (CDC §settlement_frequency)
   new CronJob('0 6 * * *', async () => {
-    console.log('💰 Exécution du disbursement automatique...');
+    console.log('[CRON] Exécution du disbursement automatique...');
     const result = await processDisbursements();
     if (result.processed > 0) {
-      console.log(`✅ Disbursement terminé: ${result.processed} règlements, total ${result.totalAmount}`);
+      console.log(`[CRON] Disbursement terminé: ${result.processed} règlements, total ${result.totalAmount}`);
     }
   }, null, true, 'Africa/Abidjan');
 
@@ -308,7 +319,7 @@ if (process.env.NODE_ENV !== 'test') {
     try {
       const result = await checkOverdueRefunds();
       if (result.overdue > 0) {
-        console.warn(`⚠️  [REFUND-MONITOR] ${result.overdue} remboursement(s) dépassent le SLA de 72h`);
+        console.warn(`[REFUND-MONITOR] ${result.overdue} remboursement(s) dépassent le SLA de 72h`);
       }
     } catch (err) {
       console.error('[REFUND-MONITOR] Erreur:', err.message);
@@ -319,7 +330,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Ne pas démarrer le serveur HTTP en mode test (Supertest gère ses propres connexions)
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`\n🚀 Afrik'Fid API démarrée sur http://localhost:${PORT}`);
+    console.log(`\n[INFO] Afrik'Fid API démarrée sur http://localhost:${PORT}`);
     console.log(`   Mode: ${process.env.NODE_ENV || 'development'} | Sandbox: ${process.env.SANDBOX_MODE !== 'false'}`);
     console.log(`   Documentation: http://localhost:${PORT}/api/v1/health\n`);
   });

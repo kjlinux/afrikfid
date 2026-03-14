@@ -96,8 +96,11 @@ router.post('/', requireAuth, async (req, res) => {
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [transaction_id])).rows[0];
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
 
-  // Vérifier les droits : marchand propriétaire de la tx ou admin
+  // Vérifier les droits : chaque acteur ne peut agir que sur ses propres transactions
   if (req.merchant && tx.merchant_id !== req.merchant.id) {
+    return res.status(403).json({ error: 'Accès interdit à cette transaction' });
+  }
+  if (req.client && tx.client_id !== req.client.id) {
     return res.status(403).json({ error: 'Accès interdit à cette transaction' });
   }
 

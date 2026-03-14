@@ -567,4 +567,64 @@ router.get('/by-merchant', requireAdmin, async (req, res) => {
   });
 });
 
+// GET /api/v1/reports/loyalty-funnel — Funnel de conversion statuts fidélité (CDC §4.6.1)
+router.get('/loyalty-funnel', requireAdmin, async (req, res, next) => {
+  try {
+    const { days = 90 } = req.query;
+    const periodDays = Math.min(parseInt(days) || 90, 365);
+    const from = new Date(Date.now() - periodDays * 86400000).toISOString();
+
+    // Distribution actuelle des clients par statut
+    const currentRes = await db.query(
+      `SELECT loyalty_status as status, COUNT(*) as count
+       FROM clients WHERE is_active = TRUE GROUP BY loyalty_status`
+    );
+    const currentByStatus = {};
+    for (const row of currentRes.rows) {
+      currentByStatus[row.status] = parseInt(row.count);
+    }
+
+    // Transitions dans la période (upgrades uniquement)
+    const transitionsRes = await db.query(
+      `SELECT old_status, new_status, COUNT(DISTINCT client_id) as count
+       FROM loyalty_status_history
+       WHERE changed_at >= $1
+       GROUP BY old_status, new_status`,
+      [from]
+    );
+
+    const STATUSES = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+    const totalClients = STATUSES.reduce((s, st) => s + (currentByStatus[st] || 0), 0);
+
+    const funnel = STATUSES.map((status, idx) => {
+      const count = currentByStatus[status] || 0;
+      const conversionRate = totalClients > 0 ? parseFloat((count / totalClients * 100).toFixed(1)) : 0;
+
+      // Upgrades depuis le statut précédent dans la période
+      let upgradesIn = 0;
+      if (idx > 0) {
+        const prevStatus = STATUSES[idx - 1];
+        const trans = transitionsRes.rows.find(r => r.old_status === prevStatus && r.new_status === status);
+        upgradesIn = trans ? parseInt(trans.count) : 0;
+      }
+
+      return { status, count, conversion_rate: conversionRate, upgrades_in_period: upgradesIn };
+    });
+
+    // Taux de conversion global Open → Royal
+    const openCount = currentByStatus['OPEN'] || 0;
+    const royalCount = currentByStatus['ROYAL'] || 0;
+    const openToRoyalRate = totalClients > 0 ? parseFloat((royalCount / totalClients * 100).toFixed(2)) : 0;
+
+    res.json({
+      funnel,
+      total_clients: totalClients,
+      open_to_royal_rate: openToRoyalRate,
+      period_days: periodDays,
+      from,
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -26,6 +26,7 @@ const InitiatePaymentSchema = z.object({
   payment_operator: z.enum(MM_OPERATORS).optional(),
   description: z.string().max(255).optional(),
   idempotency_key: z.string().max(100).optional(),
+  product_category: z.string().max(100).optional(),
 }).refine(
   data => data.client_phone || data.client_afrikfid_id || true, // client optionnel (mode invité)
   { message: 'client_phone ou client_afrikfid_id recommandé' }

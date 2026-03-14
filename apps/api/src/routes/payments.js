@@ -30,6 +30,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   const {
     amount, currency, client_phone, client_afrikfid_id,
     payment_method, payment_operator, description, idempotency_key,
+    product_category,
   } = req.body;
 
   // Idempotence
@@ -105,7 +106,10 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   }
 
   const clientCountryId = client ? client.country_id : (merchant.country_id || null);
-  const distribution = await calculateDistribution(amount, merchant.rebate_percent, loyaltyStatus, clientCountryId);
+  const distribution = await calculateDistribution(
+    amount, merchant.rebate_percent, loyaltyStatus, clientCountryId,
+    product_category || null, merchant.id
+  );
 
   if (distribution.yExceedsX) {
     // Alerte admin pour anomalie de configuration (CDC §4.1.4)
@@ -135,10 +139,10 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
       merchant_receives, client_loyalty_status, rebate_mode,
       payment_method, payment_operator, payment_phone,
-      status, currency, description, idempotency_key, expires_at
+      status, currency, description, idempotency_key, expires_at, product_category
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-      $16, $17, $18, 'pending', $19, $20, $21, $22
+      $16, $17, $18, 'pending', $19, $20, $21, $22, $23
     )
   `, [
     txId, reference, merchant.id, client ? client.id : null,
@@ -147,7 +151,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
     distribution.merchantReceives, loyaltyStatus, merchant.rebate_mode,
     payment_method, payment_operator || null, client_phone || null,
-    currency, description || null, idempotency_key || null, expiresAt,
+    currency, description || null, idempotency_key || null, expiresAt, product_category || null,
   ]);
 
   let mmResult = null;

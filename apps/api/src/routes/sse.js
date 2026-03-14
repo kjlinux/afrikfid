@@ -35,6 +35,31 @@ function verifySSEToken(req) {
   }
 }
 
+/**
+ * Surveille l'expiry du token pendant une session SSE longue.
+ * Envoie un événement `token_expired` puis ferme proprement la connexion
+ * dès que le token arrive à expiration.
+ * @returns {NodeJS.Timeout} Le timer (à annuler via clearTimeout au close)
+ */
+function watchTokenExpiry(res, decoded) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const msUntilExpiry = (decoded.exp - nowSec) * 1000;
+  if (msUntilExpiry <= 0) {
+    // Déjà expiré — fermer immédiatement
+    if (!res.writableEnded) {
+      sendSSE(res, Date.now(), 'token_expired', { message: 'Session expirée. Reconnectez-vous.' });
+      res.end();
+    }
+    return null;
+  }
+  return setTimeout(() => {
+    if (!res.writableEnded) {
+      sendSSE(res, Date.now(), 'token_expired', { message: 'Session expirée. Reconnectez-vous.' });
+      res.end();
+    }
+  }, msUntilExpiry);
+}
+
 function startKeepalive(res) {
   const iv = setInterval(() => {
     if (res.writableEnded) { clearInterval(iv); return; }
@@ -87,9 +112,11 @@ router.get('/admin', async (req, res) => {
   }
 
   const keepalive = startKeepalive(res);
+  const expiryTimer = watchTokenExpiry(res, decoded);
 
   req.on('close', () => {
     clearInterval(keepalive);
+    if (expiryTimer) clearTimeout(expiryTimer);
     for (const evt of events) emitter.off(evt, handlers[evt]);
   });
 });
@@ -148,9 +175,11 @@ router.get('/merchant', async (req, res) => {
   }
 
   const keepalive = startKeepalive(res);
+  const expiryTimer = watchTokenExpiry(res, decoded);
 
   req.on('close', () => {
     clearInterval(keepalive);
+    if (expiryTimer) clearTimeout(expiryTimer);
     for (const evt of relevantEvents) emitter.off(evt, handlers[evt]);
   });
 });
