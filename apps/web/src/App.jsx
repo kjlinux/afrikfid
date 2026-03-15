@@ -39,6 +39,7 @@ import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
 import RegisterClient from './pages/RegisterClient.jsx'
+import ClientDashboard from './pages/client/Dashboard.jsx'
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
 export const AuthContext = createContext(null)
@@ -220,6 +221,9 @@ export default function App() {
           <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
           <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
           <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
+
+          {/* Client */}
+          <Route path="/client" element={<Protected role="client"><ClientDashboard /></Protected>} />
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
