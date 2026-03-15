@@ -38,6 +38,7 @@ import MerchantSettings from './pages/merchant/Settings.jsx'
 import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
+import RegisterClient from './pages/RegisterClient.jsx'
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
 export const AuthContext = createContext(null)
@@ -132,7 +133,7 @@ function AdminLayout({ children }) {
       </aside>
 
       {/* Content */}
-      <main style={{ flex: 1, overflowY: 'auto' }}>
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         {children}
       </main>
     </div>
@@ -182,7 +183,7 @@ function MerchantLayout({ children }) {
           </button>
         </div>
       </aside>
-      <main style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>{children}</main>
     </div>
   )
 }
@@ -196,6 +197,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register-client" element={<RegisterClient />} />
           <Route path="/pay/:code" element={<PaymentPage />} />
 
           {/* Admin */}

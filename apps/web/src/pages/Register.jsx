@@ -58,7 +58,8 @@ export default function Register() {
       return true
     }
     if (step === 1) {
-      if (form.rebate_percent < 1 || form.rebate_percent > 20) return setError('Le taux X doit être entre 1% et 20%.')
+      if (form.rebate_percent < 1) return setError('Le taux X doit être d\'au moins 1%.')
+      if (form.rebate_percent < 12) return setError('Attention : un taux X inférieur à 12% empêche les clients ROYAL de bénéficier de leur remise complète (Y=12%). Minimum recommandé : 12%.')
       return true
     }
     if (step === 2) {
@@ -178,6 +179,12 @@ export default function Register() {
                   <select style={sel} value={form.country_id} onChange={e => set('country_id', e.target.value)}>
                     {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.name} ({c.currency})</option>)}
                   </select>
+                  {country && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: '#64748b' }}>Devise :</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 4, padding: '2px 7px' }}>{country.currency}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={lbl}>Catégorie *</label>
@@ -197,58 +204,106 @@ export default function Register() {
           {step === 1 && (
             <div>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Programme de fidélité</h2>
-              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 20 }}>
-                Configurez le taux X (remise marchand). Ce taux sera réparti entre vos clients (Y%) et Afrik'Fid (Z = X - Y).
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
+                Définissez votre taux X% (remise marchand). Afrik'Fid répartit automatiquement ce taux entre votre client (Y%) et la plateforme (Z = X − Y). <strong style={{ color: '#f1f5f9' }}>Vous ne payez que X% par transaction réussie.</strong>
               </p>
 
               {/* Visuel X/Y/Z */}
               <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, fontWeight: 600 }}>MODÈLE X/Y/Z</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#f59e0b', marginBottom: 10, fontWeight: 700, letterSpacing: '0.05em' }}>RÈGLE FONDAMENTALE : X = Y + Z</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                   <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 10 }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#ef4444' }}>X = {form.rebate_percent}%</div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>Votre remise</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#ef4444' }}>X = {form.rebate_percent}%</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, lineHeight: 1.4 }}>Remise marchand<br/><span style={{ color: '#64748b' }}>Négociée avec Afrik'Fid</span></div>
                   </div>
                   <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 10 }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6' }}>Y ≤ {form.rebate_percent}%</div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>Remise client</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#3b82f6' }}>Y ≤ X</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, lineHeight: 1.4 }}>Remise client<br/><span style={{ color: '#64748b' }}>Selon son statut fidélité (0–12%)</span></div>
                   </div>
                   <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 10 }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>Z = X - Y</div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>Commission plateforme</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>Z = X−Y</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, lineHeight: 1.4 }}>Commission Afrik'Fid<br/><span style={{ color: '#64748b' }}>Toujours ≥ 0</span></div>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>
-                  Vous recevez toujours: <strong style={{ color: '#f1f5f9' }}>100% - {form.rebate_percent}% = {100 - form.rebate_percent}%</strong> du montant brut.
+                {/* Barème clients */}
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>BARÈME Y% SELON STATUT CLIENT</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
+                  {[
+                    { status: 'OPEN', y: 0, color: '#6B7280' },
+                    { status: 'LIVE', y: 5, color: '#3B82F6' },
+                    { status: 'GOLD', y: 8, color: '#F59E0B' },
+                    { status: 'ROYAL', y: 12, color: '#8B5CF6' },
+                  ].map(s => {
+                    const z = parseFloat(form.rebate_percent) - s.y
+                    return (
+                      <div key={s.status} style={{ background: s.color + '15', border: '1px solid ' + s.color + '40', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: s.color }}>{s.status}</div>
+                        <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Y = {s.y}%</div>
+                        <div style={{ fontSize: 9, color: z >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>Z = {z >= 0 ? '+' : ''}{z.toFixed(1)}%</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', borderTop: '1px solid #1e293b', paddingTop: 10 }}>
+                  Vous recevez toujours : <strong style={{ color: '#f1f5f9' }}>100% − {form.rebate_percent}% = {(100 - parseFloat(form.rebate_percent || 0)).toFixed(1)}%</strong> du montant brut de chaque transaction.
                 </div>
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={lbl}>Taux de remise X (%) — entre 1% et 20% *</label>
-                <input style={inp} type="number" min="1" max="20" step="0.5"
+                <label style={lbl}>Taux de remise X (%) — négocié avec Afrik'Fid *</label>
+                <input style={inp} type="number" min="1" step="0.5"
                   value={form.rebate_percent} onChange={e => set('rebate_percent', e.target.value)} />
-                <input type="range" min="1" max="20" step="0.5" value={form.rebate_percent}
+                <input type="range" min="1" max="50" step="0.5" value={Math.min(form.rebate_percent, 50)}
                   onChange={e => set('rebate_percent', parseFloat(e.target.value))}
                   style={{ width: '100%', marginTop: 8, accentColor: '#f59e0b' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                  <span>1% (min)</span><span style={{ color: '#f59e0b', fontWeight: 700 }}>{form.rebate_percent}%</span><span>20% (max)</span>
+                  <span>1%</span>
+                  <span style={{ color: form.rebate_percent < 12 ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>{form.rebate_percent}% (X choisi)</span>
+                  <span>50%+</span>
+                </div>
+                {form.rebate_percent < 12 && (
+                  <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 4, background: 'rgba(245,158,11,0.08)', borderRadius: 6, padding: '5px 8px' }}>
+                    ⚠ En dessous de 12%, les clients ROYAL (Y=12%) ne pourront pas être pleinement remboursés — Z deviendrait négatif. Minimum recommandé : 12%.
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>
+                  Ce taux est indicatif et sera validé contractuellement avec l'équipe Afrik'Fid lors de l'activation de votre compte.
                 </div>
               </div>
 
               <div>
                 <label style={lbl}>Mode de remise client *</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
                   {[
-                    { value: 'cashback', label: 'Cashback différé', desc: 'Crédité sur portefeuille après paiement', icon: '💰' },
-                    { value: 'immediate', label: 'Remise immédiate', desc: 'Déduit du montant à payer', icon: '⚡' },
+                    {
+                      value: 'immediate',
+                      label: 'Remise immédiate',
+                      icon: '⚡',
+                      desc: 'Le montant Y% est déduit du prix au moment du paiement. Le client paie directement le montant réduit.',
+                      example: '10 000 XOF → client paie 8 800 XOF (Y=12%)',
+                      badge: 'Idéal en magasin',
+                    },
+                    {
+                      value: 'cashback',
+                      label: 'Cashback différé',
+                      icon: '💰',
+                      desc: 'Le client paie le montant intégral. Le Y% est crédité sur son portefeuille Afrik\'Fid pour un prochain achat.',
+                      example: '10 000 XOF payés → 1 200 XOF crédités (Y=12%)',
+                      badge: 'Renforce la fidélisation',
+                    },
                   ].map(m => (
                     <button key={m.value} type="button" onClick={() => set('rebate_mode', m.value)}
-                      style={{ padding: '12px', border: '2px solid ' + (form.rebate_mode === m.value ? '#f59e0b' : '#334155'), borderRadius: 10, background: form.rebate_mode === m.value ? 'rgba(245,158,11,0.08)' : '#0f172a', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ fontSize: 20, marginBottom: 6 }}>{m.icon}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>{m.label}</div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>{m.desc}</div>
+                      style={{ padding: '14px 12px', border: '2px solid ' + (form.rebate_mode === m.value ? '#f59e0b' : '#334155'), borderRadius: 10, background: form.rebate_mode === m.value ? 'rgba(245,158,11,0.08)' : '#0f172a', cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ fontSize: 22, marginBottom: 6 }}>{m.icon}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>{m.label}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6, lineHeight: 1.5 }}>{m.desc}</div>
+                      <div style={{ fontSize: 9, color: '#64748b', background: '#1e293b', borderRadius: 4, padding: '3px 6px', fontFamily: 'monospace' }}>{m.example}</div>
+                      <div style={{ marginTop: 6, fontSize: 9, color: form.rebate_mode === m.value ? '#f59e0b' : '#64748b', fontWeight: 600 }}>{m.badge}</div>
                     </button>
                   ))}
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b', background: '#0f172a', borderRadius: 6, padding: '6px 10px' }}>
+                  Ce mode est configurable par le marchand et s'applique à toutes les transactions de votre enseigne.
                 </div>
               </div>
 
@@ -257,7 +312,10 @@ export default function Register() {
                 <input style={inp} type="url" value={form.webhook_url}
                   onChange={e => set('webhook_url', e.target.value)}
                   placeholder="https://votre-api.com/webhooks/afrikfid" />
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>Recevez les notifications de paiement en temps réel.</div>
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, lineHeight: 1.6 }}>
+                  <strong style={{ color: '#94a3b8' }}>À quoi ça sert ?</strong> Afrik'Fid envoie une notification signée (HMAC-SHA256) à cette URL après chaque événement : paiement confirmé, remboursement, changement de statut fidélité, etc. Cela permet à votre système (caisse, ERP, site e-commerce) d'être mis à jour automatiquement sans avoir à interroger l'API.<br/>
+                  <span style={{ color: '#64748b' }}>Peut être configuré ou modifié plus tard dans vos paramètres.</span>
+                </div>
               </div>
             </div>
           )}
@@ -287,6 +345,7 @@ export default function Register() {
                   ['Entreprise', form.name],
                   ['Email', form.email],
                   ['Pays', country ? `${country.flag} ${country.name}` : form.country_id],
+                  ['Devise', country?.currency || '—'],
                   ['Remise X', `${form.rebate_percent}%`],
                   ['Mode', form.rebate_mode === 'cashback' ? 'Cashback différé' : 'Remise immédiate'],
                 ].map(([k, v]) => (

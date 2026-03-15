@@ -351,12 +351,21 @@ router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, 
 });
 
 function sanitizeClient(c) {
+  // Déchiffrer le téléphone en toute sécurité — retourne null si échec (clé absente/différente)
+  let phoneMasked = null;
+  try {
+    const raw = decrypt(c.phone);
+    if (raw && !raw.includes(':')) {
+      // Masquer : garder seulement les 4 derniers chiffres pour le listing
+      phoneMasked = raw.replace(/\d(?=\d{4})/g, '•');
+    }
+  } catch { /* ignore */ }
+
   return {
     id: c.id,
     afrikfidId: c.afrikfid_id,
     fullName: c.full_name,
-    email: decrypt(c.email),
-    phone: decrypt(c.phone),
+    phone: phoneMasked,
     countryId: c.country_id,
     countryName: c.country_name,
     loyaltyStatus: c.loyalty_status,

@@ -100,7 +100,8 @@ router.post('/:code/identify-client', async (req, res) => {
 router.post('/:code/pay', async (req, res) => {
   const link = (await db.query(`
     SELECT pl.*, m.id as merchant_id, m.name as merchant_name, m.rebate_percent, m.rebate_mode,
-           m.api_key_public, m.api_key_secret
+           m.api_key_public, m.api_key_secret,
+           m.max_transaction_amount, m.daily_volume_limit, m.allow_guest_mode
     FROM payment_links pl
     JOIN merchants m ON pl.merchant_id = m.id
     WHERE pl.code = $1 AND pl.status = 'active'
@@ -110,16 +111,52 @@ router.post('/:code/pay', async (req, res) => {
   if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Lien expiré' });
   if (link.uses_count >= link.max_uses) return res.status(410).json({ error: 'Lien déjà utilisé' });
 
-  const { phone, payment_operator, afrikfid_id, custom_amount } = req.body;
+  const { phone, payment_operator, payment_method, afrikfid_id, custom_amount } = req.body;
   const amount = link.amount || custom_amount;
   if (!amount) return res.status(400).json({ error: 'Montant requis' });
-  if (!phone || !payment_operator) return res.status(400).json({ error: 'phone et payment_operator requis' });
+
+  const isCard = payment_method === 'card';
+  if (!isCard && (!phone || !payment_operator)) {
+    return res.status(400).json({ error: 'phone et payment_operator requis pour le paiement Mobile Money' });
+  }
+
+  // ── Vérification des seuils marchand ──────────────────────────────────────
+  if (link.max_transaction_amount && parseFloat(amount) > parseFloat(link.max_transaction_amount)) {
+    return res.status(400).json({
+      error: 'AMOUNT_EXCEEDS_LIMIT',
+      message: `Le montant dépasse la limite par transaction autorisée par ce marchand (${link.max_transaction_amount}).`,
+    });
+  }
+
+  if (link.daily_volume_limit) {
+    const today = new Date().toISOString().slice(0, 10);
+    const dailyRes = await db.query(
+      `SELECT COALESCE(SUM(gross_amount), 0) as daily_total FROM transactions WHERE merchant_id = $1 AND DATE(initiated_at) = $2 AND status != 'failed'`,
+      [link.merchant_id, today]
+    );
+    const dailyTotal = parseFloat(dailyRes.rows[0].daily_total || 0);
+    if (dailyTotal + parseFloat(amount) > parseFloat(link.daily_volume_limit)) {
+      return res.status(400).json({
+        error: 'DAILY_LIMIT_REACHED',
+        message: 'La limite de volume journalier de ce marchand a été atteinte. Réessayez demain.',
+      });
+    }
+  }
 
   let client = null;
   if (afrikfid_id) {
     client = (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [afrikfid_id])).rows[0];
-  } else {
-    client = (await db.query("SELECT * FROM clients WHERE phone = $1 AND is_active = TRUE", [phone])).rows[0];
+  } else if (phone) {
+    const { hashField } = require('../lib/crypto');
+    client = (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(phone)])).rows[0];
+  }
+
+  // Mode invité interdit si allow_guest_mode = false
+  if (!client && link.allow_guest_mode === false) {
+    return res.status(403).json({
+      error: 'GUEST_MODE_DISABLED',
+      message: 'Ce marchand requiert une identification Afrik\'Fid pour payer. Créez ou connectez-vous à votre compte.',
+    });
   }
 
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
@@ -127,6 +164,7 @@ router.post('/:code/pay', async (req, res) => {
 
   const txId = uuidv4();
   const reference = `PLK-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
+  const payMethod = isCard ? 'CARD' : 'MOBILE_MONEY';
 
   await db.query(`
     INSERT INTO transactions (
@@ -137,14 +175,14 @@ router.post('/:code/pay', async (req, res) => {
       merchant_receives, client_loyalty_status, rebate_mode,
       payment_method, payment_operator, payment_phone,
       currency, description, expires_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'MOBILE_MONEY', $16, $17, $18, $19, $20)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
   `, [
     txId, reference, link.merchant_id, client ? client.id : null,
     amount, amount - distribution.clientRebateAmount,
     distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
     distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
     distribution.merchantReceives, loyaltyStatus, link.rebate_mode,
-    payment_operator, phone, link.currency, link.description,
+    payMethod, payment_operator || null, phone || null, link.currency, link.description,
     new Date(Date.now() + 120000).toISOString(),
   ]);
 
@@ -153,9 +191,35 @@ router.post('/:code/pay', async (req, res) => {
     await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
   }
 
+  // Paiement par carte : initier via CinetPay
+  if (isCard) {
+    try {
+      const { initiateCardPayment } = require('../lib/adapters/cinetpay');
+      const cardResult = await initiateCardPayment({
+        transactionId: txId,
+        reference,
+        amount,
+        currency: link.currency,
+        customerName: client ? client.full_name : undefined,
+        customerPhone: phone || undefined,
+        description: link.description,
+      });
+      return res.json({
+        transactionId: txId,
+        reference,
+        payment: { paymentUrl: cardResult.paymentUrl },
+        message: 'Redirection vers la page de paiement sécurisée.',
+      });
+    } catch (err) {
+      console.error('[payment-links/card]', err.message);
+      return res.status(502).json({ error: 'Erreur lors de l\'initialisation du paiement carte. Réessayez.' });
+    }
+  }
+
   res.json({
     transactionId: txId,
     reference,
+    transaction: { id: txId, reference },
     distribution: {
       amount,
       clientPays: distribution.grossAmount - distribution.clientRebateAmount,

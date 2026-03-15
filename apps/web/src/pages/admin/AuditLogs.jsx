@@ -44,7 +44,7 @@ export default function AdminAuditLogs() {
   const inp = { padding: '9px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 13 }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
+    <div style={{ padding: '24px 20px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>

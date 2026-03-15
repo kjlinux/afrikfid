@@ -88,14 +88,22 @@ export default function Login() {
           </div>
         </div>
 
-        {role === 'merchant' && (
-          <p style={{ textAlign: 'center', fontSize: 13, color: '#64748b', marginTop: 16 }}>
-            Pas encore inscrit ?{' '}
-            <Link to="/register" style={{ color: '#f59e0b', fontWeight: 600, textDecoration: 'none' }}>
-              Créer un compte marchand →
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          {role === 'merchant' && (
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+              Pas encore inscrit ?{' '}
+              <Link to="/register" style={{ color: '#f59e0b', fontWeight: 600, textDecoration: 'none' }}>
+                Créer un compte marchand →
+              </Link>
+            </p>
+          )}
+          <p style={{ fontSize: 12, color: '#64748b' }}>
+            Vous êtes un client ?{' '}
+            <Link to="/register-client" style={{ color: '#94a3b8', fontWeight: 600, textDecoration: 'none' }}>
+              Créer un compte Afrik'Fid →
             </Link>
           </p>
-        )}
+        </div>
       </div>
     </div>
   )

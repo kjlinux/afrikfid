@@ -274,6 +274,21 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
   res.json({ clients, total, page: parseInt(page), limit: parseInt(limit), stats: { byStatus: byStatusRes } });
 });
 
+// POST /api/v1/merchants/me/reveal-secret — Révéler la clé secrète (mot de passe requis)
+router.post('/me/reveal-secret', requireMerchant, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+
+  const result = await db.query('SELECT password_hash, api_key_secret, sandbox_key_secret FROM merchants WHERE id = $1', [req.merchant.id]);
+  const merchant = result.rows[0];
+  if (!merchant.password_hash) return res.status(400).json({ error: 'Aucun mot de passe défini sur ce compte' });
+
+  const valid = await bcrypt.compare(password, merchant.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect' });
+
+  res.json({ apiKeySecret: merchant.api_key_secret, sandboxKeySecret: merchant.sandbox_key_secret });
+});
+
 // POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC (CDC §4.2.1)
 // Accepte un multipart/form-data avec jusqu'à 5 fichiers (PDF, JPEG, PNG, WEBP)
 // ET/OU un champ JSON "documents" pour les métadonnées textuelles

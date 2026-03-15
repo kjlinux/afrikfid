@@ -40,7 +40,7 @@ export default function AdminTransactions() {
   ]
 
   return (
-    <div style={{ padding: '28px 32px' }}>
+    <div style={{ padding: '24px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Transactions ({total})</h1>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -78,12 +78,12 @@ export default function AdminTransactions() {
         </select>
       </div>
 
-      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#0f172a' }}>
               {['Référence', 'Marchand', 'Client', 'Montant', 'X%', 'Y%', 'Z%', 'Statut', 'Opérateur', 'Date'].map(h => (
-                <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                <th key={h} style={{ padding: '11px 10px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>

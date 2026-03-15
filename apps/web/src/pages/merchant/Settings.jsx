@@ -12,6 +12,11 @@ export default function MerchantSettings() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSecret, setShowSecret] = useState(false)
+  const [secretValue, setSecretValue] = useState(null)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [revealError, setRevealError] = useState('')
+  const [revealing, setRevealing] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -22,6 +27,19 @@ export default function MerchantSettings() {
       setWebhookUrl(r.data.merchant.webhookUrl || '')
     }).finally(() => setLoading(false))
   }, [])
+
+  const revealSecret = async () => {
+    if (!passwordInput) return
+    setRevealing(true); setRevealError('')
+    try {
+      const { data } = await api.post('/merchants/me/reveal-secret', { password: passwordInput })
+      setSecretValue(data.apiKeySecret)
+      setShowPasswordModal(false)
+      setPasswordInput('')
+    } catch (e) {
+      setRevealError(e.response?.data?.error || 'Erreur')
+    } finally { setRevealing(false) }
+  }
 
   const saveWebhook = async () => {
     setSaving(true)
@@ -37,8 +55,31 @@ export default function MerchantSettings() {
 
   if (loading) return <Spinner />
 
+  const PasswordModal = showPasswordModal && (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 24, width: 340 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Confirmer votre identité</h3>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Saisissez votre mot de passe pour afficher la clé secrète.</p>
+        <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && revealSecret()}
+          placeholder="Mot de passe" autoFocus
+          style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 8 }} />
+        {revealError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 8 }}>{revealError}</p>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => { setShowPasswordModal(false); setPasswordInput(''); setRevealError('') }}
+            style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid #334155', borderRadius: 6, color: '#64748b', cursor: 'pointer' }}>Annuler</button>
+          <button onClick={revealSecret} disabled={revealing}
+            style={{ flex: 1, padding: '9px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: '#f59e0b', cursor: 'pointer', fontWeight: 600, opacity: revealing ? 0.7 : 1 }}>
+            {revealing ? 'Vérification...' : 'Confirmer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 780 }}>
+      {PasswordModal}
       <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 24 }}>Paramètres d'intégration</h1>
 
       {msg && (
@@ -81,19 +122,23 @@ export default function MerchantSettings() {
 
         <div>
           <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Clé secrète (masquée)
+            Clé secrète
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: '#94a3b8' }}>
-              {showSecret ? <span style={{ color: '#ef4444' }}>Contactez l'administrateur pour obtenir votre clé secrète</span> : '••••••••••••••••••••••••••••••••'}
-            </div>
-            <button onClick={() => setShowSecret(s => !s)}
-              style={{ padding: '8px 12px', background: 'rgba(148,163,184,0.1)', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
-              {showSecret ? 'Masquer' : 'Afficher'}
+            <code style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: secretValue && showSecret ? '#ef4444' : '#94a3b8', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+              {secretValue && showSecret ? secretValue : '••••••••••••••••••••••••••••••••••••••••'}
+            </code>
+            {secretValue && <CopyButton text={secretValue} />}
+            <button onClick={() => {
+              if (!secretValue) { setShowPasswordModal(true) }
+              else { setShowSecret(s => !s) }
+            }}
+              style={{ padding: '8px 12px', background: 'rgba(148,163,184,0.1)', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+              {!secretValue ? 'Déverrouiller' : showSecret ? 'Masquer' : 'Afficher'}
             </button>
           </div>
           <p style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
-            La clé secrète sert à signer vos requêtes (HMAC-SHA256). Ne la partagez jamais.
+            La clé secrète sert à signer vos requêtes (HMAC-SHA256). Ne la partagez jamais. Un mot de passe est requis pour la révéler.
           </p>
         </div>
       </Card>

@@ -11,8 +11,10 @@ const { enqueue } = require('./notification-queue');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const SMS_ENABLED  = process.env.AT_API_KEY && process.env.AT_USERNAME;
-const MAIL_ENABLED = process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN;
+const SMS_ENABLED   = process.env.AT_API_KEY && process.env.AT_USERNAME;
+const MAIL_ENABLED  = process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN;
+// SMTP générique (Mailtrap, Sendgrid SMTP, etc.) — prioritaire si configuré
+const SMTP_ENABLED  = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
 
 // ─── SMS via Africa's Talking ─────────────────────────────────────────────────
 
@@ -51,33 +53,49 @@ async function sendSMS(to, message) {
   return { status: 'sent', messageId: recipient.messageId, to };
 }
 
-// ─── Email via Mailgun ────────────────────────────────────────────────────────
+// ─── Email (SMTP générique prioritaire, sinon Mailgun) ───────────────────────
 
 async function sendEmail(to, subject, text, html) {
-  if (!MAIL_ENABLED) {
-    console.info(`[NOTIF/EMAIL] sandbox: to=${to} subject="${subject}"`);
-    return { status: 'sandbox', to, subject };
+  // 1. SMTP générique (Mailtrap, SendGrid SMTP, etc.)
+  if (SMTP_ENABLED) {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    const from = process.env.SMTP_FROM || `Afrik'Fid <noreply@afrikfid.com>`;
+    const info = await transporter.sendMail({ from, to, subject, text, html });
+    console.info(`[NOTIF/EMAIL] SMTP sent: to=${to} messageId=${info.messageId}`);
+    return { status: 'sent', messageId: info.messageId, to };
   }
 
-  const axios = require('axios');
-  const form = new FormData();
-  form.append('from', process.env.MAILGUN_FROM || `Afrik'Fid <noreply@${process.env.MAILGUN_DOMAIN}>`);
-  form.append('to', to);
-  form.append('subject', subject);
-  form.append('text', text);
-  if (html) form.append('html', html);
+  // 2. Mailgun API
+  if (MAIL_ENABLED) {
+    const axios = require('axios');
+    const form = new FormData();
+    form.append('from', process.env.MAILGUN_FROM || `Afrik'Fid <noreply@${process.env.MAILGUN_DOMAIN}>`);
+    form.append('to', to);
+    form.append('subject', subject);
+    form.append('text', text);
+    if (html) form.append('html', html);
 
-  const res = await axios.post(
-    `https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`,
-    form,
-    {
-      auth: { username: 'api', password: process.env.MAILGUN_API_KEY },
-      headers: form.getHeaders(),
-      timeout: 10000,
-    }
-  );
+    const res = await axios.post(
+      `https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`,
+      form,
+      {
+        auth: { username: 'api', password: process.env.MAILGUN_API_KEY },
+        headers: form.getHeaders(),
+        timeout: 10000,
+      }
+    );
+    return { status: 'sent', messageId: res.data.id, to };
+  }
 
-  return { status: 'sent', messageId: res.data.id, to };
+  // 3. Aucun transport configuré — log console uniquement
+  console.info(`[NOTIF/EMAIL] sandbox (no transport): to=${to} subject="${subject}"`);
+  return { status: 'sandbox', to, subject };
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
