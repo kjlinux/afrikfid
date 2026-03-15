@@ -313,7 +313,7 @@ function notifyLoyaltyUpgrade({ client, oldStatus, newStatus }) {
   const benefitMap = {
     LIVE:  'Vous bénéficiez désormais de 5% de cashback sur vos achats.',
     GOLD:  'Vous bénéficiez désormais de 8% de cashback sur vos achats.',
-    ROYAL: 'Vous bénéficiez désormais de 10% de cashback sur vos achats. Félicitations !',
+    ROYAL: 'Vous bénéficiez désormais de 12% de cashback sur vos achats. Félicitations !',
   };
 
   const tplData = {

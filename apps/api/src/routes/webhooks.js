@@ -30,8 +30,8 @@ router.get('/', requireAdmin, async (req, res) => {
   res.json({ events, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// GET /api/v1/webhooks/:id (admin)
-router.get('/:id', requireAdmin, async (req, res) => {
+// GET /api/v1/webhooks/:id (admin) — exclure /stats/summary
+router.get('/:id', (req, res, next) => { if (req.params.id === 'stats') return next('route'); next() }, requireAdmin, async (req, res) => {
   const result = await db.query(`
     SELECT we.*, m.name as merchant_name, m.webhook_url
     FROM webhook_events we
@@ -48,8 +48,8 @@ router.get('/:id', requireAdmin, async (req, res) => {
   res.json({ event: { ...event, parsedPayload } });
 });
 
-// POST /api/v1/webhooks/:id/retry (admin)
-router.post('/:id/retry', requireAdmin, async (req, res) => {
+// POST /api/v1/webhooks/:id/retry (admin) — exclure /test/retry
+router.post('/:id/retry', (req, res, next) => { if (req.params.id === 'test') return next('route'); next() }, requireAdmin, async (req, res) => {
   const event = (await db.query('SELECT * FROM webhook_events WHERE id = $1', [req.params.id])).rows[0];
   if (!event) return res.status(404).json({ error: 'Événement non trouvé' });
 

@@ -160,7 +160,9 @@ router.post('/:code/pay', async (req, res) => {
   }
 
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
-  const distribution = await calculateDistribution(amount, link.rebate_percent, loyaltyStatus);
+  // Invité sans compte → Y% = 0 (pas de remise)
+  const effectiveLoyaltyStatus = client ? loyaltyStatus : null;
+  const distribution = await calculateDistribution(amount, link.rebate_percent, effectiveLoyaltyStatus || 'OPEN');
 
   const txId = uuidv4();
   const reference = `PLK-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
@@ -178,7 +180,9 @@ router.post('/:code/pay', async (req, res) => {
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
   `, [
     txId, reference, link.merchant_id, client ? client.id : null,
-    amount, amount - distribution.clientRebateAmount,
+    // En cashback : le client paie le plein tarif, la remise est créditée sur son wallet après
+    // En immédiate : la remise est déduite directement du montant payé
+    amount, link.rebate_mode === 'cashback' ? amount : amount - distribution.clientRebateAmount,
     distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
     distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
     distribution.merchantReceives, loyaltyStatus, link.rebate_mode,

@@ -49,20 +49,39 @@ export const AuthContext = createContext(null)
 
 export function useAuth() { return useContext(AuthContext) }
 
+import { tokenKey, userKey, roleFromPath } from './auth-storage.js'
+
 function AuthProvider({ children }) {
+  const location = useLocation()
+  const activeRole = roleFromPath(location.pathname)
+
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('afrikfid_user')) } catch { return null }
+    // Lit le bon token selon l'URL courante au moment du chargement initial
+    const role = roleFromPath(window.location.pathname)
+    const key = role ? userKey(role) : null
+    if (key) {
+      try { const u = JSON.parse(localStorage.getItem(key)); if (u) return u } catch { /* ignore */ }
+    }
+    // Fallback : premier rôle trouvé (pour /login etc.)
+    for (const r of ['admin', 'merchant', 'client']) {
+      try { const u = JSON.parse(localStorage.getItem(userKey(r))); if (u) return u } catch { /* ignore */ }
+    }
+    return null
   })
 
-  const login = (userData, token) => {
-    localStorage.setItem('afrikfid_token', token)
-    localStorage.setItem('afrikfid_user', JSON.stringify(userData))
+  const login = (userData, token, refreshToken) => {
+    const role = userData.role
+    localStorage.setItem(tokenKey(role), token)
+    localStorage.setItem(userKey(role), JSON.stringify(userData))
+    if (refreshToken) localStorage.setItem(`afrikfid_refresh_${role}`, refreshToken)
     setUser(userData)
   }
 
   const logout = () => {
-    localStorage.removeItem('afrikfid_token')
-    localStorage.removeItem('afrikfid_user')
+    if (activeRole) {
+      localStorage.removeItem(tokenKey(activeRole))
+      localStorage.removeItem(userKey(activeRole))
+    }
     setUser(null)
   }
 

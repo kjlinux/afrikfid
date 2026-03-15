@@ -342,7 +342,7 @@ const MIGRATIONS = [
     version: 9,
     name: '009_wallet_caps_and_refund_details',
     up: `
-      -- Plafond configurable du solde cashback (CDC §4.3.2)
+      -- Plafond configurable du solde cashback 
       ALTER TABLE wallets ADD COLUMN IF NOT EXISTS max_balance NUMERIC DEFAULT NULL;
       ALTER TABLE wallets ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'XOF';
 

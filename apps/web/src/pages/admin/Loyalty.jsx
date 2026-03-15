@@ -373,7 +373,7 @@ export default function AdminLoyalty() {
       <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <WalletIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Plafond du portefeuille cashback (CDC §4.3.2)</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Plafond du portefeuille cashback </h3>
         </div>
         <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
           Montant maximum qu'un client peut accumuler dans son portefeuille cashback. Laisser vide = illimité.

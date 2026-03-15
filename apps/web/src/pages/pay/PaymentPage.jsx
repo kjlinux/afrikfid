@@ -2,6 +2,20 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { publicApi as api } from '../../api.js'
 import { useTransactionSSE } from '../../hooks/useSSE.js'
+import {
+  DevicePhoneMobileIcon,
+  CreditCardIcon,
+  CheckIcon,
+  XMarkIcon,
+  ArrowLeftIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  StarIcon,
+  TrophyIcon,
+  ShieldCheckIcon,
+  UserCircleIcon,
+} from '@heroicons/react/24/outline'
+import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
@@ -69,11 +83,11 @@ const MM_OPERATORS = [
 // countryCode = 'CI' | 'SN' | 'BF' | 'ML' | 'GN' | 'TG' | 'BJ' | 'CM' | 'KE' | '*'
 const USSD_INSTRUCTIONS = {
   ORANGE: {
-    CI: { ussd: '#144#', steps: ['Composez *144#', 'Choisissez "Paiement marchand"', 'Entrez le code marchand', 'Saisissez le montant', 'Confirmez avec votre code secret'] },
-    SN: { ussd: '#144#', steps: ['Composez *144#', 'Sélectionnez "Paiement"', 'Entrez le numéro marchand', 'Validez avec votre PIN'] },
-    ML: { ussd: '#144#', steps: ['Composez *144#', 'Choisissez "Paiement"', 'Entrez les informations marchand', 'Confirmez'] },
-    BF: { ussd: '#144#', steps: ['Composez *144#', 'Sélectionnez "Transfert/Paiement"', 'Suivez les instructions', 'Confirmez avec votre code secret'] },
-    '*': { ussd: '*144#', steps: ['Composez *144#', 'Sélectionnez "Paiement marchand"', 'Entrez le numéro / code marchand', 'Confirmez avec votre code secret Orange Money'] },
+    CI: { ussd: '#144#', steps: ['Composez #144#', 'Choisissez "Paiement marchand"', 'Entrez le code marchand', 'Saisissez le montant', 'Confirmez avec votre code secret'] },
+    SN: { ussd: '#144#', steps: ['Composez #144#', 'Sélectionnez "Paiement"', 'Entrez le numéro marchand', 'Validez avec votre PIN'] },
+    ML: { ussd: '#144#', steps: ['Composez #144#', 'Choisissez "Paiement"', 'Entrez les informations marchand', 'Confirmez'] },
+    BF: { ussd: '#144#', steps: ['Composez #144#', 'Sélectionnez "Transfert/Paiement"', 'Suivez les instructions', 'Confirmez avec votre code secret'] },
+    '*': { ussd: '#144#', steps: ['Composez #144#', 'Sélectionnez "Paiement marchand"', 'Entrez le numéro / code marchand', 'Confirmez avec votre code secret Orange Money'] },
   },
   MTN: {
     CI: { ussd: '*133#', steps: ['Composez *133#', 'Choisissez "Payer"', 'Entrez le numéro marchand', 'Saisissez le montant et confirmez'] },
@@ -112,7 +126,62 @@ function getUssdInstructions(operator, countryCode) {
 }
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
-const LOYALTY_ICON  = { OPEN: '○', LIVE: '★', GOLD: '◎', ROYAL: '♛' }
+const LOYALTY_ICON  = {
+  OPEN:  <UserCircleIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
+  LIVE:  <StarIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
+  GOLD:  <ShieldCheckIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
+  ROYAL: <TrophyIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
+}
+
+// ─── Pays / indicatifs ────────────────────────────────────────────────────────
+const COUNTRIES = [
+  { code: 'CI', flag: '🇨🇮', name: 'Côte d\'Ivoire', dial: '+225', digits: 10 },
+  { code: 'SN', flag: '🇸🇳', name: 'Sénégal',        dial: '+221', digits: 9  },
+  { code: 'ML', flag: '🇲🇱', name: 'Mali',            dial: '+223', digits: 8  },
+  { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso',    dial: '+226', digits: 8  },
+  { code: 'GN', flag: '🇬🇳', name: 'Guinée',          dial: '+224', digits: 9  },
+  { code: 'TG', flag: '🇹🇬', name: 'Togo',            dial: '+228', digits: 8  },
+  { code: 'BJ', flag: '🇧🇯', name: 'Bénin',           dial: '+229', digits: 8  },
+  { code: 'CM', flag: '🇨🇲', name: 'Cameroun',        dial: '+237', digits: 9  },
+  { code: 'KE', flag: '🇰🇪', name: 'Kenya',           dial: '+254', digits: 9  },
+  { code: 'TZ', flag: '🇹🇿', name: 'Tanzanie',        dial: '+255', digits: 9  },
+  { code: 'GH', flag: '🇬🇭', name: 'Ghana',           dial: '+233', digits: 9  },
+]
+
+// Normalise un numéro local (ex: 0759376464 → 759376464) et retourne le E.164
+function buildE164(localNumber, dial) {
+  let n = localNumber.replace(/\D/g, '')          // chiffres seulement
+  if (n.startsWith('00')) n = n.slice(2)          // 00225... → 225...
+  const dialDigits = dial.replace('+', '')
+  if (n.startsWith(dialDigits)) n = n.slice(dialDigits.length) // déjà préfixé
+  if (n.startsWith('0')) n = n.slice(1)           // 0759... → 759...
+  return dial + n
+}
+
+// Composant sélecteur pays + saisie locale
+function PhoneInput({ countryCode, localPhone, onChange }) {
+  const country = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0]
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <select
+        value={countryCode}
+        onChange={e => onChange(e.target.value, localPhone)}
+        style={{ padding: '10px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, flexShrink: 0, outline: 'none' }}
+      >
+        {COUNTRIES.map(c => (
+          <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+        ))}
+      </select>
+      <input
+        type="tel"
+        value={localPhone}
+        onChange={e => onChange(countryCode, e.target.value)}
+        placeholder={`Ex: ${'0' + '7'.repeat(country.digits - 1)}`}
+        style={{ flex: 1, padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+      />
+    </div>
+  )
+}
 
 export default function PaymentPage() {
   const { code } = useParams()
@@ -120,7 +189,11 @@ export default function PaymentPage() {
   const [error, setError] = useState('')
   const [step, setStep] = useState('identify')
   const [paymentType, setPaymentType] = useState(null)
-  const [form, setForm] = useState({ phone: '', afrikfid_id: '', operator: '', custom_amount: '' })
+  const [form, setForm] = useState({ phone: '', localPhone: '', countryCode: 'CI', afrikfid_id: '', operator: '', custom_amount: '' })
+  const setPhone = (countryCode, localPhone) => {
+    const e164 = localPhone.trim() ? buildE164(localPhone, COUNTRIES.find(c => c.code === countryCode)?.dial || '+225') : ''
+    setForm(f => ({ ...f, countryCode, localPhone, phone: e164 }))
+  }
   const [clientInfo, setClientInfo] = useState(null)
   const [result, setResult] = useState(null)
   const [processing, setProcessing] = useState(false)
@@ -203,7 +276,7 @@ export default function PaymentPage() {
   if (error) return (
     <Screen>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>✕</div>
+        <XCircleIcon style={{ width: 52, height: 52, color: '#ef4444', marginBottom: 16 }} />
         <h2 style={{ color: '#ef4444', fontSize: 18 }}>Lien invalide</h2>
         <p style={{ color: '#64748b', fontSize: 14 }}>{error}</p>
       </div>
@@ -243,7 +316,7 @@ export default function PaymentPage() {
                     background: i < stepIdx ? '#10b981' : i === stepIdx ? '#f59e0b' : '#1e293b',
                     color: i <= stepIdx ? '#0f172a' : '#64748b',
                     border: '2px solid ' + (i === stepIdx ? '#f59e0b' : i < stepIdx ? '#10b981' : '#334155'),
-                  }}>{i < stepIdx ? '✓' : i + 1}</div>
+                  }}>{i < stepIdx ? <CheckIcon style={{ width: 11, height: 11 }} /> : i + 1}</div>
                   <span style={{ fontSize: 10, color: i === stepIdx ? '#f1f5f9' : '#64748b' }}>{s}</span>
                 </div>
                 {i < 2 && <div style={{ width: 14, height: 1, background: '#334155', margin: '0 2px' }} />}
@@ -278,9 +351,7 @@ export default function PaymentPage() {
                   Identifiez-vous pour bénéficier de votre remise fidélité (optionnel)
                 </p>
                 <label style={labelStyle}>Numéro de téléphone</label>
-                <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  placeholder="+2250700000000" onKeyDown={e => e.key === 'Enter' && lookupClient()}
-                  style={inputStyle} />
+                <PhoneInput countryCode={form.countryCode} localPhone={form.localPhone} onChange={setPhone} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={lookupClient} style={btnPrimary}>Continuer</button>
                   <button onClick={() => setStep('method')} style={btnGhost}>Invité</button>
@@ -308,13 +379,13 @@ export default function PaymentPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <button onClick={() => { setPaymentType('mobile_money'); setStep('mobile') }}
                     style={{ padding: '14px 10px', border: '2px solid #334155', borderRadius: 12, background: '#0f172a', cursor: 'pointer', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, marginBottom: 5 }}>📱</div>
+                    <DevicePhoneMobileIcon style={{ width: 28, height: 28, color: '#f1f5f9', margin: '0 auto 5px' }} />
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Mobile Money</div>
                     <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Orange, MTN, Wave…</div>
                   </button>
                   <button onClick={() => { setPaymentType('card'); setStep('card') }}
                     style={{ padding: '14px 10px', border: '2px solid #334155', borderRadius: 12, background: '#0f172a', cursor: 'pointer', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, marginBottom: 5 }}>💳</div>
+                    <CreditCardIcon style={{ width: 28, height: 28, color: '#f1f5f9', margin: '0 auto 5px' }} />
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Carte bancaire</div>
                     <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Visa, Mastercard, GIM</div>
                   </button>
@@ -346,8 +417,7 @@ export default function PaymentPage() {
                 {!form.phone && (
                   <div style={{ marginBottom: 10 }}>
                     <label style={labelStyle}>Numéro Mobile Money</label>
-                    <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+2250700000000"
-                      style={inputStyle} />
+                    <PhoneInput countryCode={form.countryCode} localPhone={form.localPhone} onChange={setPhone} />
                   </div>
                 )}
 
@@ -372,7 +442,7 @@ export default function PaymentPage() {
 
                 {pageError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{pageError}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setStep('method')} style={btnBack}>←</button>
+                  <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payMobile} disabled={processing || !amount || !form.operator}
                     style={{ ...btnPrimary, flex: 1, background: processing ? '#334155' : 'linear-gradient(135deg, #f59e0b, #ef4444)', opacity: (!amount || !form.operator) ? 0.5 : 1 }}>
                     {processing ? 'Traitement...' : 'Payer ' + fmt(toPay) + ' ' + linkInfo.currency}
@@ -403,7 +473,7 @@ export default function PaymentPage() {
                 </div>
                 {pageError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{pageError}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setStep('method')} style={btnBack}>←</button>
+                  <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payCard} disabled={processing || !amount}
                     style={{ ...btnPrimary, flex: 1, background: processing ? '#334155' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)', opacity: !amount ? 0.5 : 1 }}>
                     {processing ? 'Redirection...' : 'Payer ' + fmt(amount) + ' ' + linkInfo.currency + ' par carte'}
@@ -415,7 +485,7 @@ export default function PaymentPage() {
             {/* SUCCÈS */}
             {step === 'done' && result && (
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+                <CheckCircleSolid style={{ width: 56, height: 56, color: '#10b981', marginBottom: 12 }} />
                 <h3 style={{ fontSize: 17, fontWeight: 700, color: '#10b981', marginBottom: 7 }}>
                   {paymentType === 'mobile_money' ? 'Paiement initié !' : 'Traitement en cours...'}
                 </h3>

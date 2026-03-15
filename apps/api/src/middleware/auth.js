@@ -177,7 +177,7 @@ async function requireAuth(req, res, next) {
 function generateTokens(payload) {
   const jtiAccess = crypto.randomBytes(16).toString('hex');
   const jtiRefresh = crypto.randomBytes(16).toString('hex');
-  const accessToken = jwt.sign({ ...payload, jti: jtiAccess }, JWT_SECRET, { expiresIn: '15m' });
+  const accessToken = jwt.sign({ ...payload, jti: jtiAccess }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '2h' });
   const refreshToken = jwt.sign({ ...payload, type: 'refresh', jti: jtiRefresh }, JWT_SECRET, { expiresIn: '7d' });
   return { accessToken, refreshToken };
 }

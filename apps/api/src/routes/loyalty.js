@@ -137,7 +137,7 @@ router.delete('/config-country/:countryId/:status', requireAdmin, async (req, re
   res.json({ message: 'Surcharge supprimée, taux global restauré' });
 });
 
-// ─── Configuration plafond wallet (CDC §4.3.2) ────────────────────────────────
+// ─── Configuration plafond wallet  ────────────────────────────────
 
 // GET /api/v1/loyalty/wallet-config — lire la config globale des plafonds
 router.get('/wallet-config', requireAdmin, async (req, res) => {

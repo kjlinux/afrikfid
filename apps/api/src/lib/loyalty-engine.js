@@ -6,6 +6,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
+const { decrypt } = require('./crypto');
 
 async function getLoyaltyConfig() {
   const res = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order');
@@ -193,18 +194,24 @@ async function runLoyaltyBatch() {
       });
       const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
       if (client) {
+        // Déchiffrer phone et email avant d'envoyer les notifications
+        let phone = null, email = null;
+        try { phone = client.phone ? decrypt(client.phone) : null } catch { /* ignore */ }
+        try { email = client.email ? decrypt(client.email) : null } catch { /* ignore */ }
+        const clientForNotif = { ...client, phone, email };
+
         const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
         const isUpgrade = statusOrder.indexOf(evaluation.newStatus) > statusOrder.indexOf(evaluation.currentStatus);
         const isDowngrade = statusOrder.indexOf(evaluation.newStatus) < statusOrder.indexOf(evaluation.currentStatus);
 
         if (isUpgrade) {
-          notifyLoyaltyUpgrade({ client, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
+          notifyLoyaltyUpgrade({ client: clientForNotif, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
         } else if (isDowngrade) {
           // CDC §2.6 — Notifier le client lors d'une rétrogradation par inactivité
           const inactivityMonths = evaluation.inactivityMonths ||
             (await db.query('SELECT inactivity_months FROM loyalty_config WHERE status = $1', [evaluation.currentStatus])).rows[0]?.inactivity_months;
           notifyLoyaltyDowngrade({
-            client,
+            client: clientForNotif,
             oldStatus: evaluation.currentStatus,
             newStatus: evaluation.newStatus,
             inactivityMonths,

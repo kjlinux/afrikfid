@@ -66,16 +66,24 @@ export default function ClientDashboard() {
   const [transactions, setTxs]      = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
+  // Litige
+  const [disputeModal, setDisputeModal] = useState(null) // tx sélectionnée
+  const [disputes, setDisputes]         = useState([])
+  const [disputeForm, setDisputeForm]   = useState({ reason: '', description: '' })
+  const [disputeLoading, setDisputeLoading] = useState(false)
+  const [disputeMsg, setDisputeMsg]     = useState('')
 
   useEffect(() => {
     if (!user?.id) return
     Promise.all([
       api.get(`/clients/${user.id}/profile`),
       api.get(`/clients/${user.id}/transactions?limit=10`),
+      api.get('/disputes/client/mine?limit=5'),
     ])
-      .then(([p, t]) => {
+      .then(([p, t, d]) => {
         setProfile(p.data)
         setTxs(t.data.transactions || [])
+        setDisputes(d.data.disputes || [])
       })
       .catch(() => setError('Impossible de charger vos données.'))
       .finally(() => setLoading(false))
@@ -84,6 +92,23 @@ export default function ClientDashboard() {
   const handleLogout = () => {
     logout()
     window.location.href = '/login'
+  }
+
+  const submitDispute = async () => {
+    if (!disputeForm.reason) return setDisputeMsg('Choisissez un motif')
+    setDisputeLoading(true); setDisputeMsg('')
+    try {
+      await api.post('/disputes', { transaction_id: disputeModal.id, ...disputeForm })
+      setDisputeMsg('✓ Litige déclaré avec succès. L\'équipe Afrik\'Fid vous contactera.')
+      setTimeout(() => {
+        setDisputeModal(null)
+        setDisputeMsg('')
+        setDisputeForm({ reason: '', description: '' })
+        api.get('/disputes/client/mine?limit=5').then(r => setDisputes(r.data.disputes || []))
+      }, 2000)
+    } catch (err) {
+      setDisputeMsg(err.response?.data?.error || 'Erreur lors de la déclaration')
+    } finally { setDisputeLoading(false) }
   }
 
   if (loading) return (
@@ -215,7 +240,7 @@ export default function ClientDashboard() {
 
             {next.eligible ? (
               <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: '10px 14px', color: '#10b981', fontSize: 13, fontWeight: 600 }}>
-                ✓ Éligible au statut {next.targetStatus} — la promotion sera appliquée lors du prochain batch de fidélité.
+                ✓ Éligible au statut {next.targetStatus} — vous serez bientôt informé(e) de votre changement de statut par SMS et/ou email.
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -281,12 +306,105 @@ export default function ClientDashboard() {
                       {tx.client_discount > 0 ? `− ${fmt(tx.client_discount, tx.currency)}` : <span style={{ color: '#334155' }}>—</span>}
                     </td>
                     <td style={{ padding: '11px 16px' }}><TxStatusBadge status={tx.status} /></td>
+                    <td style={{ padding: '11px 16px' }}>
+                      {tx.status === 'completed' && (
+                        <button onClick={() => { setDisputeModal(tx); setDisputeMsg(''); setDisputeForm({ reason: '', description: '' }) }}
+                          style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}>
+                          Litige
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+      {/* ── Disputes list ── */}
+      {disputes.length > 0 && (
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 14, overflow: 'hidden', marginTop: 24 }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #334155' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9' }}>Mes litiges</div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #334155' }}>
+                {['Date', 'Transaction', 'Motif', 'Montant', 'Statut'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {disputes.map((d, i) => (
+                <tr key={d.id} style={{ borderBottom: i < disputes.length - 1 ? '1px solid #334155' : 'none' }}>
+                  <td style={{ padding: '11px 16px', fontSize: 12, color: '#94a3b8' }}>{fmtDate(d.created_at)}</td>
+                  <td style={{ padding: '11px 16px', fontSize: 12, color: '#94a3b8', fontFamily: 'monospace' }}>{d.tx_reference || '—'}</td>
+                  <td style={{ padding: '11px 16px', fontSize: 12, color: '#f1f5f9' }}>{d.reason?.replace(/_/g, ' ')}</td>
+                  <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{fmt(d.amount_disputed, d.currency)}</td>
+                  <td style={{ padding: '11px 16px' }}>
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 12, fontWeight: 600,
+                      background: d.status === 'resolved' ? 'rgba(16,185,129,0.15)' : d.status === 'rejected' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                      color: d.status === 'resolved' ? '#10b981' : d.status === 'rejected' ? '#ef4444' : '#f59e0b',
+                    }}>{d.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Dispute modal ── */}
+      {disputeModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#f1f5f9', marginBottom: 4 }}>Déclarer un litige</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 20 }}>Transaction : <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{disputeModal.reference}</span> — {fmt(disputeModal.gross_amount, disputeModal.currency)}</div>
+
+            {disputeMsg && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13,
+                background: disputeMsg.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                border: `1px solid ${disputeMsg.startsWith('✓') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                color: disputeMsg.startsWith('✓') ? '#10b981' : '#ef4444' }}>
+                {disputeMsg}
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Motif *</label>
+              <select value={disputeForm.reason} onChange={e => setDisputeForm(f => ({ ...f, reason: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13 }}>
+                <option value="">Sélectionner un motif</option>
+                <option value="incorrect_amount">Montant incorrect</option>
+                <option value="service_not_rendered">Service non rendu</option>
+                <option value="duplicate_payment">Paiement en double</option>
+                <option value="fraud">Fraude suspectée</option>
+                <option value="other">Autre</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Description (optionnel)</label>
+              <textarea value={disputeForm.description} onChange={e => setDisputeForm(f => ({ ...f, description: e.target.value }))}
+                rows={3} placeholder="Décrivez le problème rencontré..."
+                style={{ width: '100%', padding: '9px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setDisputeModal(null)}
+                style={{ padding: '8px 18px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={submitDispute} disabled={disputeLoading || !disputeForm.reason}
+                style={{ padding: '8px 18px', background: '#ef4444', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: disputeLoading || !disputeForm.reason ? 0.6 : 1 }}>
+                {disputeLoading ? 'Envoi...' : 'Soumettre le litige'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       </div>
     </div>

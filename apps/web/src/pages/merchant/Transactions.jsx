@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import { ArrowUturnLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
@@ -11,6 +12,26 @@ export default function MerchantTransactions() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [selected, setSelected] = useState(null)
+  const [refundModal, setRefundModal] = useState(null) // transaction à rembourser
+  const [refundReason, setRefundReason] = useState('')
+  const [refundType, setRefundType] = useState('full')
+  const [refundPartialAmount, setRefundPartialAmount] = useState('')
+  const [refundLoading, setRefundLoading] = useState(false)
+  const [refundMsg, setRefundMsg] = useState('')
+
+  const submitRefund = async () => {
+    if (!refundReason.trim()) return setRefundMsg('Le motif est requis')
+    setRefundLoading(true); setRefundMsg('')
+    try {
+      const body = { reason: refundReason, refund_type: refundType }
+      if (refundType === 'partial') body.amount = parseFloat(refundPartialAmount)
+      await api.post(`/payments/${refundModal.id}/refund/dashboard`, body)
+      setRefundMsg('✓ Remboursement effectué')
+      setTimeout(() => { setRefundModal(null); setRefundMsg(''); setRefundReason(''); setRefundType('full'); load() }, 1500)
+    } catch (err) {
+      setRefundMsg(err.response?.data?.error || 'Erreur lors du remboursement')
+    } finally { setRefundLoading(false) }
+  }
 
   const load = () => {
     const params = new URLSearchParams({ page, limit: 20 })
@@ -43,7 +64,7 @@ export default function MerchantTransactions() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#0f172a' }}>
-              {['Référence', 'Client', 'Statut', 'Montant brut', 'Reçu net', 'Remise Y%', 'Commission Z%', 'Opérateur', 'Date'].map(h => (
+              {['Référence', 'Client', 'Statut', 'Montant brut', 'Reçu net', 'Remise Y%', 'Commission Z%', 'Opérateur', 'Date', ''].map(h => (
                 <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -73,6 +94,14 @@ export default function MerchantTransactions() {
                   </td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>{tx.payment_operator || '—'}</td>
                   <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b' }}>{tx.initiated_at?.split('T')[0]}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    {tx.status === 'completed' && (
+                      <button onClick={e => { e.stopPropagation(); setRefundModal(tx); setRefundReason(''); setRefundType('full'); setRefundMsg('') }}
+                        style={{ padding: '4px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <ArrowUturnLeftIcon style={{ width: 12, height: 12 }} /> Rembourser
+                      </button>
+                    )}
+                  </td>
                 </tr>
               )
             })}
@@ -86,6 +115,63 @@ export default function MerchantTransactions() {
           </div>
         </div>
       </div>
+
+      {/* Modale remboursement */}
+      {refundModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: '#1e293b', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420, border: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Demander un remboursement</h3>
+              <button onClick={() => setRefundModal(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                <XMarkIcon style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+            <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: '#64748b', marginBottom: 2 }}>Transaction</div>
+              <div style={{ color: '#f59e0b', fontFamily: 'monospace', fontSize: 11 }}>{refundModal.reference}</div>
+              <div style={{ color: '#f1f5f9', fontWeight: 700, marginTop: 6 }}>{fmt(refundModal.gross_amount)} {refundModal.currency || 'XOF'}</div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Type de remboursement</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[['full', 'Remboursement total'], ['partial', 'Partiel']].map(([val, label]) => (
+                  <button key={val} onClick={() => setRefundType(val)}
+                    style={{ flex: 1, padding: '8px', border: `2px solid ${refundType === val ? '#f59e0b' : '#334155'}`, borderRadius: 8, background: refundType === val ? 'rgba(245,158,11,0.1)' : '#0f172a', color: refundType === val ? '#f59e0b' : '#64748b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {refundType === 'partial' && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Montant à rembourser</label>
+                <input type="number" value={refundPartialAmount} onChange={e => setRefundPartialAmount(e.target.value)}
+                  placeholder={`Max: ${fmt(refundModal.gross_amount)}`}
+                  style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            )}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Motif *</label>
+              <textarea value={refundReason} onChange={e => setRefundReason(e.target.value)} rows={3}
+                placeholder="Ex: Client n'a pas reçu la commande, erreur de facturation..."
+                style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            {refundMsg && (
+              <div style={{ padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13, fontWeight: 600,
+                background: refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                color: refundMsg.startsWith('✓') ? '#10b981' : '#ef4444',
+                border: `1px solid ${refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                {refundMsg}
+              </div>
+            )}
+            <button onClick={submitRefund} disabled={refundLoading}
+              style={{ width: '100%', padding: '11px', background: refundLoading ? '#334155' : 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <ArrowUturnLeftIcon style={{ width: 16, height: 16 }} />
+              {refundLoading ? 'Traitement...' : 'Confirmer le remboursement'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

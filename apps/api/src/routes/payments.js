@@ -3,7 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { calculateDistribution } = require('../lib/loyalty-engine');
-const { requireApiKey, requireClient } = require('../middleware/auth');
+const { requireApiKey, requireClient, requireMerchant } = require('../middleware/auth');
 const { verifyHmacSignature } = require('../middleware/hmac-verify');
 const mobileMoney = require('../lib/adapters/mobile-money');
 const { getOperatorsForCountry } = mobileMoney;
@@ -638,7 +638,62 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
   });
 });
 
-// POST /api/v1/payments/wallet/pay — Paiement avec solde cashback (CDC §4.3.2)
+// POST /api/v1/payments/:id/refund/dashboard — Remboursement depuis le dashboard marchand (JWT)
+router.post('/:id/refund/dashboard', requireMerchant, async (req, res) => {
+  const { amount, reason, refund_type = 'full' } = req.body;
+  if (!reason) return res.status(400).json({ error: 'Le motif du remboursement est requis' });
+
+  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2', [req.params.id, req.merchant.id])).rows[0];
+  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
+  if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
+
+  const hoursElapsed = (Date.now() - new Date(tx.completed_at).getTime()) / 3600000;
+  if (hoursElapsed > 72) {
+    return res.status(422).json({ error: `Délai de remboursement dépassé (72h max). ${Math.round(hoursElapsed)}h écoulées.` });
+  }
+
+  const grossAmount = parseFloat(tx.gross_amount);
+  const refundAmount = refund_type === 'full' ? grossAmount : Math.min(parseFloat(amount || grossAmount), grossAmount);
+  const refundRatio = refundAmount / grossAmount;
+  const merchantRebateRefunded = parseFloat(tx.merchant_rebate_amount) * refundRatio;
+  const clientRebateRefunded = parseFloat(tx.client_rebate_amount) * refundRatio;
+  const platformCommissionRefunded = parseFloat(tx.platform_commission_amount) * refundRatio;
+
+  const refundId = uuidv4();
+  await db.query(
+    `INSERT INTO refunds (id, transaction_id, amount, refund_type, reason, status, initiated_by,
+       merchant_rebate_refunded, client_rebate_refunded, platform_commission_refunded, refund_ratio)
+     VALUES ($1, $2, $3, $4, $5, 'processing', $6, $7, $8, $9, $10)`,
+    [refundId, tx.id, refundAmount, refund_type, reason, req.merchant.id,
+      merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded, refundRatio]
+  );
+
+  // Annulation du cashback client si mode cashback
+  if (tx.rebate_mode === 'cashback' && tx.client_id && clientRebateRefunded > 0) {
+    const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [tx.client_id])).rows[0];
+    if (wallet) {
+      const debit = Math.min(parseFloat(wallet.balance), clientRebateRefunded);
+      if (debit > 0) {
+        const newBalance = parseFloat(wallet.balance) - debit;
+        await db.query('UPDATE wallets SET balance = $1, total_spent = total_spent + $2, updated_at = NOW() WHERE client_id = $3', [newBalance, debit, tx.client_id]);
+        await db.query(
+          `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'debit', $4, $5, $6, $7)`,
+          [uuidv4(), wallet.id, tx.id, debit, wallet.balance, newBalance, `Annulation cashback - ${tx.reference}`]
+        );
+      }
+    }
+  }
+
+  const newStatus = refund_type === 'full' ? 'refunded' : 'partially_refunded';
+  await db.query('UPDATE transactions SET status = $1 WHERE id = $2', [newStatus, tx.id]);
+  await db.query("UPDATE refunds SET status = 'completed', processed_at = NOW() WHERE id = $1", [refundId]);
+
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount, refundRatio }).catch(() => {});
+
+  res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
+});
+
+// POST /api/v1/payments/wallet/pay — Paiement avec solde cashback 
 // Authentification: JWT client (header Authorization: Bearer <token>)
 router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req, res) => {
   const { merchant_id, amount, currency = 'XOF', description, idempotency_key } = req.body;
@@ -810,7 +865,7 @@ async function processCompletedPayment(tx) {
         await db.query('INSERT INTO wallets (id, client_id, currency) VALUES ($1, $2, $3)', [walletId, tx.client_id, tx.currency]);
         wallet = (await db.query('SELECT * FROM wallets WHERE id = $1', [walletId])).rows[0];
       }
-      // Respect du plafond wallet (CDC §4.3.2) : max_balance propre au wallet ou global (wallet_config)
+      // Respect du plafond wallet  : max_balance propre au wallet ou global (wallet_config)
       const walletConfigRes = await db.query("SELECT default_max_balance FROM wallet_config WHERE id = 'global'");
       const globalCap = walletConfigRes.rows[0]?.default_max_balance != null
         ? parseFloat(walletConfigRes.rows[0].default_max_balance) : null;

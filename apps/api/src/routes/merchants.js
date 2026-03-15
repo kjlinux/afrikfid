@@ -81,8 +81,8 @@ router.get('/', requireAdmin, async (req, res) => {
   res.json({ merchants: merchants.map(m => sanitizeMerchant(m, false)), total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// GET /api/v1/merchants/:id (admin)
-router.get('/:id', requireAdmin, async (req, res) => {
+// GET /api/v1/merchants/:id (admin) — exclure les routes /me/*
+router.get('/:id', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, async (req, res) => {
   const result = await db.query(`
     SELECT m.*, c.name as country_name, c.currency
     FROM merchants m LEFT JOIN countries c ON m.country_id = c.id
@@ -95,7 +95,7 @@ router.get('/:id', requireAdmin, async (req, res) => {
 });
 
 // PATCH /api/v1/merchants/:id (admin)
-router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
+router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
   const allowed = ['name', 'phone', 'rebate_percent', 'rebate_mode', 'status', 'kyc_status',
     'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name',
     'category', 'address', 'max_transaction_amount', 'daily_volume_limit', 'allow_guest_mode'];
@@ -122,7 +122,7 @@ router.patch('/:id', requireAdmin, validate(UpdateMerchantSchema), async (req, r
 });
 
 // GET /api/v1/merchants/:id/balance (admin)
-router.get('/:id/balance', requireAdmin, async (req, res) => {
+router.get('/:id/balance', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, async (req, res) => {
   const result = await db.query(`
     SELECT
       COALESCE(SUM(CASE WHEN status = 'completed' THEN merchant_receives ELSE 0 END), 0) as total_earned,
@@ -135,7 +135,7 @@ router.get('/:id/balance', requireAdmin, async (req, res) => {
 });
 
 // GET /api/v1/merchants/:id/transactions (admin)
-router.get('/:id/transactions', requireAdmin, async (req, res) => {
+router.get('/:id/transactions', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, async (req, res) => {
   const { page = 1, limit = 20, status, from, to } = req.query;
   let sql = `
     SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as current_client_status
@@ -399,7 +399,7 @@ router.patch('/:id/kyc/review', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/v1/merchants/:id (admin — désactivation + suppression si aucune transaction)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, async (req, res) => {
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
   if (!merchant) return res.status(404).json({ error: 'Marchand non trouvé' });
 

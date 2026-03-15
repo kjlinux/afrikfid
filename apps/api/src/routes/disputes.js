@@ -12,7 +12,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
-const { requireAdmin, requireApiKey, requireAuth } = require('../middleware/auth');
+const { requireAdmin, requireApiKey, requireAuth, requireClient } = require('../middleware/auth');
 
 // ─── GET /api/v1/disputes — liste des litiges (admin) ────────────────────────
 router.get('/', requireAdmin, async (req, res) => {
@@ -184,6 +184,27 @@ router.patch('/:id', requireAdmin, async (req, res) => {
 
   const updated = (await db.query('SELECT * FROM disputes WHERE id = $1', [req.params.id])).rows[0];
   res.json({ dispute: updated, message: `Litige mis à jour → ${status}` });
+});
+
+// ─── GET /api/v1/disputes/client/mine — litiges du client connecté (JWT) ────
+router.get('/client/mine', requireClient, async (req, res) => {
+  const { status, page = 1, limit = 20 } = req.query;
+  let sql = `
+    SELECT d.*, t.reference as tx_reference, t.gross_amount, t.currency,
+           m.name as merchant_name, t.initiated_at as tx_date
+    FROM disputes d
+    LEFT JOIN transactions t ON d.transaction_id = t.id
+    LEFT JOIN merchants m ON d.merchant_id = m.id
+    WHERE d.client_id = $1
+  `;
+  const params = [req.client.id];
+  let idx = 2;
+  if (status) { sql += ` AND d.status = $${idx++}`; params.push(status); }
+  sql += ` ORDER BY d.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (page - 1) * limit);
+  const disputes = (await db.query(sql, params)).rows;
+  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM disputes WHERE client_id = $1', [req.client.id])).rows[0].c);
+  res.json({ disputes, total });
 });
 
 // ─── GET /api/v1/disputes/merchant/mine — litiges d'un marchand (API key) ───

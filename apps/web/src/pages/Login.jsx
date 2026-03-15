@@ -83,7 +83,7 @@ export default function Login() {
           body.afrikfid_id = afrikfidId.trim().toUpperCase()
         }
         const { data } = await api.post('/auth/client/login', body)
-        login({ ...data.client, role: 'client' }, data.accessToken)
+        login({ ...data.client, role: 'client' }, data.accessToken, data.refreshToken)
         navigate('/client')
       } else {
         const endpoint = role === 'admin' ? '/auth/admin/login' : '/auth/merchant/login'
@@ -91,7 +91,7 @@ export default function Login() {
         const userData = role === 'admin'
           ? { ...data.admin, role: 'admin' }
           : { ...data.merchant, role: 'merchant' }
-        login(userData, data.accessToken)
+        login(userData, data.accessToken, data.refreshToken)
         navigate(role === 'admin' ? '/admin' : '/merchant')
       }
     } catch (err) {
