@@ -33,14 +33,14 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-// ─── Constantes rate limiting par clé API (CDC §5.4.2) ──────────────────────
+// ─── Constantes rate limiting par clé API  ──────────────────────
 // Fenêtre glissante : API_KEY_RATE_LIMIT_MAX requêtes par API_KEY_RATE_LIMIT_WINDOW_MS
 const API_KEY_RATE_LIMIT_MAX = parseInt(process.env.API_KEY_RATE_LIMIT_MAX) || 100;
 const API_KEY_RATE_LIMIT_WINDOW_MS = parseInt(process.env.API_KEY_RATE_LIMIT_WINDOW_MS) || 60000; // 1 minute
 
 /**
  * Middleware d'authentification par clé API pour les marchands
- * Inclut un rate limiting par clé API stocké dans Redis (CDC §5.4.2)
+ * Inclut un rate limiting par clé API stocké dans Redis 
  */
 async function requireApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
@@ -58,7 +58,10 @@ async function requireApiKey(req, res, next) {
 
   if (!merchant) return res.status(401).json({ error: 'Clé API invalide' });
   if (merchant.status !== 'active') return res.status(403).json({ error: 'Compte marchand inactif ou suspendu' });
-  if (merchant.kyc_status !== 'approved') return res.status(403).json({ error: 'KYC_PENDING', message: 'Vérification KYC requise avant de pouvoir accepter des paiements' });
+  // En mode sandbox, le KYC n'est pas requis (le marchand peut tester son intégration pendant l'examen)
+  if (!isSandbox && merchant.kyc_status !== 'approved') {
+    return res.status(403).json({ error: 'KYC_REQUIRED', message: 'Vérification KYC requise avant de pouvoir accepter des paiements en production.' });
+  }
 
   // ── Rate limiting par clé API (fenêtre glissante via Redis) ──────────────
   try {

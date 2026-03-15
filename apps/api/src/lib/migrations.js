@@ -295,7 +295,7 @@ const MIGRATIONS = [
     version: 5,
     name: '005_loyalty_config_per_country',
     up: `
-      -- Taux Y% personnalisés par pays (CDC §2.5)
+      -- Taux Y% personnalisés par pays 
       -- Surcharge les taux globaux de loyalty_config pour un pays donné.
       CREATE TABLE IF NOT EXISTS loyalty_config_country (
         id TEXT PRIMARY KEY,
@@ -346,7 +346,7 @@ const MIGRATIONS = [
       ALTER TABLE wallets ADD COLUMN IF NOT EXISTS max_balance NUMERIC DEFAULT NULL;
       ALTER TABLE wallets ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'XOF';
 
-      -- Détail du remboursement proportionnel X/Y/Z (CDC §4.4)
+      -- Détail du remboursement proportionnel X/Y/Z 
       ALTER TABLE refunds ADD COLUMN IF NOT EXISTS merchant_rebate_refunded NUMERIC DEFAULT 0;
       ALTER TABLE refunds ADD COLUMN IF NOT EXISTS client_rebate_refunded NUMERIC DEFAULT 0;
       ALTER TABLE refunds ADD COLUMN IF NOT EXISTS platform_commission_refunded NUMERIC DEFAULT 0;
@@ -371,7 +371,7 @@ const MIGRATIONS = [
       ALTER TABLE transactions ADD COLUMN IF NOT EXISTS last_operator_check TIMESTAMPTZ DEFAULT NULL;
       CREATE INDEX IF NOT EXISTS idx_tx_retry_until ON transactions(retry_until) WHERE status = 'pending';
 
-      -- KYC workflow marchand (CDC §6.3)
+      -- KYC workflow marchand 
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMPTZ DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_at TIMESTAMPTZ DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT NULL;
@@ -565,7 +565,7 @@ const MIGRATIONS = [
     version: 15,
     name: '015_refund_overdue_and_disbursements_table',
     up: `
-      -- Statut 'overdue' pour les remboursements dépassant le SLA 72h (CDC §4.4)
+      -- Statut 'overdue' pour les remboursements dépassant le SLA 72h 
       -- (pas de contrainte ENUM en PG natif, le statut est un TEXT libre)
       -- Index pour le worker de surveillance
       CREATE INDEX IF NOT EXISTS idx_refunds_status_created ON refunds(status, created_at) WHERE status = 'pending';
@@ -615,6 +615,15 @@ const MIGRATIONS = [
       -- Date de création des clés API marchands pour rotation automatique (CDC §5.4.1 — rotation 90j)
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS api_key_created_at TIMESTAMPTZ DEFAULT NOW();
       UPDATE merchants SET api_key_created_at = created_at WHERE api_key_created_at IS NULL;
+    `,
+  },
+  {
+    version: 21,
+    name: '021_transaction_sandbox_flag',
+    up: `
+      -- Distinguer les transactions sandbox des transactions réelles (CDC §dev)
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_sandbox BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE INDEX IF NOT EXISTS idx_transactions_sandbox ON transactions(merchant_id, is_sandbox, initiated_at DESC);
     `,
   },
   {

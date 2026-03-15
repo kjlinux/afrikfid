@@ -187,22 +187,23 @@ router.get('/me/profile', requireMerchant, async (req, res) => {
 
 // GET /api/v1/merchants/me/transactions (marchand connecté)
 router.get('/me/transactions', requireMerchant, async (req, res) => {
-  const { page = 1, limit = 20, status } = req.query;
+  const { page = 1, limit = 20, status, sandbox } = req.query;
+  const isSandboxView = sandbox === 'true';
   let sql = `
     SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as client_current_status
     FROM transactions t
     LEFT JOIN clients c ON t.client_id = c.id
-    WHERE t.merchant_id = $1
+    WHERE t.merchant_id = $1 AND t.is_sandbox = $2
   `;
-  const params = [req.merchant.id];
-  let idx = 2;
+  const params = [req.merchant.id, isSandboxView];
+  let idx = 3;
   if (status) { sql += ` AND t.status = $${idx++}`; params.push(status); }
   sql += ` ORDER BY t.initiated_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (page - 1) * limit);
 
   const transactions = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = $1', [req.merchant.id])).rows[0].c);
-  res.json({ transactions, total });
+  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions WHERE merchant_id = $1 AND is_sandbox = $2', [req.merchant.id, isSandboxView])).rows[0].c);
+  res.json({ transactions, total, isSandbox: isSandboxView });
 });
 
 // GET /api/v1/merchants/me/stats (marchand connecté)
@@ -217,12 +218,12 @@ router.get('/me/stats', requireMerchant, async (req, res) => {
       COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
       COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count,
       COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count
-    FROM transactions WHERE merchant_id = $1
+    FROM transactions WHERE merchant_id = $1 AND is_sandbox = FALSE
   `, [mid]);
 
   const byStatusRes = await db.query(`
     SELECT client_loyalty_status, COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as volume
-    FROM transactions WHERE merchant_id = $1 AND status = 'completed'
+    FROM transactions WHERE merchant_id = $1 AND status = 'completed' AND is_sandbox = FALSE
     GROUP BY client_loyalty_status
   `, [mid]);
 
@@ -243,7 +244,7 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
       COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.client_rebate_amount ELSE 0 END), 0) as "totalRebates",
       MAX(t.initiated_at) as "lastTx"
     FROM clients c
-    JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1
+    JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1 AND t.is_sandbox = FALSE
     WHERE c.is_active = TRUE
   `;
   const params = [mid];
@@ -274,13 +275,37 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
   res.json({ clients, total, page: parseInt(page), limit: parseInt(limit), stats: { byStatus: byStatusRes } });
 });
 
+// PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres (CDC §4.2.2)
+// Seuls les champs autorisés au marchand : webhook_url, rebate_mode, allow_guest_mode
+router.patch('/me/settings', requireMerchant, async (req, res) => {
+  const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode'];
+  const updates = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) updates[key] = req.body[key];
+  }
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'Aucun paramètre modifiable fourni' });
+  }
+  updates.updated_at = new Date().toISOString();
+  const keys = Object.keys(updates);
+  const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+  await db.query(`UPDATE merchants SET ${setClause} WHERE id = $${keys.length + 1}`, [...Object.values(updates), req.merchant.id]);
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.merchant.id])).rows[0];
+  res.json({ merchant: sanitizeMerchant(merchant, true) });
+});
+
 // POST /api/v1/merchants/me/reveal-secret — Révéler la clé secrète (mot de passe requis)
 router.post('/me/reveal-secret', requireMerchant, async (req, res) => {
   const { password } = req.body;
   if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
 
-  const result = await db.query('SELECT password_hash, api_key_secret, sandbox_key_secret FROM merchants WHERE id = $1', [req.merchant.id]);
+  const result = await db.query('SELECT password_hash, api_key_secret, sandbox_key_secret, kyc_status FROM merchants WHERE id = $1', [req.merchant.id]);
   const merchant = result.rows[0];
+
+  if (merchant.kyc_status !== 'approved') {
+    return res.status(403).json({ error: 'KYC_REQUIRED', message: 'Votre KYC doit être approuvé pour accéder aux clés API de production.' });
+  }
+
   if (!merchant.password_hash) return res.status(400).json({ error: 'Aucun mot de passe défini sur ce compte' });
 
   const valid = await bcrypt.compare(password, merchant.password_hash);
@@ -399,48 +424,52 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 });
 
 // POST /api/v1/merchants/register (self-service)
-router.post('/register', async (req, res) => {
-  const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;
-
-  if (!name || !email || !phone || !country_id || !password) {
-    return res.status(400).json({ error: 'name, email, phone, country_id et password sont requis' });
-  }
-  if (!email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
-  if (password.length < 8) return res.status(400).json({ error: 'Mot de passe: minimum 8 caractères' });
-
-  const existing = await db.query('SELECT id FROM merchants WHERE email = $1', [email]);
-  if (existing.rows[0]) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
-
-  const id = uuidv4();
-  const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
-  const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
-  const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
-  const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
-  const passwordHash = await bcrypt.hash(password, 10);
-
+router.post('/register', async (req, res, next) => {
   try {
-    await db.query(`
-      INSERT INTO merchants (
-        id, name, email, phone, country_id, category,
-        rebate_percent, rebate_mode, website,
-        api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
-        webhook_url, password_hash, status, kyc_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'pending', 'pending')
-    `, [
-      id, name, email, phone, country_id, category || 'general',
-      parseFloat(rebate_percent) || 5, rebate_mode || 'cashback', website || null,
-      apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
-      webhook_url || null, passwordHash,
-    ]);
-  } catch (e) {
-    if (e.message?.includes('unique') || e.code === '23505') return res.status(409).json({ error: 'Email déjà utilisé' });
-    throw e;
-  }
+    const { name, email, phone, country_id, category, rebate_percent, rebate_mode, webhook_url, website, password } = req.body;
 
-  res.status(201).json({
-    message: "Demande d'inscription reçue. Notre équipe validera votre compte sous 24-48h.",
-    id,
-  });
+    if (!name || !email || !phone || !country_id || !password) {
+      return res.status(400).json({ error: 'name, email, phone, country_id et password sont requis' });
+    }
+    if (!email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
+    if (password.length < 8) return res.status(400).json({ error: 'Mot de passe: minimum 8 caractères' });
+
+    const existing = await db.query('SELECT id FROM merchants WHERE email = $1', [email]);
+    if (existing.rows[0]) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
+
+    const id = uuidv4();
+    const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
+    const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
+    const apiKeyPublic = `af_pub_${uuidv4().replace(/-/g, '')}`;
+    const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    try {
+      await db.query(`
+        INSERT INTO merchants (
+          id, name, email, phone, country_id, category,
+          rebate_percent, rebate_mode, website,
+          api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
+          webhook_url, password_hash, status, kyc_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'pending', 'pending')
+      `, [
+        id, name, email, phone, country_id, category || 'general',
+        parseFloat(rebate_percent) || 5, rebate_mode || 'cashback', website || null,
+        apiKeyPublic, apiKeySecret, sandboxKeyPublic, sandboxKeySecret,
+        webhook_url || null, passwordHash,
+      ]);
+    } catch (e) {
+      if (e.message?.includes('unique') || e.code === '23505') return res.status(409).json({ error: 'Email déjà utilisé' });
+      throw e;
+    }
+
+    res.status(201).json({
+      message: "Demande d'inscription reçue. Notre équipe validera votre compte sous 24-48h.",
+      id,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 function sanitizeMerchant(m, includeKeys = false) {
@@ -450,6 +479,12 @@ function sanitizeMerchant(m, includeKeys = false) {
     category: m.category, rebatePercent: m.rebate_percent, rebateMode: m.rebate_mode,
     settlementFrequency: m.settlement_frequency, webhookUrl: m.webhook_url,
     status: m.status, kycStatus: m.kyc_status, isActive: m.is_active,
+    kycSubmittedAt: m.kyc_submitted_at,
+    kycReviewedAt: m.kyc_reviewed_at,
+    kycRejectionReason: m.kyc_rejection_reason,
+    kycDocuments: m.kyc_documents
+      ? (typeof m.kyc_documents === 'string' ? JSON.parse(m.kyc_documents) : m.kyc_documents)
+      : null,
     maxTransactionAmount: m.max_transaction_amount ?? null,
     dailyVolumeLimit: m.daily_volume_limit ?? null,
     allowGuestMode: m.allow_guest_mode !== false && m.allow_guest_mode !== 0,
@@ -520,7 +555,7 @@ router.get('/me/refunds', requireMerchant, async (req, res) => {
   res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// ─── Taux X% par catégorie de produit (CDC §2.1) ──────────────────────────────
+// ─── Taux X% par catégorie de produit  ──────────────────────────────
 
 // GET /api/v1/merchants/:id/category-rates
 router.get('/:id/category-rates', requireAdmin, async (req, res, next) => {

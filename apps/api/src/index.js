@@ -89,7 +89,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '1mb' }));
 
-// Confiance proxy (Nginx/Kubernetes ingress) pour obtenir la vraie IP client (CDC §5.4.2)
+// Confiance proxy (Nginx/Kubernetes ingress) pour obtenir la vraie IP client 
 app.set('trust proxy', process.env.TRUST_PROXY === 'false' ? false : 1);
 
 // Rate limiting par IP (CDC §5.4.2 — "rate limiting par IP et par clé API")
@@ -172,7 +172,7 @@ const promClient = require('prom-client');
 const promRegistry = new promClient.Registry();
 promClient.collectDefaultMetrics({ register: promRegistry, prefix: 'afrikfid_node_' });
 
-// Histogramme de latence HTTP — permet de mesurer P50/P95/P99 (CDC §5.5)
+// Histogramme de latence HTTP — permet de mesurer P50/P95/P99 
 const httpRequestDurationMs = new promClient.Histogram({
   name: 'afrikfid_http_request_duration_ms',
   help: 'Durée des requêtes HTTP en millisecondes',
@@ -252,7 +252,7 @@ app.use(errorHandler);
 
 // ─── Crons (désactivés en test) ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  // Batch fidélité: quotidien à 2h ou hebdomadaire le lundi selon LOYALTY_BATCH_FREQUENCY (CDC §2.6)
+  // Batch fidélité: quotidien à 2h ou hebdomadaire le lundi selon LOYALTY_BATCH_FREQUENCY 
   // Valeurs acceptées: 'daily' (défaut) ou 'weekly' (lundi à 2h)
   const loyaltyBatchFreq = (process.env.LOYALTY_BATCH_FREQUENCY || 'daily').toLowerCase();
   const loyaltyCronExpr = loyaltyBatchFreq === 'weekly' ? '0 2 * * 1' : '0 2 * * *';
@@ -279,7 +279,7 @@ if (process.env.NODE_ENV !== 'test') {
               old_status: r.currentStatus,
               new_status: r.newStatus,
               changed_at: new Date().toISOString(),
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       }
@@ -289,20 +289,32 @@ if (process.env.NODE_ENV !== 'test') {
 
   // File de retry webhooks: toutes les 2 minutes
   new CronJob('*/2 * * * *', async () => {
-    const count = await processRetryQueue();
-    if (count > 0) console.log(`[CRON] Webhooks retry: ${count} traité(s)`);
+    try {
+      const count = await processRetryQueue();
+      if (count > 0) console.log(`[CRON] Webhooks retry: ${count} traité(s)`);
+    } catch (err) {
+      console.error('[CRON] processRetryQueue error:', err.message);
+    }
   }, null, true, 'Africa/Abidjan');
 
   // Expiration transactions pending: toutes les 30 secondes (CDC §4.1.4)
   new CronJob('*/30 * * * * *', async () => {
-    await processExpiredTransactions();
+    try {
+      await processExpiredTransactions();
+    } catch (err) {
+      console.error('[CRON] processExpiredTransactions error:', err.message);
+    }
   }, null, true, 'Africa/Abidjan');
 
   // Rafraîchissement automatique des taux de change: toutes les heures (si fournisseur configuré)
   new CronJob('0 * * * *', async () => {
-    if (process.env.OPENEXCHANGERATES_APP_ID || process.env.FIXER_API_KEY) {
-      const result = await refreshExchangeRates();
-      if (result.updated > 0) console.log(`[CRON] Taux de change mis à jour (${result.source}): ${result.updated} paires`);
+    try {
+      if (process.env.OPENEXCHANGERATES_APP_ID || process.env.FIXER_API_KEY) {
+        const result = await refreshExchangeRates();
+        if (result.updated > 0) console.log(`[CRON] Taux de change mis à jour (${result.source}): ${result.updated} paires`);
+      }
+    } catch (err) {
+      console.error('[CRON] refreshExchangeRates error:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
 

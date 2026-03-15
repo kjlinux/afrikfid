@@ -112,7 +112,7 @@ async function processExpiredRetry() {
         client: { phone: tx.payment_phone },
         transaction: tx,
         errorMessage: 'Transaction expirée (timeout opérateur)',
-      }).catch(() => {});
+      });
     }
   }
 

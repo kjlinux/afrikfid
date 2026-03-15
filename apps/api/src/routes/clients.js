@@ -142,8 +142,14 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     }
   }
 
+  // Pour admin et le client lui-même : déchiffrer et inclure l'email
+  let emailDecrypted = null;
+  if ((req.admin || req.client?.id === client.id) && client.email) {
+    try { emailDecrypted = decrypt(client.email); } catch { /* ignore */ }
+  }
+
   res.json({
-    client: sanitizeClient(client),
+    client: { ...sanitizeClient(client), email: emailDecrypted },
     wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
     stats: txStats,
     nextStatusEligibility,

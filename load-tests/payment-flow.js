@@ -1,5 +1,5 @@
 /**
- * Test de charge k6 — Flux de paiement principal (CDC §5.5)
+ * Test de charge k6 — Flux de paiement principal 
  * Cible : 500 VU simultanés, P95 < 2s, P99 < 5s
  *
  * Usage:
@@ -24,9 +24,9 @@ const CLIENT_AFRIKFID_ID = __ENV.CLIENT_ID || null;
 export const options = {
   stages: [
     { duration: '30s', target: 50 },   // montée progressive
-    { duration: '1m',  target: 200 },  // charge intermédiaire
-    { duration: '2m',  target: 500 },  // charge cible (CDC §5.5 — 500 tx simultanées)
-    { duration: '1m',  target: 500 },  // maintien
+    { duration: '1m', target: 200 },  // charge intermédiaire
+    { duration: '2m', target: 500 },  // charge cible (CDC §5.5 — 500 tx simultanées)
+    { duration: '1m', target: 500 },  // maintien
     { duration: '30s', target: 0 },    // descente
   ],
   thresholds: {

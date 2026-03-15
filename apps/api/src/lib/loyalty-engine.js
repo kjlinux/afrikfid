@@ -14,7 +14,7 @@ async function getLoyaltyConfig() {
 
 /**
  * Retourne le taux Y% pour un statut donné.
- * Priorité (CDC §2.5): catégorie marchand > pays > global
+ * Priorité : catégorie marchand > pays > global
  * @param {string} loyaltyStatus
  * @param {string|null} countryId
  * @param {string|null} merchantCategory
@@ -42,7 +42,7 @@ async function getClientRebatePercent(loyaltyStatus, countryId = null, merchantC
 }
 
 async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null, merchantCategory = null, merchantId = null) {
-  // Priorité X% : taux par catégorie produit marchand > taux global marchand (CDC §2.1)
+  // Priorité X% : taux par catégorie produit marchand > taux global marchand 
   let effectiveX = merchantRebatePercent;
   if (merchantId && merchantCategory) {
     const catRate = await db.query(
@@ -114,7 +114,7 @@ async function evaluateClientStatus(clientId) {
   const currentStatus = client.loyalty_status;
   let newStatus = 'OPEN';
 
-  // Rétrogradation par inactivité (CDC §2.6) : si aucune transaction dans inactivity_months
+  // Rétrogradation par inactivité  : si aucune transaction dans inactivity_months
   const currentConfig = configs.find(c => c.status === currentStatus);
   if (currentConfig && currentConfig.inactivity_months > 0 && currentStatus !== 'OPEN') {
     const inactivityCutoff = new Date();
@@ -137,17 +137,17 @@ async function evaluateClientStatus(clientId) {
 
   const royalConfig = configs.find(c => c.status === 'ROYAL');
   if (royalConfig && twelveMonthStats.count >= royalConfig.min_purchases &&
-      twelveMonthStats.total >= royalConfig.min_cumulative_amount) {
+    twelveMonthStats.total >= royalConfig.min_cumulative_amount) {
     newStatus = 'ROYAL';
   } else {
     const goldConfig = configs.find(c => c.status === 'GOLD');
     if (goldConfig && sixMonthStats.count >= goldConfig.min_purchases &&
-        sixMonthStats.total >= goldConfig.min_cumulative_amount) {
+      sixMonthStats.total >= goldConfig.min_cumulative_amount) {
       newStatus = 'GOLD';
     } else {
       const liveConfig = configs.find(c => c.status === 'LIVE');
       if (liveConfig && recentStats.count >= liveConfig.min_purchases &&
-          recentStats.total >= liveConfig.min_cumulative_amount) {
+        recentStats.total >= liveConfig.min_cumulative_amount) {
         newStatus = 'LIVE';
       }
     }

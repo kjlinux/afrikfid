@@ -167,7 +167,7 @@ export default function AdminClients() {
                     {[
                       ['ID Afrik\'Fid', selected.afrikfidId],
                       ['Téléphone', selected.phone],
-                      ['Email', selected.email || '—'],
+                      ['Email', clientDetail.client?.email || '—'],
                       ['Pays', selected.countryId],
                       ['Inscrit le', selected.createdAt?.split('T')[0]],
                       ['Statut depuis', selected.statusSince?.split('T')[0]],

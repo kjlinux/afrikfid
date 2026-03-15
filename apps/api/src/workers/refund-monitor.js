@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Worker de surveillance des remboursements en attente (CDC §4.4)
+ * Worker de surveillance des remboursements en attente 
  *
  * Le CDC impose un délai maximum de traitement de 72h pour les remboursements.
  * Ce worker s'exécute toutes les heures et :

@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import {
+  PencilSquareIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/outline'
+
+async function openKycFile(merchantId, filename) {
+  const res = await api.get(`/merchants/${merchantId}/kyc/files/${filename}`, { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data)
+  window.open(url, '_blank')
+}
 
 const STATUS_COLOR = { active: '#10b981', pending: '#f59e0b', suspended: '#ef4444' }
 const KYC_COLOR = { approved: '#10b981', pending: '#f59e0b', rejected: '#ef4444' }
@@ -37,9 +48,13 @@ export default function AdminMerchants() {
   const [q, setQ] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [editForm, setEditForm] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState(null)
   const [kycMerchant, setKycMerchant] = useState(null)
   const [kycForm, setKycForm] = useState({ decision: 'approved', rejection_reason: '' })
   const [kycSaving, setKycSaving] = useState(false)
+  const [kycError, setKycError] = useState('')
   const [form, setForm] = useState({ name: '', email: '', phone: '', country_id: 'CI', rebate_percent: 10, rebate_mode: 'cashback', category: 'retail', password: 'Merchant@2026!' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -74,17 +89,21 @@ export default function AdminMerchants() {
   const submitKycReview = async e => {
     e.preventDefault()
     setKycSaving(true)
+    setKycError('')
     try {
       await api.patch(`/merchants/${kycMerchant.id}/kyc/review`, {
-        decision: kycForm.decision,
-        rejection_reason: kycForm.decision === 'rejected' ? kycForm.rejection_reason : undefined,
+        action: kycForm.decision,
+        reason: kycForm.decision === 'reject' ? kycForm.rejection_reason : undefined,
       })
-      setMsg(`KYC ${kycForm.decision === 'approved' ? 'approuvé' : 'rejeté'} pour ${kycMerchant.name}`)
+      setMsg(`KYC ${kycForm.decision === 'approve' ? 'approuvé' : 'rejeté'} pour ${kycMerchant.name}`)
       setKycMerchant(null)
       setKycForm({ decision: 'approved', rejection_reason: '' })
+      setKycError('')
       load()
     } catch (err) {
-      setMsg(err.response?.data?.message || 'Erreur lors de la revue KYC')
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Erreur lors de la revue KYC'
+      setKycError(msg)
+      console.error('[KYC review]', err.response?.data || err.message)
     } finally { setKycSaving(false) }
   }
 
@@ -148,12 +167,24 @@ export default function AdminMerchants() {
                         Suspendre
                       </button>
                     )}
-                    <button onClick={() => setSelected(m)}
-                      style={{ padding: '4px 10px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', cursor: 'pointer', fontSize: 12 }}>
+                    <button onClick={() => {
+                        setSelected(m)
+                        setEditForm({
+                          rebate_percent: m.rebatePercent,
+                          rebate_mode: m.rebateMode || 'cashback',
+                          settlement_frequency: m.settlementFrequency || 'daily',
+                          max_transaction_amount: m.maxTransactionAmount || '',
+                          daily_volume_limit: m.dailyVolumeLimit || '',
+                          allow_guest_mode: m.allowGuestMode !== false,
+                        })
+                        setEditMsg(null)
+                      }}
+                      style={{ padding: '4px 10px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <PencilSquareIcon style={{ width: 12, height: 12 }} />
                       Détails
                     </button>
                     {m.kycStatus === 'submitted' && (
-                      <button onClick={() => { setKycMerchant(m); setKycForm({ decision: 'approved', rejection_reason: '' }) }}
+                      <button onClick={() => { setKycMerchant(m); setKycForm({ decision: 'approved', rejection_reason: '' }); setKycError('') }}
                         style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 6, color: '#f59e0b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                         Revue KYC
                       </button>
@@ -229,14 +260,57 @@ export default function AdminMerchants() {
       {/* KYC Review Modal */}
       {kycMerchant && (
         <Modal title={`Revue KYC — ${kycMerchant.name}`} onClose={() => setKycMerchant(null)}>
-          <div style={{ marginBottom: 20, padding: 14, background: '#0f172a', borderRadius: 8 }}>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Documents soumis</div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', fontWeight: 600 }}>Documents soumis</div>
             {kycMerchant.kycDocuments ? (
-              <pre style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
-                {JSON.stringify(kycMerchant.kycDocuments, null, 2)}
-              </pre>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {/* Infos textuelles */}
+                {kycMerchant.kycDocuments.gerant_name && (
+                  <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>NOM DU GÉRANT</div>
+                    <div style={{ fontSize: 14, color: '#f1f5f9', fontWeight: 600 }}>{kycMerchant.kycDocuments.gerant_name}</div>
+                  </div>
+                )}
+                {kycMerchant.kycDocuments.rccm_number && (
+                  <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>N° RCCM</div>
+                    <div style={{ fontSize: 14, color: '#f1f5f9', fontFamily: 'monospace' }}>{kycMerchant.kycDocuments.rccm_number}</div>
+                  </div>
+                )}
+                {/* Fichiers uploadés */}
+                {kycMerchant.kycDocuments.files?.length > 0 && (
+                  <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>FICHIERS ({kycMerchant.kycDocuments.files.length})</div>
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      {kycMerchant.kycDocuments.files.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 13, color: '#f1f5f9' }}>{f.originalName}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>
+                              {f.mimeType} · {(f.sizeBytes / 1024).toFixed(0)} Ko
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => openKycFile(kycMerchant.id, f.storedName)}
+                            style={{ padding: '5px 12px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            Voir
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {kycMerchant.kycDocuments.submittedAt && (
+                  <div style={{ fontSize: 11, color: '#475569', textAlign: 'right' }}>
+                    Soumis le {new Date(kycMerchant.kycDocuments.submittedAt).toLocaleString('fr-FR')}
+                  </div>
+                )}
+              </div>
             ) : (
-              <span style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>Aucun document joint</span>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '14px', fontSize: 13, color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
+                Aucun document joint
+              </div>
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
@@ -250,11 +324,11 @@ export default function AdminMerchants() {
           <form onSubmit={submitKycReview}>
             <Field label="Décision">
               <select value={kycForm.decision} onChange={e => setKycForm(f => ({ ...f, decision: e.target.value }))} style={sel}>
-                <option value="approved">Approuver</option>
-                <option value="rejected">Rejeter</option>
+                <option value="approve">Approuver</option>
+                <option value="reject">Rejeter</option>
               </select>
             </Field>
-            {kycForm.decision === 'rejected' && (
+            {kycForm.decision === 'reject' && (
               <Field label="Motif de rejet *">
                 <textarea
                   required
@@ -266,39 +340,141 @@ export default function AdminMerchants() {
                 />
               </Field>
             )}
+            {kycError && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, marginTop: 12 }}>
+                {kycError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button type="button" onClick={() => setKycMerchant(null)}
                 style={{ flex: 1, padding: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}>
                 Annuler
               </button>
               <button type="submit" disabled={kycSaving}
-                style={{ flex: 1, padding: '11px', background: kycSaving ? '#374151' : (kycForm.decision === 'approved' ? '#10b981' : '#ef4444'), border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
-                {kycSaving ? 'Enregistrement...' : (kycForm.decision === 'approved' ? 'Approuver le KYC' : 'Rejeter le KYC')}
+                style={{ flex: 1, padding: '11px', background: kycSaving ? '#374151' : (kycForm.decision === 'approve' ? '#10b981' : '#ef4444'), border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+                {kycSaving ? 'Enregistrement...' : (kycForm.decision === 'approve' ? 'Approuver le KYC' : 'Rejeter le KYC')}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Detail Modal */}
-      {selected && (
-        <Modal title={selected.name} onClose={() => setSelected(null)}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {/* Detail / Edit Modal */}
+      {selected && editForm && (
+        <Modal title={`Paramètres — ${selected.name}`} onClose={() => { setSelected(null); setEditForm(null); setEditMsg(null) }}>
+          {/* Infos lecture seule */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
             {[
-              ['Email', selected.email], ['Téléphone', selected.phone],
-              ['Pays', selected.countryId], ['Catégorie', selected.category],
-              ['Remise X%', `${selected.rebatePercent}%`], ['Mode', selected.rebateMode],
-              ['Statut', selected.status], ['KYC', selected.kycStatus],
+              ['Email', selected.email], ['Pays', selected.countryId],
+              ['Catégorie', selected.category], ['KYC', selected.kycStatus],
             ].map(([k, v]) => (
-              <div key={k}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2, textTransform: 'uppercase' }}>{k}</div>
-                <div style={{ fontSize: 14, color: '#f1f5f9', fontWeight: 500 }}>{v || '—'}</div>
+              <div key={k} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 12px' }}>
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2, textTransform: 'uppercase' }}>{k}</div>
+                <div style={{ fontSize: 13, color: '#f1f5f9' }}>{v || '—'}</div>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 20, padding: '14px', background: '#0f172a', borderRadius: 8 }}>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4, textTransform: 'uppercase' }}>Clé API Sandbox</div>
-            <code style={{ fontSize: 12, color: '#f59e0b', wordBreak: 'break-all' }}>{selected.sandboxKeyPublic}</code>
+
+          {editMsg && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+              background: editMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${editMsg.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              color: editMsg.type === 'success' ? '#10b981' : '#ef4444',
+              borderRadius: 8, padding: '10px 14px', fontSize: 13,
+            }}>
+              {editMsg.type === 'success'
+                ? <CheckCircleIcon style={{ width: 15, height: 15, flexShrink: 0 }} />
+                : <ExclamationCircleIcon style={{ width: 15, height: 15, flexShrink: 0 }} />}
+              {editMsg.text}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Paramètres modifiables</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <Field label="Taux de remise X% *">
+              <input type="number" min="0" max="50" step="0.5"
+                value={editForm.rebate_percent}
+                onChange={e => setEditForm(f => ({ ...f, rebate_percent: parseFloat(e.target.value) }))}
+                style={inp} />
+            </Field>
+            <Field label="Mode de remise client">
+              <select value={editForm.rebate_mode} onChange={e => setEditForm(f => ({ ...f, rebate_mode: e.target.value }))} style={sel}>
+                <option value="cashback">Cashback différé</option>
+                <option value="immediate">Remise immédiate</option>
+              </select>
+            </Field>
+            <Field label="Fréquence de settlement">
+              <select value={editForm.settlement_frequency} onChange={e => setEditForm(f => ({ ...f, settlement_frequency: e.target.value }))} style={sel}>
+                <option value="instant">Instantané</option>
+                <option value="daily">Quotidien</option>
+                <option value="weekly">Hebdomadaire</option>
+              </select>
+            </Field>
+            <Field label="Montant max / transaction (XOF)">
+              <input type="number" min="0"
+                value={editForm.max_transaction_amount}
+                onChange={e => setEditForm(f => ({ ...f, max_transaction_amount: e.target.value }))}
+                placeholder="Illimité"
+                style={inp} />
+            </Field>
+            <Field label="Volume quotidien maximum (XOF)">
+              <input type="number" min="0"
+                value={editForm.daily_volume_limit}
+                onChange={e => setEditForm(f => ({ ...f, daily_volume_limit: e.target.value }))}
+                placeholder="Illimité"
+                style={inp} />
+            </Field>
+          </div>
+
+          {/* Toggle mode invité */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#0f172a', borderRadius: 8, marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>Mode invité (clients sans compte)</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                {editForm.allow_guest_mode
+                  ? "Autorisé — paiement sans remise si client non identifié"
+                  : "Désactivé — transaction refusée si client sans compte Afrik'Fid"}
+              </div>
+            </div>
+            <button type="button" onClick={() => setEditForm(f => ({ ...f, allow_guest_mode: !f.allow_guest_mode }))}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0, marginLeft: 16,
+                background: editForm.allow_guest_mode ? '#10b981' : '#334155', position: 'relative', transition: 'background 0.2s',
+              }}>
+              <span style={{
+                position: 'absolute', top: 3, left: editForm.allow_guest_mode ? 23 : 3,
+                width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                transition: 'left 0.2s', display: 'block',
+              }} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={() => { setSelected(null); setEditForm(null); setEditMsg(null) }}
+              style={{ flex: 1, padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer' }}>
+              Fermer
+            </button>
+            <button type="button" disabled={editSaving} onClick={async () => {
+              setEditSaving(true); setEditMsg(null)
+              try {
+                await api.patch(`/merchants/${selected.id}`, {
+                  rebate_percent: editForm.rebate_percent,
+                  rebate_mode: editForm.rebate_mode,
+                  settlement_frequency: editForm.settlement_frequency,
+                  max_transaction_amount: editForm.max_transaction_amount !== '' ? Number(editForm.max_transaction_amount) : null,
+                  daily_volume_limit: editForm.daily_volume_limit !== '' ? Number(editForm.daily_volume_limit) : null,
+                  allow_guest_mode: editForm.allow_guest_mode,
+                })
+                setEditMsg({ type: 'success', text: 'Paramètres enregistrés.' })
+                load()
+              } catch (e) {
+                setEditMsg({ type: 'error', text: e.response?.data?.error || 'Erreur' })
+              } finally { setEditSaving(false) }
+            }}
+              style={{ flex: 2, padding: '10px', background: editSaving ? '#374151' : '#f59e0b', border: 'none', borderRadius: 8, color: '#0f172a', fontWeight: 700, cursor: editSaving ? 'default' : 'pointer' }}>
+              {editSaving ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
           </div>
         </Modal>
       )}

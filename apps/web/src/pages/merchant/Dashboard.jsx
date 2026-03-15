@@ -5,11 +5,13 @@ import { useAuth } from '../../App.jsx'
 import { fmt, KpiCard, Card, CopyButton, Spinner, PeriodSelector, exportCsv } from '../../components/ui.jsx'
 import { useSSE } from '../../hooks/useSSE.js'
 import { useToast } from '../../components/ToastNotification.jsx'
+import { Link } from 'react-router-dom'
 import {
   CurrencyDollarIcon,
   ChartBarIcon,
   GiftIcon,
   CheckCircleIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
@@ -66,6 +68,41 @@ export default function MerchantDashboard() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
+      {/* Bannière KYC */}
+      {profile.kycStatus !== 'approved' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+          background: profile.kycStatus === 'rejected' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+          border: `1px solid ${profile.kycStatus === 'rejected' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
+          borderRadius: 12, padding: '14px 20px', marginBottom: 24,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ShieldExclamationIcon style={{ width: 22, color: profile.kycStatus === 'rejected' ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: profile.kycStatus === 'rejected' ? '#ef4444' : '#f59e0b' }}>
+                {profile.kycStatus === 'submitted' && 'KYC en cours d\'examen'}
+                {profile.kycStatus === 'rejected' && 'KYC rejeté — action requise'}
+                {profile.kycStatus === 'pending' && 'Vérification KYC requise'}
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                {profile.kycStatus === 'submitted' && 'Notre équipe examine votre dossier. Vous serez notifié sous 24–48h.'}
+                {profile.kycStatus === 'rejected' && 'Votre dossier a été rejeté. Soumettez un nouveau dossier pour activer votre compte.'}
+                {profile.kycStatus === 'pending' && 'Soumettez vos documents pour activer les paiements sur votre compte.'}
+              </div>
+            </div>
+          </div>
+          {profile.kycStatus !== 'submitted' && (
+            <Link to="/merchant/kyc" style={{
+              padding: '8px 18px', background: profile.kycStatus === 'rejected' ? '#ef4444' : '#f59e0b',
+              color: '#0f172a', borderRadius: 8, fontWeight: 700, fontSize: 13,
+              textDecoration: 'none', whiteSpace: 'nowrap',
+            }}>
+              {profile.kycStatus === 'rejected' ? 'Resoumettre' : 'Compléter mon KYC'}
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>

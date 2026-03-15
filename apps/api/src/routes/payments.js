@@ -120,7 +120,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       clientPhone: client ? client.phone : 'inconnu',
       reason: `Anomalie config: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
-    }).catch(() => {});
+    }).catch(() => { });
     return res.status(422).json({
       error: 'DISTRIBUTION_ERROR',
       message: `Taux client Y (${distribution.clientRebatePercent}%) supérieur au taux marchand X (${distribution.merchantRebatePercent}%). Anomalie de configuration.`,
@@ -139,10 +139,10 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
       merchant_receives, client_loyalty_status, rebate_mode,
       payment_method, payment_operator, payment_phone,
-      status, currency, description, idempotency_key, expires_at, product_category
+      status, currency, description, idempotency_key, expires_at, product_category, is_sandbox
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-      $16, $17, $18, 'pending', $19, $20, $21, $22, $23
+      $16, $17, $18, 'pending', $19, $20, $21, $22, $23, $24
     )
   `, [
     txId, reference, merchant.id, client ? client.id : null,
@@ -152,12 +152,21 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     distribution.merchantReceives, loyaltyStatus, merchant.rebate_mode,
     payment_method, payment_operator || null, client_phone || null,
     currency, description || null, idempotency_key || null, expiresAt, product_category || null,
+    req.isSandbox ? true : false,
   ]);
 
   let mmResult = null;
   let cardResult = null;
 
-  if (payment_method === 'card') {
+  if (req.isSandbox) {
+    // Mode sandbox : simuler la réponse opérateur sans appel réel
+    if (payment_method === 'card') {
+      cardResult = { success: true, paymentUrl: `https://sandbox.afrikfid.com/pay/simulate/${txId}`, type: 'card_redirect' };
+    } else {
+      mmResult = { success: true, operatorRef: `SANDBOX-${Date.now()}`, status: 'pending' };
+      await db.query('UPDATE transactions SET operator_ref = $1 WHERE id = $2', [mmResult.operatorRef, txId]);
+    }
+  } else if (payment_method === 'card') {
     const cardProvider = getCardProvider();
     cardResult = await cardProvider.initiateCardPayment({
       transactionId: txId, reference, amount: distribution.grossAmount, currency,
@@ -188,8 +197,8 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       const countryCode = merchant.country_id || client?.country_id;
       const alternatives = countryCode
         ? getOperatorsForCountry(countryCode)
-            .map(op => op.code)
-            .filter(code => code !== (payment_operator || '').toUpperCase() && code !== 'MPESA')
+          .map(op => op.code)
+          .filter(code => code !== (payment_operator || '').toUpperCase() && code !== 'MPESA')
         : [];
 
       for (const altOperator of alternatives) {
@@ -257,7 +266,7 @@ router.post('/card/notify', async (req, res) => {
     await processCompletedPayment(tx);
   } else if (statusCheck.status === 'REFUSED' || statusCheck.status === 'CANCELLED') {
     await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`CinetPay: ${statusCheck.status}`, tx.id]);
-    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => { });
   }
 
   res.status(200).json({ message: 'OK' });
@@ -282,7 +291,7 @@ router.post('/card/flutterwave/notify', async (req, res) => {
     await processCompletedPayment(tx);
   } else if (statusCheck.status === 'failed') {
     await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Flutterwave: ${statusCheck.message}`, tx.id]);
-    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => {});
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => { });
   }
 
   res.status(200).json({ message: 'OK' });
@@ -311,7 +320,7 @@ router.post('/mm/mpesa/notify', async (req, res) => {
     } else {
       const desc = callback.ResultDesc || 'Paiement M-Pesa refusé';
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`M-Pesa: ${desc}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[mpesa/notify]', err.message);
@@ -336,7 +345,7 @@ router.post('/mm/wave/notify', async (req, res) => {
       await processCompletedPayment(tx);
     } else if (payment_status === 'error' || payment_status === 'cancelled') {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Wave: ${payment_status}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[wave/notify]', err.message);
@@ -361,7 +370,7 @@ router.post('/mm/moov/notify', async (req, res) => {
       await processCompletedPayment(tx);
     } else if (status === 'FAILED' || status === 'CANCELLED') {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Moov: ${status}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[moov/notify]', err.message);
@@ -405,7 +414,7 @@ router.post('/mm/orange/notify', async (req, res) => {
       await processCompletedPayment(tx);
     } else if (failStatuses.includes(normalizedStatus)) {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Orange: ${normalizedStatus}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[orange/notify]', err.message);
@@ -448,7 +457,7 @@ router.post('/mm/airtel/notify', async (req, res) => {
       await processCompletedPayment(tx);
     } else if (['TF', 'FAILED', 'CANCELLED'].includes(normalizedStatus)) {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Airtel: ${normalizedStatus}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[airtel/notify]', err.message);
@@ -490,24 +499,48 @@ router.post('/mm/mtn/notify', async (req, res) => {
     } else if (['FAILED', 'REJECTED', 'TIMEOUT', 'EXPIRED'].includes(normalizedStatus)) {
       const reason = body?.reason?.message || body?.reason || normalizedStatus;
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`MTN: ${reason}`, tx.id]);
-      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => {});
+      dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
   } catch (err) {
     console.error('[mtn/notify]', err.message);
   }
 });
 
-// POST /api/v1/payments/:id/confirm (sandbox)
-router.post('/:id/confirm', requireApiKey, async (req, res) => {
-  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2', [req.params.id, req.merchant.id])).rows[0];
+// POST /api/v1/payments/:id/sandbox/simulate — Simuler confirmation ou échec (sandbox uniquement)
+router.post('/:id/sandbox/simulate', requireApiKey, async (req, res) => {
+  if (!req.isSandbox) {
+    return res.status(403).json({ error: 'SANDBOX_ONLY', message: 'Cet endpoint est uniquement disponible en mode sandbox.' });
+  }
 
-  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (tx.status !== 'pending') return res.status(400).json({ error: `Statut actuel: ${tx.status}` });
+  const { outcome = 'success' } = req.body; // 'success' | 'failed' | 'expired'
+  if (!['success', 'failed', 'expired'].includes(outcome)) {
+    return res.status(400).json({ error: 'outcome doit être "success", "failed" ou "expired"' });
+  }
 
-  await processCompletedPayment(tx);
+  const tx = (await db.query(
+    'SELECT * FROM transactions WHERE id = $1 AND merchant_id = $2 AND is_sandbox = TRUE',
+    [req.params.id, req.merchant.id]
+  )).rows[0];
+
+  if (!tx) return res.status(404).json({ error: 'Transaction sandbox non trouvée' });
+  if (tx.status !== 'pending') return res.status(400).json({ error: `Transaction déjà traitée (statut: ${tx.status})` });
+
+  if (outcome === 'success') {
+    await processCompletedPayment(tx);
+  } else {
+    await db.query(
+      "UPDATE transactions SET status = $1, failure_reason = $2 WHERE id = $3",
+      [outcome, `Simulation sandbox: ${outcome}`, tx.id]
+    );
+    const event = outcome === 'expired' ? WebhookEvents.PAYMENT_EXPIRED : WebhookEvents.PAYMENT_FAILED;
+    dispatchWebhook(tx.merchant_id, event, { transactionId: tx.id, status: outcome }).catch(() => { });
+  }
 
   const updated = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
-  res.json({ transaction: sanitizeTx(updated), message: 'Paiement confirmé et distribution effectuée' });
+  res.json({
+    message: `Simulation "${outcome}" effectuée`,
+    transaction: sanitizeTx(updated),
+  });
 });
 
 // GET /api/v1/payments/:id/status
@@ -539,7 +572,7 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
   if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
 
-  // Vérification délai maximum 72h (CDC §4.4)
+  // Vérification délai maximum 72h 
   const hoursElapsed = (Date.now() - new Date(tx.completed_at).getTime()) / 3600000;
   if (hoursElapsed > 72) {
     return res.status(422).json({ error: 'Délai de remboursement dépassé (72h maximum après la transaction)', hours_elapsed: Math.round(hoursElapsed) });
@@ -548,7 +581,7 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
   const grossAmount = parseFloat(tx.gross_amount);
   const refundAmount = refund_type === 'full' ? grossAmount : Math.min(parseFloat(amount || grossAmount), grossAmount);
 
-  // Recalcul proportionnel X/Y/Z (CDC §4.4)
+  // Recalcul proportionnel X/Y/Z 
   const refundRatio = refundAmount / grossAmount;
   const merchantRebateRefunded = parseFloat(tx.merchant_rebate_amount) * refundRatio;
   const clientRebateRefunded = parseFloat(tx.client_rebate_amount) * refundRatio;
@@ -564,7 +597,7 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
       merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded, refundRatio]
   );
 
-  // Annulation du cashback client proportionnel (CDC §4.4)
+  // Annulation du cashback client proportionnel 
   if (tx.rebate_mode === 'cashback' && tx.client_id && clientRebateRefunded > 0) {
     const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [tx.client_id])).rows[0];
     if (wallet) {
@@ -590,7 +623,7 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
     refundAmount,
     refundRatio,
     distribution: { merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded },
-  }).catch(() => {});
+  }).catch(() => { });
 
   res.json({
     refundId,
@@ -648,7 +681,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
       clientPhone: client.phone || 'inconnu',
       reason: `Anomalie config wallet: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
-    }).catch(() => {});
+    }).catch(() => { });
     return res.status(422).json({ error: 'DISTRIBUTION_ERROR', message: 'Taux Y supérieur à X. Anomalie de configuration.' });
   }
 
@@ -703,7 +736,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
     VALUES ($1, $2, 'merchant', $3, $4, $5, 'completed', $6),
            ($7, $8, 'platform', 'afrikfid', $9, $10, 'completed', $11)
   `, [distId1, txId, merchant.id, distribution.merchantReceives, currency, now,
-      distId2, txId, distribution.platformCommissionAmount, currency, now]);
+    distId2, txId, distribution.platformCommissionAmount, currency, now]);
 
   // Si mode cashback: re-créditer Y% (récompense fidélité sur paiement wallet aussi)
   if (merchant.rebate_mode === 'cashback' && distribution.clientRebateAmount > 0) {
@@ -736,7 +769,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
 
   // Webhooks + SSE
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [txId])).rows[0];
-  dispatchWebhook(merchant.id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
+  dispatchWebhook(merchant.id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => { });
   emit(SSE_EVENTS.PAYMENT_SUCCESS, { transactionId: txId, reference, merchantId: merchant.id, status: 'completed', amount, currency, operator: 'wallet' });
 
   res.status(201).json({
@@ -830,7 +863,7 @@ async function processCompletedPayment(tx) {
       platform_commission_amount: tx.platform_commission_amount,
       payment_operator: tx.payment_operator,
     })]
-  ).catch(() => {});
+  ).catch(() => { });
 
   // Notifier les clients SSE en temps réel
   emit(SSE_EVENTS.PAYMENT_SUCCESS, {
@@ -845,7 +878,7 @@ async function processCompletedPayment(tx) {
     amount: tx.gross_amount, currency: tx.currency,
   });
 
-  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => {});
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => { });
 
   // Webhook distribution.completed (CDC §4.5.3)
   const distributions = (await db.query('SELECT * FROM distributions WHERE transaction_id = $1', [tx.id])).rows;
@@ -858,7 +891,7 @@ async function processCompletedPayment(tx) {
       currency: d.currency,
       status: d.status,
     })),
-  }).catch(() => {});
+  }).catch(() => { });
 
   if (tx.client_id) {
     const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];

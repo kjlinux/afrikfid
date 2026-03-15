@@ -1,5 +1,5 @@
 /**
- * Test de charge k6 — Batch fidélité & rapports (CDC §5.5)
+ * Test de charge k6 — Batch fidélité & rapports 
  * Cible : latence P95 < 2s pour les endpoints de reporting
  *
  * Usage:
@@ -20,8 +20,8 @@ const ADMIN_TOKEN = __ENV.ADMIN_TOKEN || '';
 export const options = {
   stages: [
     { duration: '20s', target: 20 },
-    { duration: '1m',  target: 100 },
-    { duration: '2m',  target: 200 },
+    { duration: '1m', target: 100 },
+    { duration: '2m', target: 200 },
     { duration: '30s', target: 0 },
   ],
   thresholds: {

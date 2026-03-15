@@ -1,5 +1,30 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import {
+  GlobeAltIcon,
+  WalletIcon,
+  ArrowPathIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  PlusIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/outline'
+
+const COUNTRIES = [
+  { id: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮' },
+  { id: 'SN', name: 'Sénégal',       flag: '🇸🇳' },
+  { id: 'BF', name: 'Burkina Faso',  flag: '🇧🇫' },
+  { id: 'ML', name: 'Mali',          flag: '🇲🇱' },
+  { id: 'NE', name: 'Niger',         flag: '🇳🇪' },
+  { id: 'TG', name: 'Togo',          flag: '🇹🇬' },
+  { id: 'BJ', name: 'Bénin',         flag: '🇧🇯' },
+  { id: 'CM', name: 'Cameroun',      flag: '🇨🇲' },
+  { id: 'TD', name: 'Tchad',         flag: '🇹🇩' },
+  { id: 'CG', name: 'Congo',         flag: '🇨🇬' },
+  { id: 'GA', name: 'Gabon',         flag: '🇬🇦' },
+  { id: 'KE', name: 'Kenya',         flag: '🇰🇪' },
+]
 
 const STATUS_META = {
   OPEN:  { color: '#6B7280' },
@@ -14,6 +39,23 @@ function StatusDot({ status }) {
 
 const inp = { width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 14, outline: 'none' }
 
+function SectionMsg({ msg }) {
+  if (!msg) return null
+  const ok = msg.type === 'success'
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      background: ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+      border: `1px solid ${ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+      color: ok ? '#10b981' : '#ef4444',
+      borderRadius: 8, padding: '9px 12px', fontSize: 12,
+    }}>
+      {ok ? <CheckCircleIcon style={{ width: 14, height: 14, flexShrink: 0 }} /> : <ExclamationCircleIcon style={{ width: 14, height: 14, flexShrink: 0 }} />}
+      {msg.text}
+    </div>
+  )
+}
+
 export default function AdminLoyalty() {
   const [configs, setConfigs] = useState([])
   const [stats, setStats] = useState(null)
@@ -22,9 +64,24 @@ export default function AdminLoyalty() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
+  // Taux par pays
+  const [countryOverrides, setCountryOverrides] = useState([])
+  const [countryMsg, setCountryMsg] = useState(null)
+  const [newOverride, setNewOverride] = useState({ country_id: 'CI', status: 'LIVE', rate: '' })
+  const [savingOverride, setSavingOverride] = useState(false)
+
+  // Plafond wallet
+  const [walletCap, setWalletCap] = useState('')
+  const [walletCapSaving, setWalletCapSaving] = useState(false)
+  const [walletMsg, setWalletMsg] = useState(null)
+
   const load = () => {
     api.get('/loyalty/config').then(r => setConfigs(r.data.config))
     api.get('/loyalty/stats').then(r => setStats(r.data))
+    api.get('/loyalty/config-country').then(r => setCountryOverrides(r.data.overrides))
+    api.get('/loyalty/wallet-config').then(r => {
+      setWalletCap(r.data.walletConfig?.default_max_balance ?? '')
+    })
   }
 
   useEffect(() => { load() }, [])
@@ -58,6 +115,43 @@ export default function AdminLoyalty() {
     const r = await api.post('/loyalty/batch')
     setMsg(r.data.message)
     load()
+  }
+
+  const saveOverride = async () => {
+    if (!newOverride.rate && newOverride.rate !== 0) return
+    setSavingOverride(true); setCountryMsg(null)
+    try {
+      await api.put(`/loyalty/config-country/${newOverride.country_id}/${newOverride.status}`, {
+        client_rebate_percent: parseFloat(newOverride.rate),
+      })
+      setCountryMsg({ type: 'success', text: 'Surcharge enregistrée.' })
+      setNewOverride(f => ({ ...f, rate: '' }))
+      load()
+    } catch (e) {
+      setCountryMsg({ type: 'error', text: e.response?.data?.error || 'Erreur' })
+    } finally { setSavingOverride(false) }
+  }
+
+  const deleteOverride = async (countryId, status) => {
+    setCountryMsg(null)
+    try {
+      await api.delete(`/loyalty/config-country/${countryId}/${status}`)
+      setCountryMsg({ type: 'success', text: 'Surcharge supprimée, taux global restauré.' })
+      load()
+    } catch (e) {
+      setCountryMsg({ type: 'error', text: e.response?.data?.error || 'Erreur' })
+    }
+  }
+
+  const saveWalletCap = async () => {
+    setWalletCapSaving(true); setWalletMsg(null)
+    try {
+      const cap = walletCap === '' ? null : parseFloat(walletCap)
+      await api.put('/loyalty/wallet-config', { default_max_balance: cap })
+      setWalletMsg({ type: 'success', text: cap ? `Plafond fixé à ${cap.toLocaleString('fr-FR')} XOF` : 'Plafond supprimé (illimité).' })
+    } catch (e) {
+      setWalletMsg({ type: 'error', text: e.response?.data?.error || 'Erreur' })
+    } finally { setWalletCapSaving(false) }
   }
 
   return (
@@ -190,6 +284,117 @@ export default function AdminLoyalty() {
         <p style={{ color: '#64748b', fontSize: 13, marginTop: 12 }}>
           Z% est toujours calculé automatiquement : <strong style={{ color: '#94a3b8' }}>Z = X − Y</strong>. Le système rejette toute transaction où Y &gt; X.
         </p>
+      </div>
+
+      {/* ─── Taux Y% par pays ──────────────────────────────────────────────── */}
+      <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <GlobeAltIcon style={{ width: 18, height: 18, color: '#3b82f6' }} />
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Surcharges Y% par pays </h3>
+        </div>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          Ces taux remplacent le taux global pour les clients d'un pays spécifique. Priorité : catégorie marchand &gt; pays &gt; global.
+        </p>
+
+        <SectionMsg msg={countryMsg} />
+
+        {/* Tableau des surcharges existantes */}
+        {countryOverrides.length > 0 ? (
+          <div style={{ background: '#0f172a', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#162032' }}>
+                  {['Pays', 'Statut', 'Taux Y%', ''].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {countryOverrides.map(o => {
+                  const c = COUNTRIES.find(c => c.id === o.country_id)
+                  return (
+                    <tr key={`${o.country_id}-${o.status}`} style={{ borderTop: '1px solid #1e293b' }}>
+                      <td style={{ padding: '8px 12px', color: '#f1f5f9' }}>{c?.flag} {o.country_name || o.country_id}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ background: `${STATUS_META[o.status]?.color}22`, color: STATUS_META[o.status]?.color, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{o.status}</span>
+                      </td>
+                      <td style={{ padding: '8px 12px', fontWeight: 700, color: '#10b981' }}>{o.client_rebate_percent}%</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <button onClick={() => deleteOverride(o.country_id, o.status)}
+                          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                          <TrashIcon style={{ width: 12, height: 12 }} /> Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ background: '#0f172a', borderRadius: 8, padding: '14px', fontSize: 13, color: '#475569', textAlign: 'center', marginBottom: 16 }}>
+            Aucune surcharge — tous les pays utilisent les taux globaux.
+          </div>
+        )}
+
+        {/* Formulaire ajout */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 2, minWidth: 140 }}>
+            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Pays</label>
+            <select value={newOverride.country_id} onChange={e => setNewOverride(f => ({ ...f, country_id: e.target.value }))}
+              style={{ ...inp, fontSize: 13 }}>
+              {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 100 }}>
+            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Statut</label>
+            <select value={newOverride.status} onChange={e => setNewOverride(f => ({ ...f, status: e.target.value }))}
+              style={{ ...inp, fontSize: 13 }}>
+              {['OPEN', 'LIVE', 'GOLD', 'ROYAL'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 80 }}>
+            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Taux Y%</label>
+            <input type="number" step="0.5" min="0" max="20"
+              value={newOverride.rate}
+              onChange={e => setNewOverride(f => ({ ...f, rate: e.target.value }))}
+              placeholder="ex: 6"
+              style={{ ...inp, fontSize: 13 }} />
+          </div>
+          <button onClick={saveOverride} disabled={savingOverride || !newOverride.rate}
+            style={{ padding: '9px 16px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#3b82f6', cursor: savingOverride ? 'default' : 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <PlusIcon style={{ width: 14, height: 14 }} />
+            {savingOverride ? 'Enregistrement...' : 'Ajouter / Mettre à jour'}
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Plafond wallet cashback ───────────────────────────────────────── */}
+      <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <WalletIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Plafond du portefeuille cashback (CDC §4.3.2)</h3>
+        </div>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          Montant maximum qu'un client peut accumuler dans son portefeuille cashback. Laisser vide = illimité.
+        </p>
+
+        <SectionMsg msg={walletMsg} />
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Plafond global (XOF)</label>
+            <input type="number" min="0"
+              value={walletCap}
+              onChange={e => setWalletCap(e.target.value)}
+              placeholder="Illimité (laisser vide)"
+              style={inp} />
+          </div>
+          <button onClick={saveWalletCap} disabled={walletCapSaving}
+            style={{ padding: '9px 20px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, color: '#f59e0b', cursor: walletCapSaving ? 'default' : 'pointer', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+            {walletCapSaving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        </div>
       </div>
     </div>
   )

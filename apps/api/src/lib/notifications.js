@@ -225,14 +225,11 @@ const templates = {
 // ─── Helpers de log ───────────────────────────────────────────────────────────
 
 function logNotification(type, recipient, channel, status, errorMsg = null) {
-  try {
-    db.prepare(`
-      INSERT INTO notification_log (id, type, recipient, channel, status, error, sent_at)
-      VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, datetime('now'))
-    `).run(type, recipient, channel, status, errorMsg);
-  } catch (e) {
-    console.error('[NOTIF/LOG]', e.message);
-  }
+  db.query(
+    `INSERT INTO notification_log (id, type, recipient, channel, status, error, sent_at)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())`,
+    [type, recipient, channel, status, errorMsg]
+  ).catch(e => console.error('[NOTIF/LOG]', e.message));
 }
 
 // ─── API publique ─────────────────────────────────────────────────────────────

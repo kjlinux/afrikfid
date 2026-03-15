@@ -3,15 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { publicApi as api } from '../api.js'
 
 const COUNTRIES = [
-  { id: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮' },
-  { id: 'SN', name: 'Sénégal',       flag: '🇸🇳' },
-  { id: 'BJ', name: 'Bénin',         flag: '🇧🇯' },
-  { id: 'ML', name: 'Mali',          flag: '🇲🇱' },
-  { id: 'BF', name: 'Burkina Faso',  flag: '🇧🇫' },
-  { id: 'TG', name: 'Togo',          flag: '🇹🇬' },
-  { id: 'GN', name: 'Guinée',        flag: '🇬🇳' },
-  { id: 'CM', name: 'Cameroun',      flag: '🇨🇲' },
-  { id: 'KE', name: 'Kenya',         flag: '🇰🇪' },
+  { id: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮', prefix: '+225', currency: 'XOF', digits: 10 },
+  { id: 'SN', name: 'Sénégal',       flag: '🇸🇳', prefix: '+221', currency: 'XOF', digits: 9  },
+  { id: 'BF', name: 'Burkina Faso',  flag: '🇧🇫', prefix: '+226', currency: 'XOF', digits: 8  },
+  { id: 'ML', name: 'Mali',          flag: '🇲🇱', prefix: '+223', currency: 'XOF', digits: 8  },
+  { id: 'NE', name: 'Niger',         flag: '🇳🇪', prefix: '+227', currency: 'XOF', digits: 8  },
+  { id: 'TG', name: 'Togo',          flag: '🇹🇬', prefix: '+228', currency: 'XOF', digits: 8  },
+  { id: 'BJ', name: 'Bénin',         flag: '🇧🇯', prefix: '+229', currency: 'XOF', digits: 8  },
+  { id: 'CM', name: 'Cameroun',      flag: '🇨🇲', prefix: '+237', currency: 'XAF', digits: 9  },
+  { id: 'TD', name: 'Tchad',         flag: '🇹🇩', prefix: '+235', currency: 'XAF', digits: 8  },
+  { id: 'CG', name: 'Congo',         flag: '🇨🇬', prefix: '+242', currency: 'XAF', digits: 9  },
+  { id: 'GA', name: 'Gabon',         flag: '🇬🇦', prefix: '+241', currency: 'XAF', digits: 8  },
+  { id: 'KE', name: 'Kenya',         flag: '🇰🇪', prefix: '+254', currency: 'KES', digits: 9  },
 ]
 
 const inp = {
@@ -24,7 +27,7 @@ const lbl = { display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600,
 export default function RegisterClient() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
-    full_name: '', phone: '', email: '', country_id: 'CI', password: '', password_confirm: '',
+    full_name: '', phoneLocal: '', email: '', country_id: 'CI', password: '', password_confirm: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -32,11 +35,21 @@ export default function RegisterClient() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  const selectedCountry = COUNTRIES.find(c => c.id === form.country_id) || COUNTRIES[0]
+
+  const handleCountryChange = (country_id) => {
+    setForm(f => ({ ...f, country_id, phoneLocal: '' }))
+  }
+
+  const fullPhone = form.phoneLocal.trim()
+    ? `${selectedCountry.prefix}${form.phoneLocal.replace(/^0+/, '').replace(/\s/g, '')}`
+    : ''
+
   const submit = async (e) => {
     e.preventDefault()
     setError('')
     if (!form.full_name.trim()) return setError('Nom complet requis.')
-    if (!form.phone.startsWith('+')) return setError('Numéro avec indicatif (ex: +2250700000000)')
+    if (!form.phoneLocal.trim()) return setError('Numéro de téléphone requis.')
     if (form.password.length < 6) return setError('Mot de passe : minimum 6 caractères.')
     if (form.password !== form.password_confirm) return setError('Les mots de passe ne correspondent pas.')
 
@@ -44,7 +57,7 @@ export default function RegisterClient() {
     try {
       const { data } = await api.post('/clients', {
         full_name: form.full_name,
-        phone: form.phone,
+        phone: fullPhone,
         email: form.email || undefined,
         country_id: form.country_id,
         password: form.password,
@@ -100,19 +113,50 @@ export default function RegisterClient() {
                 placeholder="Ex: Kouamé Jean-Baptiste" autoFocus />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div>
-                <label style={lbl}>Téléphone *</label>
-                <input style={inp} type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-                  placeholder="+2250700000000" />
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>Avec indicatif international</div>
+            {/* Pays */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Pays *</label>
+              <select style={inp} value={form.country_id} onChange={e => handleCountryChange(e.target.value)}>
+                {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.name}</option>)}
+              </select>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Indicatif : <strong style={{ color: '#94a3b8' }}>{selectedCountry.prefix}</strong>
+                </span>
+                <span style={{ color: '#334155' }}>·</span>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Devise : <strong style={{ color: '#f59e0b' }}>{selectedCountry.currency}</strong>
+                </span>
               </div>
-              <div>
-                <label style={lbl}>Pays *</label>
-                <select style={inp} value={form.country_id} onChange={e => set('country_id', e.target.value)}>
-                  {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.name}</option>)}
-                </select>
+            </div>
+
+            {/* Téléphone avec préfixe auto */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Téléphone *</label>
+              <div style={{ display: 'flex', gap: 0 }}>
+                <div style={{
+                  padding: '10px 12px', background: '#162032', border: '1px solid #334155',
+                  borderRight: 'none', borderRadius: '8px 0 0 8px', color: '#94a3b8',
+                  fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', userSelect: 'none',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span>{selectedCountry.flag}</span>
+                  <span>{selectedCountry.prefix}</span>
+                </div>
+                <input
+                  style={{ ...inp, borderRadius: '0 8px 8px 0', flex: 1 }}
+                  type="tel"
+                  value={form.phoneLocal}
+                  onChange={e => set('phoneLocal', e.target.value.replace(/[^\d\s]/g, ''))}
+                  placeholder={'0'.repeat(selectedCountry.digits)}
+                  maxLength={selectedCountry.digits + 2}
+                />
               </div>
+              {fullPhone && (
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Numéro complet : <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{fullPhone}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 14 }}>

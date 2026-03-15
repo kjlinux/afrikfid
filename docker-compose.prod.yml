@@ -6,10 +6,9 @@
 #
 # Prérequis: Docker 24+, Compose v2, domaine DNS configuré
 
-version: '3.9'
+version: "3.9"
 
 services:
-
   # ─── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -59,7 +58,7 @@ services:
       # Base de données PostgreSQL
       DATABASE_URL: postgres://afrikfid:${POSTGRES_PASSWORD}@postgres:5432/afrikfid
       DATABASE_SSL: "false"
-      # Redis sessions (CDC §5.2)
+      # Redis sessions
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       # Auth
       JWT_SECRET: ${JWT_SECRET}
@@ -113,7 +112,13 @@ services:
     expose:
       - "4001"
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:4001/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

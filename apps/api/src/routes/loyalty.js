@@ -36,7 +36,7 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
 
   const updated = (await db.query('SELECT * FROM loyalty_config WHERE status = $1', [status])).rows[0];
 
-  // Vérification anomalie Y > X : alerter si le taux Y% dépasse le X% minimal des marchands actifs (CDC §2.5)
+  // Vérification anomalie Y > X : alerter si le taux Y% dépasse le X% minimal des marchands actifs 
   const warnings = [];
   if (client_rebate_percent !== undefined) {
     const newY = parseFloat(client_rebate_percent);
@@ -83,7 +83,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
   res.json({ byStatus: stats, summary: transitions });
 });
 
-// ─── Taux Y% par pays (CDC §2.5) ──────────────────────────────────────────
+// ─── Taux Y% par pays  ──────────────────────────────────────────
 
 // GET /api/v1/loyalty/config-country — liste toutes les surcharges par pays
 router.get('/config-country', requireAdmin, async (req, res) => {

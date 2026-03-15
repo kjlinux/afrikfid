@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Client Redis avec fallback in-memory pour les sessions/tokens (CDC §5.2)
+ * Client Redis avec fallback in-memory pour les sessions/tokens 
  *
  * Variable d'environnement :
  *   REDIS_URL — ex. "redis://localhost:6379" ou "rediss://user:pass@host:6380"

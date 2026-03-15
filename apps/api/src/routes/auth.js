@@ -13,7 +13,7 @@ const { generateTotpSecret, generateQrCode, verifyTotp, generateBackupCodes } = 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const REFRESH_TTL = 7 * 24 * 3600; // 7 jours en secondes
 
-// ─── Anti-brute force sur les endpoints de login (CDC §5.4.2) ────────────────
+// ─── Anti-brute force sur les endpoints de login  ────────────────
 // Rate limit IP-level (mémoire) : premier filet de sécurité
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -381,32 +381,64 @@ router.delete('/merchant/2fa/disable', require('../middleware/auth').requireMerc
 });
 
 // ─── POST /api/v1/auth/client/login ──────────────────────────────────────────
+// Accepte : phone (local ou international), email, ou afrikfid_id + password
 router.post('/client/login', loginLimiter, async (req, res) => {
-  const { phone, password } = req.body;
-  if (!phone || !password) return res.status(400).json({ error: 'phone et password requis' });
+  const { phone, email, afrikfid_id, country_prefix, password } = req.body;
+  if (!password) return res.status(400).json({ error: 'password requis' });
+  if (!phone && !email && !afrikfid_id) return res.status(400).json({ error: 'phone, email ou afrikfid_id requis' });
 
-  if (await checkLockout(phone)) {
-    return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+  const { hashField, decrypt } = require('../lib/crypto');
+
+  let client = null;
+  let identifier = '';
+
+  if (afrikfid_id) {
+    // Connexion par identifiant Afrik'Fid (AFD-XXXX-XXXX)
+    identifier = afrikfid_id.trim().toUpperCase();
+    if (await checkLockout(identifier)) {
+      return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+    }
+    const result = await db.query('SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE', [identifier]);
+    client = result.rows[0];
+  } else if (email) {
+    // Connexion par email
+    identifier = email.trim().toLowerCase();
+    if (await checkLockout(identifier)) {
+      return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+    }
+    const emailHash = hashField(identifier);
+    const result = await db.query('SELECT * FROM clients WHERE email_hash = $1 AND is_active = TRUE', [emailHash]);
+    client = result.rows[0];
+  } else {
+    // Connexion par téléphone — normalisation du numéro
+    // Si le numéro commence par 0 et qu'un country_prefix est fourni, on compose le numéro international
+    let normalizedPhone = phone.trim().replace(/\s/g, '');
+    if (country_prefix && normalizedPhone.startsWith('0')) {
+      normalizedPhone = country_prefix + normalizedPhone.slice(1);
+    } else if (!normalizedPhone.startsWith('+')) {
+      // Numéro sans indicatif ni préfixe : on le laisse tel quel (hashField cherchera)
+    }
+    identifier = normalizedPhone;
+    if (await checkLockout(identifier)) {
+      return res.status(429).json({ error: 'ACCOUNT_LOCKED', message: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.' });
+    }
+    const phoneHash = hashField(normalizedPhone);
+    const result = await db.query('SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE', [phoneHash]);
+    client = result.rows[0];
   }
 
-  const { hashField } = require('../lib/crypto');
-  const { decrypt } = require('../lib/crypto');
-  const phoneHash = hashField(phone);
-
-  const result = await db.query('SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE', [phoneHash]);
-  const client = result.rows[0];
   if (!client || !client.password_hash) {
-    await recordFailure(phone);
+    await recordFailure(identifier);
     return res.status(401).json({ error: 'Identifiants invalides' });
   }
 
   const valid = await bcrypt.compare(password, client.password_hash);
   if (!valid) {
-    await recordFailure(phone);
+    await recordFailure(identifier);
     return res.status(401).json({ error: 'Identifiants invalides' });
   }
 
-  await clearFailures(phone);
+  await clearFailures(identifier);
   const tokens = generateTokens({ sub: client.id, role: 'client', afrikfidId: client.afrikfid_id });
 
   const refreshJti = extractJti(tokens.refreshToken);
@@ -422,7 +454,7 @@ router.post('/client/login', loginLimiter, async (req, res) => {
       id: client.id,
       afrikfidId: client.afrikfid_id,
       fullName: client.full_name,
-      phone: decrypt(client.phone),
+      phone: client.phone ? decrypt(client.phone) : null,
       loyaltyStatus: client.loyalty_status,
       walletBalance: wallet?.balance || 0,
     },
