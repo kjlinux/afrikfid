@@ -8,7 +8,7 @@
  * Variables d'environnement :
  *   FLUTTERWAVE_SECRET_KEY    — Clé secrète Flutterwave (ex: FLWSECK_TEST-xxx ou FLWSECK-xxx)
  *   FLUTTERWAVE_PUBLIC_KEY    — Clé publique (pour le front-end si besoin)
- *   FLUTTERWAVE_ENCRYPT_KEY   — Clé de chiffrement des charges (3DES)
+ *   FLUTTERWAVE_WEBHOOK_HASH  — Hash secret pour valider les webhooks entrants
  *   FLUTTERWAVE_NOTIFY_URL    — Webhook de retour Flutterwave
  *   FLUTTERWAVE_RETURN_URL    — Redirect après paiement
  */
@@ -18,21 +18,7 @@ const crypto = require('crypto');
 
 const FLW_BASE = 'https://api.flutterwave.com/v3';
 const SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
-const ENCRYPT_KEY = process.env.FLUTTERWAVE_ENCRYPT_KEY;
 const SANDBOX = process.env.NODE_ENV !== 'production';
-
-/**
- * Chiffre le payload pour les paiements directs (3DES).
- * Utilisé uniquement pour les charges directes par carte (pas redirect).
- */
-function encryptPayload(payload) {
-  if (!ENCRYPT_KEY) return null;
-  const text = JSON.stringify(payload);
-  const forceKey = ENCRYPT_KEY.substring(0, 24);
-  const cipher = crypto.createCipheriv('des-ede3', forceKey, '');
-  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-  return encrypted.toString('base64');
-}
 
 /**
  * Initie un paiement carte via Flutterwave (redirect 3DS).
@@ -135,11 +121,32 @@ async function checkPaymentStatus(transactionId) {
 
 /**
  * Vérifie la signature du webhook Flutterwave.
- * À appeler dans la route webhook pour valider l'authenticité.
+ * Flutterwave envoie le header `verif-hash` configuré dans le dashboard.
+ *
+ * - En production sans FLUTTERWAVE_WEBHOOK_HASH : rejette systématiquement (erreur de config)
+ * - En dev/test sans FLUTTERWAVE_WEBHOOK_HASH : accepte avec warning (sandbox)
+ * - Avec FLUTTERWAVE_WEBHOOK_HASH : comparaison à temps constant
  */
 function verifyWebhookSignature(req) {
-  const signature = req.headers['verif-hash'];
-  return signature && signature === process.env.FLUTTERWAVE_WEBHOOK_HASH;
+  const expectedHash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
+
+  if (!expectedHash) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[FLUTTERWAVE] FLUTTERWAVE_WEBHOOK_HASH non configuré — webhook rejeté (production)');
+      return false;
+    }
+    console.warn('[FLUTTERWAVE] FLUTTERWAVE_WEBHOOK_HASH absent — vérification désactivée (sandbox)');
+    return true;
+  }
+
+  const received = req.headers['verif-hash'];
+  if (!received) return false;
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expectedHash));
+  } catch {
+    return false; // longueurs différentes = invalide
+  }
 }
 
 module.exports = { initiateCardPayment, checkPaymentStatus, verifyWebhookSignature };

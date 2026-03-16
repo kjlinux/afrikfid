@@ -17,6 +17,7 @@ const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 const { processDisbursementsForMerchant } = require('../workers/disbursement');
+const { verifyHmac, verifySha256 } = require('../lib/webhook-verify');
 
 // Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
 function getCardProvider() {
@@ -250,10 +251,21 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
 
 // POST /api/v1/payments/card/notify (CinetPay webhook)
 router.post('/card/notify', async (req, res) => {
-  const { cpm_trans_id, cpm_site_id } = req.body;
+  const { cpm_trans_id, cpm_site_id, cpm_signature, cpm_amount } = req.body;
 
   if (process.env.CINETPAY_SITE_ID && cpm_site_id !== process.env.CINETPAY_SITE_ID) {
     return res.status(403).json({ error: 'Site ID invalide' });
+  }
+
+  // Validation de signature CinetPay (SHA-256 de apikey+site_id+trans_id+amount)
+  if (process.env.CINETPAY_SECRET_KEY) {
+    const sigInput = `${process.env.CINETPAY_API_KEY}${process.env.CINETPAY_SITE_ID}${cpm_trans_id}${cpm_amount}`;
+    if (!verifySha256(sigInput, cpm_signature)) {
+      console.warn('[cinetpay/notify] Signature invalide pour tx:', cpm_trans_id);
+      return res.status(403).json({ error: 'Signature invalide' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn('[cinetpay/notify] CINETPAY_SECRET_KEY non configuré — validation de signature désactivée (production)');
   }
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [cpm_trans_id])).rows[0];
@@ -298,8 +310,18 @@ router.post('/card/flutterwave/notify', async (req, res) => {
 });
 
 // POST /api/v1/payments/mm/mpesa/notify (M-Pesa Daraja STK callback)
+// Safaricom exige toujours un HTTP 200 — même en cas de rejet on renvoie 200 avec ResultCode: 1
 router.post('/mm/mpesa/notify', async (req, res) => {
-  // M-Pesa envoie toujours HTTP 200 en attente d'un 200 de notre côté
+  // Validation du token secret transmis dans le CallBackURL (?token=MPESA_WEBHOOK_SECRET)
+  if (process.env.MPESA_WEBHOOK_SECRET) {
+    if (req.query.token !== process.env.MPESA_WEBHOOK_SECRET) {
+      console.warn('[mpesa/notify] Token invalide ou absent — callback rejeté');
+      return res.status(200).json({ ResultCode: 1, ResultDesc: 'Unauthorized' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn('[mpesa/notify] MPESA_WEBHOOK_SECRET non configuré — validation désactivée (production)');
+  }
+
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
   try {
@@ -315,10 +337,20 @@ router.post('/mm/mpesa/notify', async (req, res) => {
     )).rows[0];
     if (!tx) return;
 
+    const MPESA_RESULT_CODES = {
+      0:    'Paiement réussi',
+      1:    'Solde insuffisant',
+      17:   'Limite de transfert dépassée',
+      1001: 'Numéro de bénéficiaire invalide',
+      1032: 'Transaction annulée par l\'utilisateur',
+      1037: 'Timeout — aucune réponse de l\'utilisateur',
+      2001: 'Numéro initiant invalide',
+    };
+
     if (resultCode === 0) {
       await processCompletedPayment(tx);
     } else {
-      const desc = callback.ResultDesc || 'Paiement M-Pesa refusé';
+      const desc = MPESA_RESULT_CODES[resultCode] || callback.ResultDesc || `Erreur M-Pesa code ${resultCode}`;
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`M-Pesa: ${desc}`, tx.id]);
       dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: 'failed' }).catch(() => { });
     }
@@ -367,6 +399,20 @@ router.post('/mm/moov/notify', async (req, res) => {
     if (!tx) return;
 
     if (status === 'SUCCESS') {
+      // En production, vérifier le statut via l'API Moov avant de valider
+      if (process.env.NODE_ENV === 'production' && tx.operator_ref) {
+        try {
+          const checkResult = await mobileMoney.checkPaymentStatus({ operatorRef: tx.operator_ref, operator: 'MOOV' });
+          if (checkResult.status !== 'completed') {
+            console.warn('[moov/notify] Callback SUCCESS mais vérification API = ' + checkResult.status + ' — ignoré');
+            return;
+          }
+        } catch (checkErr) {
+          console.error('[moov/notify] Impossible de vérifier le statut via API Moov:', checkErr.message);
+          // En cas d'indisponibilité de l'API, refuser par précaution en production
+          return;
+        }
+      }
       await processCompletedPayment(tx);
     } else if (status === 'FAILED' || status === 'CANCELLED') {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Moov: ${status}`, tx.id]);
@@ -387,17 +433,18 @@ router.post('/mm/orange/notify', async (req, res) => {
     const reference = txnid || req.body?.order_id;
     if (!reference) return;
 
-    // Vérification de signature optionnelle (ORANGE_WEBHOOK_SECRET)
-    if (process.env.ORANGE_WEBHOOK_SECRET && notifToken) {
-      const crypto = require('crypto');
-      const expected = crypto
-        .createHmac('sha256', process.env.ORANGE_WEBHOOK_SECRET)
-        .update(reference)
-        .digest('hex');
-      if (notifToken !== expected) {
+    // Vérification de signature Orange (HMAC-SHA256 du reference dans notifToken)
+    if (process.env.ORANGE_WEBHOOK_SECRET) {
+      if (!notifToken) {
+        console.warn('[orange/notify] ORANGE_WEBHOOK_SECRET configuré mais notifToken absent — callback rejeté');
+        return;
+      }
+      if (!verifyHmac(process.env.ORANGE_WEBHOOK_SECRET, reference, notifToken, 'hex')) {
         console.warn('[orange/notify] Signature invalide pour ref:', reference);
         return;
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      console.warn('[orange/notify] ORANGE_WEBHOOK_SECRET non configuré — validation de signature désactivée (production)');
     }
 
     const tx = (await db.query(
@@ -427,19 +474,19 @@ router.post('/mm/airtel/notify', async (req, res) => {
 
   try {
     const body = req.body || {};
-    // Vérification de signature Airtel (X-Airtel-Signature header)
+    // Vérification de signature Airtel (HMAC-SHA256 base64 dans X-Airtel-Signature)
     if (process.env.AIRTEL_WEBHOOK_SECRET) {
-      const crypto = require('crypto');
       const signature = req.headers['x-airtel-signature'];
-      const payload = JSON.stringify(body);
-      const expected = crypto
-        .createHmac('sha256', process.env.AIRTEL_WEBHOOK_SECRET)
-        .update(payload)
-        .digest('base64');
-      if (signature !== expected) {
+      if (!signature) {
+        console.warn('[airtel/notify] AIRTEL_WEBHOOK_SECRET configuré mais x-airtel-signature absent — callback rejeté');
+        return;
+      }
+      if (!verifyHmac(process.env.AIRTEL_WEBHOOK_SECRET, JSON.stringify(body), signature, 'base64')) {
         console.warn('[airtel/notify] Signature webhook invalide');
         return;
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      console.warn('[airtel/notify] AIRTEL_WEBHOOK_SECRET non configuré — validation de signature désactivée (production)');
     }
 
     const reference = body?.transaction?.id || body?.reference;
@@ -473,10 +520,12 @@ router.post('/mm/mtn/notify', async (req, res) => {
     // MTN MoMo utilise X-Callback-Api-Key pour l'authentification
     if (process.env.MTN_CALLBACK_API_KEY) {
       const apiKey = req.headers['x-callback-api-key'];
-      if (apiKey !== process.env.MTN_CALLBACK_API_KEY) {
-        console.warn('[mtn/notify] Clé API callback invalide');
+      if (!apiKey || apiKey !== process.env.MTN_CALLBACK_API_KEY) {
+        console.warn('[mtn/notify] Clé API callback invalide ou absente — callback rejeté');
         return;
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      console.warn('[mtn/notify] MTN_CALLBACK_API_KEY non configuré — validation désactivée (production)');
     }
 
     // Format MTN MoMo: { financialTransactionId, externalId, status, reason }

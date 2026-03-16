@@ -368,6 +368,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Ne pas démarrer le serveur HTTP en mode test (Supertest gère ses propres connexions)
 if (process.env.NODE_ENV !== 'test') {
+  const { checkOperatorCredentials } = require('./lib/operator-health');
+  checkOperatorCredentials();
+
   app.listen(PORT, () => {
     console.log(`\n[INFO] Afrik'Fid API démarrée sur http://localhost:${PORT}`);
     console.log(`   Mode: ${process.env.NODE_ENV || 'development'} | Sandbox: ${process.env.SANDBOX_MODE !== 'false'}`);

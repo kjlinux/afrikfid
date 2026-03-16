@@ -39,6 +39,26 @@ const JWT = {
 const MERCHANT_STATUSES = ['pending', 'active', 'suspended', 'rejected'];
 const KYC_STATUSES = ['pending', 'submitted', 'approved', 'rejected'];
 
+// ─── Mapping statuts opérateurs Mobile Money → statuts internes ──────────────
+const MM_STATUS_MAPS = {
+  MTN:    { SUCCESSFUL: 'completed', FAILED: 'failed', REJECTED: 'failed', TIMEOUT: 'failed', EXPIRED: 'failed', PENDING: 'pending' },
+  WAVE:   { complete: 'completed', error: 'failed', cancelled: 'failed', processing: 'pending', open: 'pending' },
+  MOOV:   { SUCCESS: 'completed', FAILED: 'failed', CANCELLED: 'failed', PENDING: 'pending', PROCESSING: 'pending' },
+  AIRTEL: { TS: 'completed', SUCCESS: 'completed', TF: 'failed', FAILED: 'failed', CANCELLED: 'failed' },
+  ORANGE: { SUCCESS: 'completed', SUCCESSFULL: 'completed', '00': 'completed', FAILED: 'failed', CANCELLED: 'failed', EXPIRED: 'failed' },
+};
+
+// ─── Table des codes résultat M-Pesa Daraja (STK Push) ───────────────────────
+const MPESA_RESULT_CODES = {
+  0:    'Paiement réussi',
+  1:    'Solde insuffisant',
+  17:   'Limite de transfert dépassée',
+  1001: 'Numéro de bénéficiaire invalide',
+  1032: 'Transaction annulée par l\'utilisateur',
+  1037: 'Timeout — aucune réponse de l\'utilisateur',
+  2001: 'Numéro initiant invalide',
+};
+
 module.exports = {
   LOYALTY_STATUSES,
   TX_STATUSES,
@@ -53,4 +73,6 @@ module.exports = {
   JWT,
   MERCHANT_STATUSES,
   KYC_STATUSES,
+  MM_STATUS_MAPS,
+  MPESA_RESULT_CODES,
 };

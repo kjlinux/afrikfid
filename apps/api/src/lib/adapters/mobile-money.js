@@ -236,7 +236,9 @@ async function mpesaInitiatePayment({ phone, amount, reference, description }) {
     PartyA: phone.replace(/^\+/, ''),
     PartyB: MPESA_SHORTCODE,
     PhoneNumber: phone.replace(/^\+/, ''),
-    CallBackURL: process.env.PAYMENT_CALLBACK_URL,
+    CallBackURL: process.env.MPESA_WEBHOOK_SECRET
+      ? `${process.env.PAYMENT_CALLBACK_URL}?token=${process.env.MPESA_WEBHOOK_SECRET}`
+      : process.env.PAYMENT_CALLBACK_URL,
     AccountReference: reference,
     TransactionDesc: description || reference,
   }, {
@@ -264,8 +266,25 @@ const AIRTEL_BASE = process.env.NODE_ENV === 'production'
   ? 'https://openapi.airtel.africa'
   : 'https://openapiuat.airtel.africa';
 
-// Map de devises vers codes pays Airtel
-const AIRTEL_CURRENCY_COUNTRY = { KES: 'KE', XOF: 'BF', XAF: 'TD' };
+// Map de devises vers codes pays Airtel (pays par défaut par devise)
+const AIRTEL_CURRENCY_COUNTRY = {
+  KES: 'KE', // Kenya
+  XOF: 'BF', // Burkina Faso (Airtel BF le plus actif pour XOF)
+  XAF: 'TD', // Tchad (Airtel TD le plus actif pour XAF)
+};
+
+// Détection de pays par préfixe téléphonique (prioritaire sur la devise)
+const AIRTEL_PHONE_PREFIX_COUNTRY = {
+  '225': 'CI',  // Côte d'Ivoire
+  '226': 'BF',  // Burkina Faso
+  '235': 'TD',  // Tchad
+  '254': 'KE',  // Kenya
+  '236': 'CF',  // République centrafricaine
+  '243': 'CD',  // RDC
+  '265': 'MW',  // Malawi
+  '258': 'MZ',  // Mozambique
+  '260': 'ZM',  // Zambie
+};
 
 let _airtelToken = null;
 let _airtelTokenExpiry = 0;
@@ -284,7 +303,11 @@ async function getAirtelToken() {
 
 async function airtelInitiatePayment({ phone, amount, currency, reference }) {
   const token = await getAirtelToken();
-  const country = AIRTEL_CURRENCY_COUNTRY[currency] || 'KE';
+  // Résoudre le pays via le préfixe téléphonique en priorité, sinon via la devise
+  const normalizedPhone = phone.replace(/^\+/, '');
+  const detectedCountry = Object.entries(AIRTEL_PHONE_PREFIX_COUNTRY)
+    .find(([prefix]) => normalizedPhone.startsWith(prefix))?.[1];
+  const country = detectedCountry || AIRTEL_CURRENCY_COUNTRY[currency] || 'KE';
   const resp = await axios.post(`${AIRTEL_BASE}/merchant/v2/payments/`, {
     reference,
     subscriber: { country, currency, msisdn: phone.replace(/^\+/, '') },
