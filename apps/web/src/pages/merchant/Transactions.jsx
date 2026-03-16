@@ -12,12 +12,15 @@ export default function MerchantTransactions() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [selected, setSelected] = useState(null)
-  const [refundModal, setRefundModal] = useState(null) // transaction à rembourser
+  const [refundModal, setRefundModal] = useState(null)
   const [refundReason, setRefundReason] = useState('')
   const [refundType, setRefundType] = useState('full')
   const [refundPartialAmount, setRefundPartialAmount] = useState('')
   const [refundLoading, setRefundLoading] = useState(false)
   const [refundMsg, setRefundMsg] = useState('')
+  // Demandes de remboursement clients
+  const [pendingRefunds, setPendingRefunds] = useState([])
+  const [reviewLoading, setReviewLoading] = useState(null) // refundId en cours
 
   const submitRefund = async () => {
     if (!refundReason.trim()) return setRefundMsg('Le motif est requis')
@@ -40,6 +43,19 @@ export default function MerchantTransactions() {
       setTransactions(r.data.transactions)
       setTotal(r.data.total)
     })
+    api.get('/merchants/me/refunds?status=pending&limit=50').then(r => {
+      setPendingRefunds(r.data.refunds || [])
+    }).catch(() => {})
+  }
+
+  const reviewRefund = async (refundId, action) => {
+    setReviewLoading(refundId)
+    try {
+      await api.patch(`/merchants/me/refunds/${refundId}`, { action })
+      load()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erreur')
+    } finally { setReviewLoading(null) }
   }
 
   useEffect(() => { load() }, [page, status])
@@ -115,6 +131,48 @@ export default function MerchantTransactions() {
           </div>
         </div>
       </div>
+
+      {/* Demandes de remboursement clients en attente */}
+      {pendingRefunds.length > 0 && (
+        <div style={{ marginTop: 28, background: '#1e293b', borderRadius: 12, border: '1px solid rgba(245,158,11,0.3)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b' }}>Demandes de remboursement en attente ({pendingRefunds.length})</div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#0f172a' }}>
+                {['Transaction', 'Client', 'Montant', 'Motif', 'Date demande', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRefunds.map(r => (
+                <tr key={r.id} style={{ borderTop: '1px solid #334155' }}>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{r.transaction_reference?.slice(0, 20)}...</td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, color: '#f1f5f9' }}>{r.client_name || '—'}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>{fmt(r.original_amount)} {r.currency || 'XOF'}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 200 }}>{r.reason}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b' }}>{r.created_at?.split('T')[0]}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => reviewRefund(r.id, 'approve')} disabled={reviewLoading === r.id}
+                        style={{ padding: '5px 12px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 6, color: '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
+                        {reviewLoading === r.id ? '...' : 'Approuver'}
+                      </button>
+                      <button onClick={() => reviewRefund(r.id, 'reject')} disabled={reviewLoading === r.id}
+                        style={{ padding: '5px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', fontSize: 12, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
+                        Rejeter
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modale remboursement */}
       {refundModal && (

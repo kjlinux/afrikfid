@@ -12,7 +12,7 @@
 
 const db = require('../lib/db');
 const { dispatchWebhook, WebhookEvents } = require('./webhook-dispatcher');
-const { notifyPaymentFailed } = require('../lib/notifications');
+const { notifyTransactionExpired } = require('../lib/notifications');
 const { checkPaymentStatus } = require('../lib/adapters/mobile-money');
 const { TX_RETRY_WINDOW_MS } = require('../config/constants');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
@@ -108,10 +108,9 @@ async function processExpiredRetry() {
     }).catch(err => console.error('[expiry] webhook error:', err.message));
 
     if (tx.client_id && tx.payment_phone) {
-      notifyPaymentFailed({
+      notifyTransactionExpired({
         client: { phone: tx.payment_phone },
         transaction: tx,
-        errorMessage: 'Transaction expirée (timeout opérateur)',
       });
     }
   }

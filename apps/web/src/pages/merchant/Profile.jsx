@@ -2,13 +2,8 @@ import React, { useState } from 'react'
 import { useAuth } from '../../App.jsx'
 import api from '../../api.js'
 import {
-  ShieldCheckIcon,
-  LockClosedIcon,
-  DevicePhoneMobileIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  QrCodeIcon,
-  KeyIcon,
+  ShieldCheckIcon, LockClosedIcon, DevicePhoneMobileIcon,
+  CheckCircleIcon, ExclamationCircleIcon, QrCodeIcon, KeyIcon,
 } from '@heroicons/react/24/outline'
 
 const inp = {
@@ -34,21 +29,19 @@ function Msg({ msg }) {
   )
 }
 
-export default function AdminProfile() {
+export default function MerchantProfile() {
   const { user, updateUser } = useAuth()
 
-  // Sync totpEnabled depuis l'API au montage (le JWT peut être désynchronisé)
   React.useEffect(() => {
-    api.get('/auth/me').then(r => {
-      const apiTotpEnabled = r.data.admin?.totpEnabled ?? r.data.totpEnabled
-      if (typeof apiTotpEnabled === 'boolean' && apiTotpEnabled !== user?.totpEnabled) {
-        updateUser({ totpEnabled: apiTotpEnabled })
+    api.get('/auth/merchant/me').then(r => {
+      const totpEnabled = r.data.merchant?.totpEnabled ?? r.data.totpEnabled
+      if (typeof totpEnabled === 'boolean' && totpEnabled !== user?.totpEnabled) {
+        updateUser({ totpEnabled })
       }
     }).catch(() => {})
   }, [])
 
-  // 2FA setup flow
-  const [step, setStep] = useState('idle') // idle | setup | verify | done
+  const [step, setStep] = useState('idle')
   const [qrCode, setQrCode] = useState(null)
   const [secret, setSecret] = useState(null)
   const [totpCode, setTotpCode] = useState('')
@@ -56,7 +49,6 @@ export default function AdminProfile() {
   const [setupMsg, setSetupMsg] = useState(null)
   const [setupLoading, setSetupLoading] = useState(false)
 
-  // 2FA disable flow
   const [disablePassword, setDisablePassword] = useState('')
   const [disableMsg, setDisableMsg] = useState(null)
   const [disableLoading, setDisableLoading] = useState(false)
@@ -67,12 +59,10 @@ export default function AdminProfile() {
   const startSetup = async () => {
     setSetupLoading(true); setSetupMsg(null)
     try {
-      const { data } = await api.post('/auth/2fa/setup')
-      setQrCode(data.qrCode)
-      setSecret(data.secret)
-      setStep('verify')
+      const { data } = await api.post('/auth/merchant/2fa/setup')
+      setQrCode(data.qrCode); setSecret(data.secret); setStep('verify')
     } catch (e) {
-      setSetupMsg({ type: 'error', text: e.response?.data?.error || 'Erreur lors de l\'initialisation 2FA' })
+      setSetupMsg({ type: 'error', text: e.response?.data?.error || 'Erreur initialisation 2FA' })
     } finally { setSetupLoading(false) }
   }
 
@@ -80,7 +70,7 @@ export default function AdminProfile() {
     if (!totpCode) return
     setSetupLoading(true); setSetupMsg(null)
     try {
-      const { data } = await api.post('/auth/2fa/verify', { totp_code: totpCode })
+      const { data } = await api.post('/auth/merchant/2fa/verify', { totp_code: totpCode })
       setBackupCodes(data.backupCodes || [])
       setStep('done')
       setSetupMsg({ type: 'success', text: '2FA activé avec succès !' })
@@ -94,10 +84,9 @@ export default function AdminProfile() {
     if (!disablePassword) return
     setDisableLoading(true); setDisableMsg(null)
     try {
-      await api.delete('/auth/2fa/disable', { data: { password: disablePassword } })
+      await api.delete('/auth/merchant/2fa/disable', { data: { password: disablePassword } })
       setDisableMsg({ type: 'success', text: '2FA désactivé.' })
-      setShowDisable(false)
-      setDisablePassword('')
+      setShowDisable(false); setDisablePassword('')
       updateUser({ totpEnabled: false })
     } catch (e) {
       setDisableMsg({ type: 'error', text: e.response?.data?.error || 'Mot de passe incorrect' })
@@ -107,9 +96,8 @@ export default function AdminProfile() {
   return (
     <div style={{ padding: '28px 32px', maxWidth: 640 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Profil & Sécurité</h1>
-      <p style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Gérez la sécurité de votre compte administrateur</p>
+      <p style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Gérez la sécurité de votre compte marchand</p>
 
-      {/* ─── Infos compte ─────────────────────────────────────────────────── */}
       <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <KeyIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
@@ -118,7 +106,7 @@ export default function AdminProfile() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
             ['Email', user?.email],
-            ['Rôle', user?.role === 'admin' ? 'Administrateur' : user?.role],
+            ['Nom', user?.name],
             ['2FA', totpEnabled ? 'Activé' : 'Désactivé'],
           ].map(([k, v]) => (
             <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
@@ -129,7 +117,6 @@ export default function AdminProfile() {
         </div>
       </div>
 
-      {/* ─── 2FA ──────────────────────────────────────────────────────────── */}
       <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <ShieldCheckIcon style={{ width: 18, height: 18, color: '#10b981' }} />
@@ -140,7 +127,6 @@ export default function AdminProfile() {
         </p>
 
         {totpEnabled ? (
-          // 2FA déjà activé — afficher option désactivation
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
               <CheckCircleIcon style={{ width: 18, height: 18, color: '#10b981', flexShrink: 0 }} />
@@ -170,23 +156,18 @@ export default function AdminProfile() {
             ) : (
               <button onClick={() => setShowDisable(true)}
                 style={{ padding: '9px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <LockClosedIcon style={{ width: 14, height: 14 }} />
-                Désactiver le 2FA
+                <LockClosedIcon style={{ width: 14, height: 14 }} />Désactiver le 2FA
               </button>
             )}
           </>
         ) : (
-          // 2FA non activé — flux setup
           <>
             <Msg msg={setupMsg} />
-
             {step === 'idle' && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
                   <ExclamationCircleIcon style={{ width: 18, height: 18, color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                    Le 2FA n'est pas activé. En tant qu'administrateur, il est fortement recommandé de l'activer pour sécuriser l'accès .
-                  </div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Le 2FA n'est pas activé. Activez-le pour sécuriser l'accès à votre compte marchand.</div>
                 </div>
                 <button onClick={startSetup} disabled={setupLoading}
                   style={{ padding: '10px 20px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -195,31 +176,25 @@ export default function AdminProfile() {
                 </button>
               </div>
             )}
-
             {step === 'verify' && (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-                  {/* QR Code */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                       <QrCodeIcon style={{ width: 14, height: 14, color: '#64748b' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Scanner le QR code</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>1. Scanner le QR code</span>
                     </div>
                     {qrCode && <img src={qrCode} alt="QR Code 2FA" style={{ width: '100%', maxWidth: 180, borderRadius: 8, border: '1px solid #334155' }} />}
                   </div>
-                  {/* Clé manuelle */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                       <KeyIcon style={{ width: 14, height: 14, color: '#64748b' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ou saisie manuelle</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Ou saisie manuelle</span>
                     </div>
-                    <code style={{ display: 'block', fontSize: 11, color: '#f59e0b', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '10px 12px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                      {secret}
-                    </code>
+                    <code style={{ display: 'block', fontSize: 11, color: '#f59e0b', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '10px 12px', wordBreak: 'break-all', fontFamily: 'monospace' }}>{secret}</code>
                   </div>
                 </div>
-
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>
                   <DevicePhoneMobileIcon style={{ width: 13, height: 13, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
                   2. Entrez le code généré par l'application
                 </div>
@@ -239,18 +214,15 @@ export default function AdminProfile() {
                 </div>
               </div>
             )}
-
             {step === 'done' && backupCodes.length > 0 && (
               <div>
                 <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>2FA activé !</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Conservez ces codes de secours dans un endroit sûr. Chaque code ne peut être utilisé qu'une seule fois.</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Conservez ces codes de secours. Chaque code ne peut être utilisé qu'une seule fois.</div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, background: '#0f172a', borderRadius: 8, padding: 16 }}>
                   {backupCodes.map(code => (
-                    <code key={code} style={{ fontSize: 12, color: '#f59e0b', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'rgba(245,158,11,0.08)', borderRadius: 4, textAlign: 'center' }}>
-                      {code}
-                    </code>
+                    <code key={code} style={{ fontSize: 12, color: '#f59e0b', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'rgba(245,158,11,0.08)', borderRadius: 4, textAlign: 'center' }}>{code}</code>
                   ))}
                 </div>
               </div>

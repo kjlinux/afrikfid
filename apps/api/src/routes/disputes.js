@@ -13,6 +13,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { requireAdmin, requireApiKey, requireAuth, requireClient } = require('../middleware/auth');
+const { notifyDisputeOpened } = require('../lib/notifications');
 
 // ─── GET /api/v1/disputes — liste des litiges (admin) ────────────────────────
 router.get('/', requireAdmin, async (req, res) => {
@@ -141,6 +142,12 @@ router.post('/', requireAuth, async (req, res) => {
   `, [uuidv4(), initiatedBy, initiatedById, id, req.ip]);
 
   const dispute = (await db.query('SELECT * FROM disputes WHERE id = $1', [id])).rows[0];
+
+  // Notifier l'admin de l'ouverture du litige
+  const merchantRow = tx.merchant_id ? (await db.query('SELECT name FROM merchants WHERE id = $1', [tx.merchant_id])).rows[0] : null;
+  const clientRow = tx.client_id ? (await db.query('SELECT full_name FROM clients WHERE id = $1', [tx.client_id])).rows[0] : null;
+  notifyDisputeOpened({ dispute, transaction: tx, merchant: merchantRow, client: clientRow, initiatedBy });
+
   res.status(201).json({ dispute, message: 'Litige déclaré avec succès' });
 });
 

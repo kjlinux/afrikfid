@@ -19,11 +19,20 @@ export const STATUS_COLORS = {
 }
 export const LOYALTY_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
-export function Badge({ status, label }) {
-  const s = STATUS_COLORS[status] || { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' }
+const COLOR_MAP = {
+  yellow: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  blue:   { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+  green:  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  red:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  purple: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+  gray:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
+}
+
+export function Badge({ status, label, color, children }) {
+  const s = (color && COLOR_MAP[color]) || STATUS_COLORS[status] || COLOR_MAP.gray
   return (
     <span style={{ background: s.bg, color: s.color, padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-block' }}>
-      {label || status}
+      {children || label || status}
     </span>
   )
 }
@@ -95,12 +104,12 @@ export function Input({ label, ...props }) {
   )
 }
 
-export function Select({ label, children, ...props }) {
+export function Select({ label, children, options, ...props }) {
   return (
     <div style={{ marginBottom: 14 }}>
       {label && <label style={{ display: 'block', fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{label}</label>}
       <select {...props} style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box', ...props.style }}>
-        {children}
+        {options ? options.map(o => <option key={o.value} value={o.value}>{o.label}</option>) : children}
       </select>
     </div>
   )

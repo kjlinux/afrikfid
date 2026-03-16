@@ -7,7 +7,10 @@ const { requireAdmin, requireMerchant, generateTokens } = require('../middleware
 const { validate } = require('../middleware/validate');
 const { CreateMerchantSchema, UpdateMerchantSchema, MerchantLoginSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
-const { notifyKycApproved, notifyKycRejected } = require('../lib/notifications');
+const {
+  notifyKycApproved, notifyKycRejected,
+  notifyMerchantWelcome, notifyRefundApproved, notifyRefundRejected, notifyAccountSuspended,
+} = require('../lib/notifications');
 const { kycUpload, toFileMetadata } = require('../lib/upload');
 
 // POST /api/v1/merchants (admin)
@@ -29,7 +32,14 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
   const apiKeySecret = `af_sec_${uuidv4().replace(/-/g, '')}`;
   const sandboxKeyPublic = `af_sandbox_pub_${uuidv4().replace(/-/g, '')}`;
   const sandboxKeySecret = `af_sandbox_sec_${uuidv4().replace(/-/g, '')}`;
-  const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+
+  // Si aucun mot de passe fourni par l'admin, en générer un temporaire aléatoire
+  const tempPassword = !password
+    ? `Afk-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+    : null;
+  const finalPassword = password || tempPassword;
+  const passwordHash = await bcrypt.hash(finalPassword, 10);
+
   const encBankAccount = bank_account ? encrypt(bank_account) : null;
   const bankAccountHash = bank_account ? hashField(bank_account) : null;
 
@@ -58,7 +68,18 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
   ]);
 
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [id])).rows[0];
-  res.status(201).json({ merchant: sanitizeMerchant(merchant, true) });
+
+  // Notifier le marchand avec ses credentials (email + SMS si phone fourni)
+  notifyMerchantWelcome({
+    merchant: { ...merchant, phone: phone || null, sandbox_key_public: sandboxKeyPublic },
+    tempPassword, // null si l'admin a fourni un password
+    createdByAdmin: true,
+  });
+
+  res.status(201).json({
+    merchant: sanitizeMerchant(merchant, true),
+    ...(tempPassword && { tempPassword, note: 'Mot de passe temporaire généré — transmis au marchand par email/SMS' }),
+  });
 });
 
 // GET /api/v1/merchants (admin)
@@ -118,6 +139,9 @@ router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return ne
   await db.query(`UPDATE merchants SET ${setClause} WHERE id = $${keys.length + 1}`, [...Object.values(updates), req.params.id]);
 
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+  if (updates.status === 'suspended') {
+    notifyAccountSuspended({ merchant, reason: req.body.suspension_reason || null });
+  }
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
 
@@ -463,6 +487,7 @@ router.post('/register', async (req, res, next) => {
       throw e;
     }
 
+    notifyMerchantWelcome({ merchant: { name, email, sandbox_key_public: sandboxKeyPublic } });
     res.status(201).json({
       message: "Demande d'inscription reçue. Notre équipe validera votre compte sous 24-48h.",
       id,
@@ -553,6 +578,85 @@ router.get('/me/refunds', requireMerchant, async (req, res) => {
 
   const refunds = (await db.query(sql, params)).rows;
   res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
+// PATCH /api/v1/merchants/me/refunds/:refundId — Approuver ou rejeter une demande client
+router.patch('/me/refunds/:refundId', requireMerchant, async (req, res) => {
+  const { action, note } = req.body; // action: 'approve' | 'reject'
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'action doit être approve ou reject' });
+  }
+
+  const refund = (await db.query(`
+    SELECT r.*, t.merchant_id, t.gross_amount, t.client_id, t.rebate_mode,
+           t.merchant_rebate_amount, t.client_rebate_amount, t.platform_commission_amount
+    FROM refunds r JOIN transactions t ON r.transaction_id = t.id
+    WHERE r.id = $1 AND t.merchant_id = $2 AND r.status = 'pending'
+  `, [req.params.refundId, req.merchant.id])).rows[0];
+
+  if (!refund) return res.status(404).json({ error: 'Demande non trouvée ou déjà traitée' });
+
+  if (action === 'reject') {
+    await db.query("UPDATE refunds SET status = 'rejected', processed_at = NOW() WHERE id = $1", [refund.id]);
+    if (refund.client_id) {
+      const clientRow = (await db.query('SELECT * FROM clients WHERE id = $1', [refund.client_id])).rows[0];
+      if (clientRow) {
+        const { decrypt } = require('../lib/crypto');
+        notifyRefundRejected({
+          client: { ...clientRow, phone: decrypt(clientRow.phone), email: clientRow.email ? decrypt(clientRow.email) : null },
+          refund: { ...refund, amount: refund.gross_amount, currency: 'XOF' },
+          merchantName: req.merchant.name,
+        });
+      }
+    }
+    return res.json({ message: 'Demande de remboursement rejetée' });
+  }
+
+  // Approuver : exécuter le remboursement complet
+  const { v4: uuidv4 } = require('uuid');
+  const grossAmount = parseFloat(refund.gross_amount);
+  const merchantRebateRefunded = parseFloat(refund.merchant_rebate_amount);
+  const clientRebateRefunded = parseFloat(refund.client_rebate_amount);
+  const platformCommissionRefunded = parseFloat(refund.platform_commission_amount);
+
+  await db.query(`
+    UPDATE refunds SET status = 'completed', amount = $1,
+      merchant_rebate_refunded = $2, client_rebate_refunded = $3,
+      platform_commission_refunded = $4, refund_ratio = 1,
+      processed_at = NOW() WHERE id = $5
+  `, [grossAmount, merchantRebateRefunded, clientRebateRefunded, platformCommissionRefunded, refund.id]);
+
+  // Annulation cashback client si applicable
+  if (refund.rebate_mode === 'cashback' && refund.client_id && clientRebateRefunded > 0) {
+    const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [refund.client_id])).rows[0];
+    if (wallet) {
+      const debit = Math.min(parseFloat(wallet.balance), clientRebateRefunded);
+      if (debit > 0) {
+        const newBalance = parseFloat(wallet.balance) - debit;
+        await db.query('UPDATE wallets SET balance = $1, total_spent = total_spent + $2, updated_at = NOW() WHERE client_id = $3', [newBalance, debit, refund.client_id]);
+        await db.query(
+          `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'debit', $4, $5, $6, $7)`,
+          [uuidv4(), wallet.id, refund.transaction_id, debit, wallet.balance, newBalance, `Annulation cashback - remboursement approuvé`]
+        );
+      }
+    }
+  }
+
+  await db.query("UPDATE transactions SET status = 'refunded' WHERE id = $1", [refund.transaction_id]);
+
+  if (refund.client_id) {
+    const clientRow = (await db.query('SELECT * FROM clients WHERE id = $1', [refund.client_id])).rows[0];
+    if (clientRow) {
+      const { decrypt } = require('../lib/crypto');
+      notifyRefundApproved({
+        client: { ...clientRow, phone: decrypt(clientRow.phone), email: clientRow.email ? decrypt(clientRow.email) : null },
+        refund: { ...refund, amount: grossAmount, currency: 'XOF' },
+        merchantName: req.merchant.name,
+      });
+    }
+  }
+
+  res.json({ message: 'Remboursement approuvé et exécuté' });
 });
 
 // ─── Taux X% par catégorie de produit  ──────────────────────────────

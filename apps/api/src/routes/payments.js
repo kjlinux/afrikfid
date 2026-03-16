@@ -11,7 +11,7 @@ const { validate } = require('../middleware/validate');
 const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
-const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed, notifyFraudBlocked } = require('../lib/notifications');
+const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed, notifyFraudBlocked, notifyRefundRequested, notifyWalletCapReached } = require('../lib/notifications');
 const { checkTransaction } = require('../lib/fraud');
 const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
@@ -572,8 +572,9 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
   if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
 
-  // Vérification délai maximum 72h 
-  const hoursElapsed = (Date.now() - new Date(tx.completed_at).getTime()) / 3600000;
+  // Vérification délai maximum 72h (fallback sur initiated_at si completed_at absent)
+  const refundRef = tx.completed_at || tx.initiated_at;
+  const hoursElapsed = refundRef ? (Date.now() - new Date(refundRef).getTime()) / 3600000 : 0;
   if (hoursElapsed > 72) {
     return res.status(422).json({ error: 'Délai de remboursement dépassé (72h maximum après la transaction)', hours_elapsed: Math.round(hoursElapsed) });
   }
@@ -647,7 +648,8 @@ router.post('/:id/refund/dashboard', requireMerchant, async (req, res) => {
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
   if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent être remboursées' });
 
-  const hoursElapsed = (Date.now() - new Date(tx.completed_at).getTime()) / 3600000;
+  const refundRef2 = tx.completed_at || tx.initiated_at;
+  const hoursElapsed = refundRef2 ? (Date.now() - new Date(refundRef2).getTime()) / 3600000 : 0;
   if (hoursElapsed > 72) {
     return res.status(422).json({ error: `Délai de remboursement dépassé (72h max). ${Math.round(hoursElapsed)}h écoulées.` });
   }
@@ -691,6 +693,60 @@ router.post('/:id/refund/dashboard', requireMerchant, async (req, res) => {
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount, refundRatio }).catch(() => {});
 
   res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
+});
+
+// POST /api/v1/payments/:id/refund/request — Demande de remboursement par le client (JWT)
+router.post('/:id/refund/request', requireClient, async (req, res) => {
+  const { reason } = req.body;
+  if (!reason?.trim()) return res.status(400).json({ error: 'Le motif est requis' });
+
+  const tx = (await db.query(
+    'SELECT * FROM transactions WHERE id = $1 AND client_id = $2',
+    [req.params.id, req.client.id]
+  )).rows[0];
+  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
+  if (tx.status !== 'completed') return res.status(400).json({ error: 'Seules les transactions complétées peuvent faire l\'objet d\'une demande de remboursement' });
+
+  const refundRef = tx.completed_at || tx.initiated_at;
+  const hoursElapsed = refundRef ? (Date.now() - new Date(refundRef).getTime()) / 3600000 : 0;
+  if (hoursElapsed > 72) {
+    return res.status(422).json({ error: `Délai de remboursement dépassé (72h max). ${Math.round(hoursElapsed)}h écoulées.` });
+  }
+
+  // Vérifier qu'une demande en cours n'existe pas déjà
+  const existing = (await db.query(
+    "SELECT id FROM refunds WHERE transaction_id = $1 AND status IN ('pending', 'processing')",
+    [tx.id]
+  )).rows[0];
+  if (existing) return res.status(409).json({ error: 'Une demande de remboursement est déjà en cours pour cette transaction' });
+
+  const refundId = uuidv4();
+  await db.query(
+    `INSERT INTO refunds (id, transaction_id, amount, refund_type, reason, status, initiated_by,
+       merchant_rebate_refunded, client_rebate_refunded, platform_commission_refunded, refund_ratio)
+     VALUES ($1, $2, $3, 'full', $4, 'pending', $5, 0, 0, 0, 1)`,
+    [refundId, tx.id, tx.gross_amount, reason.trim(), req.client.id]
+  );
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
+     VALUES ($1, 'client', $2, 'refund_requested', 'transaction', $3, $4)`,
+    [uuidv4(), req.client.id, tx.id, req.ip]
+  );
+
+  // Notifier le marchand de la demande de remboursement
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [tx.merchant_id])).rows[0];
+  if (merchant) {
+    notifyRefundRequested({
+      merchant,
+      client: req.client,
+      transaction: tx,
+      refundId,
+      reason: reason.trim(),
+    });
+  }
+
+  res.status(201).json({ refundId, message: 'Demande de remboursement soumise. Le marchand sera notifié.' });
 });
 
 // POST /api/v1/payments/wallet/pay — Paiement avec solde cashback 
@@ -814,6 +870,19 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
         [uuidv4(), txId, client.id, rebateToCredit, currency, now]
       );
     }
+
+    // Notifier si le plafond a tronqué le cashback
+    if (walletCap && rebateToCredit < distribution.clientRebateAmount) {
+      notifyWalletCapReached({
+        client,
+        merchant,
+        transaction: { id: txId },
+        rawRebate: distribution.clientRebateAmount,
+        creditedRebate: rebateToCredit,
+        cap: walletCap,
+        currency,
+      }).catch(() => {});
+    }
   }
 
   // Mise à jour stats client
@@ -891,6 +960,21 @@ async function processCompletedPayment(tx) {
         `INSERT INTO distributions (id, transaction_id, beneficiary_type, beneficiary_id, amount, currency, status, executed_at) VALUES ($1, $2, 'client_cashback', $3, $4, $5, 'completed', $6)`,
         [distId3, tx.id, tx.client_id, rawRebate, tx.currency, now]
       );
+
+      // Notifier si le plafond a tronqué le cashback
+      if (effectiveCap !== null && rebateToCredit < rawRebate) {
+        const clientRow = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];
+        const merchantRow = (await db.query('SELECT id, name FROM merchants WHERE id = $1', [tx.merchant_id])).rows[0];
+        notifyWalletCapReached({
+          client: clientRow,
+          merchant: merchantRow,
+          transaction: tx,
+          rawRebate,
+          creditedRebate: rebateToCredit,
+          cap: effectiveCap,
+          currency: tx.currency,
+        }).catch(() => {});
+      }
     }
 
     await db.query(

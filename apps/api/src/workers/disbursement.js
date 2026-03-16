@@ -18,6 +18,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { dispatchWebhook, WebhookEvents } = require('./webhook-dispatcher');
+const { notifyDisbursementCompleted, notifyDisbursementFailed } = require('../lib/notifications');
 
 /**
  * Détermine si un marchand est éligible au règlement maintenant
@@ -125,6 +126,7 @@ async function processDisbursements() {
           } catch (payErr) {
             console.error(`[DISB] Payout failed for merchant ${merchant.id}:`, payErr.message);
             disbStatus = 'failed';
+            notifyDisbursementFailed({ merchant, disbursement: { id: disbId, amount, currency }, errorMessage: payErr.message });
           }
         }
 
@@ -132,6 +134,11 @@ async function processDisbursements() {
           UPDATE disbursements SET status = $1, operator_ref = $2, executed_at = NOW()
           WHERE id = $3
         `, [disbStatus, operatorRef, disbId]);
+
+        // Notification email/SMS marchand
+        if (disbStatus === 'completed') {
+          notifyDisbursementCompleted({ merchant, disbursement: { id: disbId, amount, currency, operator_ref: operatorRef, operator: merchant.mm_operator, executed_at: new Date().toISOString() } });
+        }
 
         // Webhook distribution.completed
         if (merchant.webhook_url) {

@@ -8,6 +8,7 @@ const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engi
 const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
+const { notifyClientWelcome } = require('../lib/notifications');
 
 // POST /api/v1/clients
 router.post('/', validate(CreateClientSchema), async (req, res) => {
@@ -33,6 +34,7 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
   await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2)', [uuidv4(), id]);
 
   const client = (await db.query('SELECT * FROM clients WHERE id = $1', [id])).rows[0];
+  notifyClientWelcome({ client: { ...client, phone, email } });
   res.status(201).json({ client: sanitizeClient(client) });
 });
 

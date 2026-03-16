@@ -83,6 +83,7 @@ const UpdateMerchantSchema = z.object({
 const MerchantLoginSchema = z.object({
   email: email,
   password: z.string().min(1, 'Mot de passe requis'),
+  totp_code: z.string().optional(),
 });
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
@@ -109,6 +110,7 @@ const LookupClientSchema = z.object({
 const AdminLoginSchema = z.object({
   email: email,
   password: z.string().min(1, 'Mot de passe requis'),
+  totp_code: z.string().optional(),
 });
 
 // ─── Liens de paiement ───────────────────────────────────────────────────────

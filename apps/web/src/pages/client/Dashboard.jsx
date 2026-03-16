@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../App.jsx'
 import api from '../../api.js'
 
@@ -67,11 +68,16 @@ export default function ClientDashboard() {
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   // Litige
-  const [disputeModal, setDisputeModal] = useState(null) // tx sélectionnée
+  const [disputeModal, setDisputeModal] = useState(null)
   const [disputes, setDisputes]         = useState([])
   const [disputeForm, setDisputeForm]   = useState({ reason: '', description: '' })
   const [disputeLoading, setDisputeLoading] = useState(false)
   const [disputeMsg, setDisputeMsg]     = useState('')
+  // Remboursement
+  const [refundModal, setRefundModal]   = useState(null)
+  const [refundReason, setRefundReason] = useState('')
+  const [refundLoading, setRefundLoading] = useState(false)
+  const [refundMsg, setRefundMsg]       = useState('')
 
   useEffect(() => {
     if (!user?.id) return
@@ -92,6 +98,18 @@ export default function ClientDashboard() {
   const handleLogout = () => {
     logout()
     window.location.href = '/login'
+  }
+
+  const submitRefundRequest = async () => {
+    if (!refundReason.trim()) return setRefundMsg('Le motif est requis')
+    setRefundLoading(true); setRefundMsg('')
+    try {
+      await api.post(`/payments/${refundModal.id}/refund/request`, { reason: refundReason })
+      setRefundMsg('✓ Demande envoyée. Le marchand sera notifié et traitera votre demande.')
+      setTimeout(() => { setRefundModal(null); setRefundReason(''); setRefundMsg('') }, 2500)
+    } catch (err) {
+      setRefundMsg(err.response?.data?.error || 'Erreur lors de la demande')
+    } finally { setRefundLoading(false) }
   }
 
   const submitDispute = async () => {
@@ -147,6 +165,10 @@ export default function ClientDashboard() {
             <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{client?.fullName}</div>
             <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{client?.afrikfidId}</div>
           </div>
+          <Link to="/client/profile"
+            style={{ padding: '7px 14px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 7, color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>
+            Sécurité
+          </Link>
           <button onClick={handleLogout}
             style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 7, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
             Déconnexion
@@ -306,13 +328,17 @@ export default function ClientDashboard() {
                       {tx.client_discount > 0 ? `− ${fmt(tx.client_discount, tx.currency)}` : <span style={{ color: '#334155' }}>—</span>}
                     </td>
                     <td style={{ padding: '11px 16px' }}><TxStatusBadge status={tx.status} /></td>
-                    <td style={{ padding: '11px 16px' }}>
-                      {tx.status === 'completed' && (
+                    <td style={{ padding: '11px 16px', display: 'flex', gap: 6 }}>
+                      {tx.status === 'completed' && (<>
+                        <button onClick={() => { setRefundModal(tx); setRefundReason(''); setRefundMsg('') }}
+                          style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', cursor: 'pointer' }}>
+                          Remboursement
+                        </button>
                         <button onClick={() => { setDisputeModal(tx); setDisputeMsg(''); setDisputeForm({ reason: '', description: '' }) }}
                           style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}>
                           Litige
                         </button>
-                      )}
+                      </>)}
                     </td>
                   </tr>
                 ))}
@@ -353,6 +379,44 @@ export default function ClientDashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Refund request modal ── */}
+      {refundModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 16, padding: 28, width: '100%', maxWidth: 440 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#f1f5f9', marginBottom: 4 }}>Demander un remboursement</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Transaction : <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{refundModal.reference}</span></div>
+            <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600, marginBottom: 20 }}>{fmt(refundModal.gross_amount, refundModal.currency)}</div>
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#f59e0b', marginBottom: 16 }}>
+              Votre demande sera transmise au marchand. Le remboursement n'est pas automatique — il doit être approuvé.
+            </div>
+            {refundMsg && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13,
+                background: refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                border: `1px solid ${refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                color: refundMsg.startsWith('✓') ? '#10b981' : '#ef4444' }}>
+                {refundMsg}
+              </div>
+            )}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Motif de la demande *</label>
+              <textarea value={refundReason} onChange={e => setRefundReason(e.target.value)} rows={3}
+                placeholder="Expliquez la raison de votre demande de remboursement..."
+                style={{ width: '100%', padding: '9px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setRefundModal(null)}
+                style={{ padding: '8px 18px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={submitRefundRequest} disabled={refundLoading || !refundReason.trim()}
+                style={{ padding: '8px 18px', background: '#3b82f6', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: refundLoading || !refundReason.trim() ? 0.6 : 1 }}>
+                {refundLoading ? 'Envoi...' : 'Soumettre la demande'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

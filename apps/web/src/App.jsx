@@ -39,6 +39,8 @@ import MerchantClients from './pages/merchant/Clients.jsx'
 import MerchantSettings from './pages/merchant/Settings.jsx'
 import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import MerchantKyc from './pages/merchant/Kyc.jsx'
+import MerchantProfile from './pages/merchant/Profile.jsx'
+import ClientProfile from './pages/client/Profile.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
 import RegisterClient from './pages/RegisterClient.jsx'
@@ -85,7 +87,16 @@ function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+  const updateUser = (patch) => {
+    setUser(prev => {
+      const updated = { ...prev, ...patch }
+      const role = updated.role
+      if (role) localStorage.setItem(userKey(role), JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  return <AuthContext.Provider value={{ user, login, logout, updateUser }}>{children}</AuthContext.Provider>
 }
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
@@ -123,9 +134,27 @@ function AdminLayout({ children }) {
       <aside style={{ width: 240, background: '#1e293b', borderRight: '1px solid #334155', padding: '0 0 24px 0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 16px', borderBottom: '1px solid #334155', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>A</div>
+            <div style={{ flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.4))' }}>
+              <svg width="36" height="36" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="sidebarLogoGrad" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fbbf24"/>
+                    <stop offset="100%" stopColor="#d97706"/>
+                  </linearGradient>
+                  <linearGradient id="sidebarShine" x1="0" y1="0" x2="0" y2="72" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2"/>
+                    <stop offset="60%" stopColor="#ffffff" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+                <rect width="72" height="72" rx="18" fill="url(#sidebarLogoGrad)"/>
+                <rect width="72" height="40" rx="18" fill="url(#sidebarShine)"/>
+                <text x="36" y="50" fontFamily="Arial Black, Arial, sans-serif" fontSize="38" fontWeight="900" textAnchor="middle" fill="#0f172a" letterSpacing="-2">A</text>
+                <circle cx="56" cy="16" r="5" fill="#0f172a" opacity="0.2"/>
+                <circle cx="56" cy="16" r="3" fill="#0f172a" opacity="0.35"/>
+              </svg>
+            </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9' }}>Afrik'Fid</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: '#f1f5f9', letterSpacing: '-0.3px' }}>Afrik<span style={{ color: '#f59e0b' }}>'Fid</span></div>
               <div style={{ fontSize: 11, color: '#64748b' }}>Administration</div>
             </div>
           </div>
@@ -178,14 +207,38 @@ function MerchantLayout({ children }) {
     { path: '/merchant/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
     { path: '/merchant/kyc', label: 'Vérification KYC', icon: ShieldCheckIcon },
     { path: '/merchant/settings', label: 'Paramètres', icon: Cog6ToothIcon },
+    { path: '/merchant/profile', label: 'Profil & Sécurité', icon: UserCircleIcon },
   ]
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a' }}>
       <aside style={{ width: 220, background: '#1e293b', borderRight: '1px solid #334155', padding: '0 0 24px 0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 16px', borderBottom: '1px solid #334155', marginBottom: 8 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b' }}>Afrik'Fid</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Espace Marchand</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.4))' }}>
+              <svg width="32" height="32" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="merchantLogoGrad" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fbbf24"/>
+                    <stop offset="100%" stopColor="#d97706"/>
+                  </linearGradient>
+                  <linearGradient id="merchantShine" x1="0" y1="0" x2="0" y2="72" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2"/>
+                    <stop offset="60%" stopColor="#ffffff" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+                <rect width="72" height="72" rx="18" fill="url(#merchantLogoGrad)"/>
+                <rect width="72" height="40" rx="18" fill="url(#merchantShine)"/>
+                <text x="36" y="50" fontFamily="Arial Black, Arial, sans-serif" fontSize="38" fontWeight="900" textAnchor="middle" fill="#0f172a" letterSpacing="-2">A</text>
+                <circle cx="56" cy="16" r="5" fill="#0f172a" opacity="0.2"/>
+                <circle cx="56" cy="16" r="3" fill="#0f172a" opacity="0.35"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: '#f1f5f9', letterSpacing: '-0.3px' }}>Afrik<span style={{ color: '#f59e0b' }}>'Fid</span></div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>Espace Marchand</div>
+            </div>
+          </div>
         </div>
         <nav style={{ flex: 1, padding: '8px 8px' }}>
           {nav.map(item => (
@@ -247,9 +300,11 @@ export default function App() {
           <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
           <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
           <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />
+          <Route path="/merchant/profile" element={<Protected role="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></Protected>} />
 
           {/* Client */}
           <Route path="/client" element={<Protected role="client"><ClientDashboard /></Protected>} />
+          <Route path="/client/profile" element={<Protected role="client"><ClientProfile /></Protected>} />
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />

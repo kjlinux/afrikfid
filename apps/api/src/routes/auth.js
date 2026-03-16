@@ -9,6 +9,7 @@ const { validate } = require('../middleware/validate');
 const { AdminLoginSchema, MerchantLoginSchema } = require('../config/schemas');
 const redis = require('../lib/redis');
 const { generateTotpSecret, generateQrCode, verifyTotp, generateBackupCodes } = require('../lib/totp');
+const { notify2FAEnabled, notify2FADisabled } = require('../lib/notifications');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const REFRESH_TTL = 7 * 24 * 3600; // 7 jours en secondes
@@ -178,8 +179,15 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
     merchant: {
       id: merchant.id, name: merchant.name, email: merchant.email,
       status: merchant.status, rebatePercent: merchant.rebate_percent,
+      totpEnabled: merchant.totp_enabled || false,
     },
   });
+});
+
+// ─── GET /api/v1/auth/merchant/me ────────────────────────────────────────────
+router.get('/merchant/me', require('../middleware/auth').requireMerchant, (req, res) => {
+  const m = req.merchant;
+  res.json({ merchant: { id: m.id, name: m.name, email: m.email, status: m.status, totpEnabled: m.totp_enabled || false } });
 });
 
 // ─── POST /api/v1/auth/refresh ───────────────────────────────────────────────
@@ -293,6 +301,8 @@ router.post('/2fa/verify', requireAdmin, async (req, res) => {
     [JSON.stringify(backupCodes), admin.id]
   );
 
+  notify2FAEnabled({ user: { email: admin.email, name: admin.full_name }, backupCodes, ip: req.ip });
+
   res.json({
     message: '2FA activé avec succès. Conservez ces codes de secours dans un endroit sûr.',
     backupCodes,
@@ -314,6 +324,8 @@ router.delete('/2fa/disable', requireAdmin, async (req, res) => {
     'UPDATE admins SET totp_enabled = FALSE, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1',
     [admin.id]
   );
+
+  notify2FADisabled({ user: { email: admin.email, name: admin.full_name }, ip: req.ip });
 
   res.json({ message: '2FA désactivé' });
 });
@@ -355,6 +367,8 @@ router.post('/merchant/2fa/verify', require('../middleware/auth').requireMerchan
     [JSON.stringify(backupCodes), merchant.id]
   );
 
+  notify2FAEnabled({ user: { email: merchant.email, name: merchant.name }, backupCodes, ip: req.ip });
+
   res.json({
     message: '2FA marchand activé avec succès. Conservez ces codes de secours dans un endroit sûr.',
     backupCodes,
@@ -376,6 +390,8 @@ router.delete('/merchant/2fa/disable', require('../middleware/auth').requireMerc
     'UPDATE merchants SET totp_enabled = FALSE, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1',
     [merchant.id]
   );
+
+  notify2FADisabled({ user: { email: merchant.email, name: merchant.name }, ip: req.ip });
 
   res.json({ message: '2FA marchand désactivé' });
 });
@@ -439,6 +455,26 @@ router.post('/client/login', loginLimiter, async (req, res) => {
   }
 
   await clearFailures(identifier);
+
+  // Support 2FA client
+  if (client.totp_enabled && client.totp_secret) {
+    const { totp_code } = req.body;
+    if (!totp_code) {
+      return res.status(200).json({ requires2FA: true, message: 'Code 2FA requis.' });
+    }
+    const totpValid = verifyTotp(client.totp_secret, totp_code);
+    if (!totpValid) {
+      const backupCodes = client.totp_backup_codes ? JSON.parse(client.totp_backup_codes) : [];
+      const backupIdx = backupCodes.indexOf(String(totp_code).toUpperCase());
+      if (backupIdx === -1) {
+        await recordFailure(identifier);
+        return res.status(401).json({ error: 'Code 2FA invalide' });
+      }
+      backupCodes.splice(backupIdx, 1);
+      await db.query('UPDATE clients SET totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(backupCodes), client.id]);
+    }
+  }
+
   const tokens = generateTokens({ sub: client.id, role: 'client', afrikfidId: client.afrikfid_id });
 
   const refreshJti = extractJti(tokens.refreshToken);
@@ -457,8 +493,43 @@ router.post('/client/login', loginLimiter, async (req, res) => {
       phone: client.phone ? decrypt(client.phone) : null,
       loyaltyStatus: client.loyalty_status,
       walletBalance: wallet?.balance || 0,
+      totpEnabled: client.totp_enabled || false,
     },
   });
+});
+
+// ─── POST /api/v1/auth/client/2fa/setup ──────────────────────────────────────
+router.post('/client/2fa/setup', require('../middleware/auth').requireClient, async (req, res) => {
+  const client = req.client;
+  if (client.totp_enabled) return res.status(400).json({ error: '2FA déjà activé' });
+  const secret = generateTotpSecret();
+  const qrCode = await generateQrCode(client.afrikfid_id || client.id, secret, "Afrik'Fid Client");
+  await db.query('UPDATE clients SET totp_secret = $1 WHERE id = $2', [secret, client.id]);
+  res.json({ secret, qrCode, message: 'Scannez le QR code puis confirmez avec POST /auth/client/2fa/verify' });
+});
+
+// ─── POST /api/v1/auth/client/2fa/verify ─────────────────────────────────────
+router.post('/client/2fa/verify', require('../middleware/auth').requireClient, async (req, res) => {
+  const { totp_code } = req.body;
+  if (!totp_code) return res.status(400).json({ error: 'totp_code requis' });
+  const clientRow = (await db.query('SELECT * FROM clients WHERE id = $1', [req.client.id])).rows[0];
+  if (!clientRow.totp_secret) return res.status(400).json({ error: "Initiez d'abord l'enrollment via POST /auth/client/2fa/setup" });
+  const valid = verifyTotp(clientRow.totp_secret, totp_code);
+  if (!valid) return res.status(401).json({ error: 'Code TOTP invalide' });
+  const backupCodes = generateBackupCodes();
+  await db.query('UPDATE clients SET totp_enabled = TRUE, totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(backupCodes), req.client.id]);
+  res.json({ message: '2FA activé', backupCodes });
+});
+
+// ─── DELETE /api/v1/auth/client/2fa/disable ───────────────────────────────────
+router.delete('/client/2fa/disable', require('../middleware/auth').requireClient, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+  const clientRow = (await db.query('SELECT * FROM clients WHERE id = $1', [req.client.id])).rows[0];
+  const valid = await bcrypt.compare(password, clientRow.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect' });
+  await db.query('UPDATE clients SET totp_enabled = FALSE, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1', [req.client.id]);
+  res.json({ message: '2FA client désactivé' });
 });
 
 module.exports = router;
