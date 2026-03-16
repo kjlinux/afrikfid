@@ -196,8 +196,8 @@ WEBHOOK_SECRET = os.getenv("AFRIKFID_WEBHOOK_SECRET", "")
 
 
 def verifier_signature(payload: bytes, signature: str) -> bool:
-    if not WEBHOOK_SECRET:
-        return True  # désactivé si pas de secret configuré
+    if not WEBHOOK_SECRET or not signature:
+        return False  # rejeter si secret ou signature absents
     expected = "sha256=" + hmac.new(
         WEBHOOK_SECRET.encode(), payload, hashlib.sha256
     ).hexdigest()

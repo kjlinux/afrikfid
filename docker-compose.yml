@@ -68,11 +68,28 @@ services:
       CINETPAY_API_KEY: ${CINETPAY_API_KEY}
       CINETPAY_NOTIFY_URL: ${CINETPAY_NOTIFY_URL}
       CINETPAY_RETURN_URL: ${CINETPAY_RETURN_URL}
+      # JWT
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      # Webhooks
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      # Workers / crons
+      LOYALTY_BATCH_FREQUENCY: ${LOYALTY_BATCH_FREQUENCY:-daily}
+      ADMIN_ALERT_EMAIL: ${ADMIN_ALERT_EMAIL}
+      DASHBOARD_URL: ${DASHBOARD_URL}
+      REFUND_SLA_HOURS: ${REFUND_SLA_HOURS:-72}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      # Redis (prod avec mot de passe)
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - kyc_uploads:/app/uploads/kyc
     ports:
       - "4001:4001"
     healthcheck:
@@ -81,6 +98,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  seed:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: afrikfid_seed
+    command: ["node", "src/seed.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://afrikfid:${POSTGRES_PASSWORD:-afrikfid_secret}@postgres:5432/afrikfid
+      DATABASE_SSL: "false"
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      HMAC_SECRET: ${HMAC_SECRET}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
 
   web:
     build:
@@ -98,4 +134,6 @@ volumes:
   pgdata:
     driver: local
   redis_data:
+    driver: local
+  kyc_uploads:
     driver: local

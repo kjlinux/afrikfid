@@ -10,9 +10,6 @@ RUN npm ci --omit=dev
 COPY src/ ./src/
 COPY .env.example .env.example
 
-# Répertoire des données SQLite (monté en volume en production)
-RUN mkdir -p /data && chown node:node /data
-
 # Répertoire uploads KYC accessible en écriture par l'utilisateur node
 RUN mkdir -p /app/uploads/kyc && chown -R node:node /app/uploads
 
@@ -20,5 +17,4 @@ USER node
 
 EXPOSE 4001
 
-# Node 22: SQLite expérimental requis
-CMD ["node", "--experimental-sqlite", "src/index.js"]
+CMD ["node", "src/index.js"]

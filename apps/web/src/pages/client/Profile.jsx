@@ -4,6 +4,7 @@ import api from '../../api.js'
 import {
   ShieldCheckIcon, LockClosedIcon, DevicePhoneMobileIcon,
   CheckCircleIcon, ExclamationCircleIcon, QrCodeIcon, KeyIcon,
+  ArrowDownTrayIcon, TrashIcon,
 } from '@heroicons/react/24/outline'
 
 const inp = {
@@ -47,6 +48,41 @@ export default function ClientProfile() {
   const [showDisable, setShowDisable] = useState(false)
 
   const totpEnabled = user?.totpEnabled
+
+  // RGPD
+  const [gdprLoading, setGdprLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteMsg, setDeleteMsg] = useState(null)
+
+  const exportMyData = async () => {
+    setGdprLoading(true)
+    try {
+      const { data } = await api.get(`/clients/${user.id}/export`)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mes-donnees-afrikfid-${user.afrikfidId || user.id}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert('Erreur export : ' + (e.response?.data?.error || e.message))
+    } finally { setGdprLoading(false) }
+  }
+
+  const deleteMyAccount = async () => {
+    setDeleteLoading(true); setDeleteMsg(null)
+    try {
+      await api.delete(`/clients/${user.id}`)
+      setDeleteMsg({ type: 'success', text: 'Votre compte a été anonymisé. Vous allez être déconnecté.' })
+      setTimeout(() => { localStorage.clear(); window.location.href = '/login' }, 2500)
+    } catch (e) {
+      setDeleteMsg({ type: 'error', text: e.response?.data?.error || 'Erreur lors de la suppression' })
+      setDeleteLoading(false)
+    }
+  }
 
   const startSetup = async () => {
     setSetupLoading(true); setSetupMsg(null)
@@ -223,6 +259,56 @@ export default function ClientProfile() {
             </>
           )}
         </div>
+        {/* RGPD */}
+        <div style={{ background: '#1e293b', borderRadius: 12, padding: 20, border: '1px solid #334155', marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <ArrowDownTrayIcon style={{ width: 16, height: 16, color: '#64748b' }} />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>Mes données personnelles (RGPD)</h2>
+          </div>
+          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 18 }}>
+            Conformément au RGPD, vous pouvez exporter ou supprimer vos données personnelles.
+          </p>
+
+          <button onClick={exportMyData} disabled={gdprLoading}
+            style={{ width: '100%', padding: '10px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+            <ArrowDownTrayIcon style={{ width: 15, height: 15 }} />
+            {gdprLoading ? 'Téléchargement...' : 'Télécharger mes données (JSON)'}
+          </button>
+
+          <button onClick={() => setShowDeleteConfirm(true)}
+            style={{ width: '100%', padding: '10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <TrashIcon style={{ width: 15, height: 15 }} />
+            Supprimer mon compte (droit à l'oubli)
+          </button>
+        </div>
+
+        {/* Modale suppression compte */}
+        {showDeleteConfirm && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+            <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #ef4444', padding: 28, width: 420, maxWidth: '90vw' }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#ef4444', marginBottom: 10 }}>Supprimer mon compte ?</div>
+              <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+                Vos données personnelles (nom, téléphone, email) seront <strong style={{ color: '#f1f5f9' }}>anonymisées de façon irréversible</strong>.
+                Vos transactions sont conservées à des fins comptables.
+              </p>
+              <Msg msg={deleteMsg} />
+              <div style={{ marginBottom: 12 }}>
+                <input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
+                  placeholder="Confirmez avec votre mot de passe" style={{ ...inp, marginBottom: 0 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteMsg(null) }} disabled={deleteLoading}
+                  style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>
+                  Annuler
+                </button>
+                <button onClick={deleteMyAccount} disabled={deleteLoading || !deletePassword}
+                  style={{ flex: 1, padding: '10px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                  {deleteLoading ? 'Traitement...' : 'Confirmer la suppression'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

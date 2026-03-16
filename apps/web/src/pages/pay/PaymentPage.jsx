@@ -19,63 +19,87 @@ import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
-// ─── Logos opérateurs (SVG inline) ───────────────────────────────────────────
-function OrangeLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+// ─── Logos opérateurs ─────────────────────────────────────────────────────────
+// Pour utiliser vos propres images : placez-les dans apps/web/public/operators/
+// avec le nom correspondant (ex: orange.png, mtn.png, wave.png, airtel.png, moov.png, mpesa.png)
+// Les SVG ci-dessous servent de fallback si l'image n'existe pas.
+
+const OPERATOR_IMAGE_MAP = {
+  ORANGE: '/operators/orange.png',
+  MTN:    '/operators/mtn.png',
+  WAVE:   '/operators/wave.png',
+  AIRTEL: '/operators/airtel.png',
+  MOOV:   '/operators/moov.png',
+  MPESA:  '/operators/mpesa.png',
+}
+
+const OPERATOR_SVG_FALLBACK = {
+  ORANGE: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#FF6B00"/>
       <rect x="10" y="17" width="20" height="6" rx="3" fill="#fff"/>
     </svg>
-  )
-}
-function MtnLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+  ),
+  MTN: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#FFD700"/>
       <text x="20" y="25" textAnchor="middle" fontSize="10" fontWeight="800" fill="#000">MTN</text>
     </svg>
-  )
-}
-function WaveLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+  ),
+  WAVE: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#1DA1F2"/>
       <path d="M10 22 Q15 14 20 22 Q25 30 30 22" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
     </svg>
-  )
-}
-function AirtelLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+  ),
+  AIRTEL: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#E30613"/>
       <text x="20" y="25" textAnchor="middle" fontSize="8" fontWeight="800" fill="#fff">AIRTEL</text>
     </svg>
-  )
-}
-function MoovLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+  ),
+  MOOV: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#00A651"/>
       <text x="20" y="25" textAnchor="middle" fontSize="8" fontWeight="800" fill="#fff">MOOV</text>
     </svg>
-  )
-}
-function MpesaLogo() {
-  return (
-    <svg viewBox="0 0 40 40" width="36" height="36">
+  ),
+  MPESA: ({ size = 36 }) => (
+    <svg viewBox="0 0 40 40" width={size} height={size}>
       <circle cx="20" cy="20" r="20" fill="#00a550"/>
       <text x="20" y="26" textAnchor="middle" fontSize="7.5" fontWeight="800" fill="#fff">M-PESA</text>
     </svg>
-  )
+  ),
+}
+
+// Composant logo avec image réelle + fallback SVG
+function OperatorLogo({ code, size = 36 }) {
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const imgSrc = OPERATOR_IMAGE_MAP[code]
+  const FallbackSvg = OPERATOR_SVG_FALLBACK[code]
+
+  if (!imgFailed && imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt={code}
+        width={size}
+        height={size}
+        onError={() => setImgFailed(true)}
+        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 6 }}
+      />
+    )
+  }
+  return FallbackSvg ? <FallbackSvg size={size} /> : null
 }
 
 const MM_OPERATORS = [
-  { code: 'ORANGE', name: 'Orange Money', Logo: OrangeLogo, color: '#FF6B00' },
-  { code: 'MTN',    name: 'MTN MoMo',     Logo: MtnLogo,    color: '#FFD700' },
-  { code: 'WAVE',   name: 'Wave',         Logo: WaveLogo,   color: '#1DA1F2' },
-  { code: 'AIRTEL', name: 'Airtel Money', Logo: AirtelLogo, color: '#E30613' },
-  { code: 'MOOV',   name: 'Moov Money',  Logo: MoovLogo,   color: '#00A651' },
-  { code: 'MPESA',  name: 'M-Pesa',      Logo: MpesaLogo,  color: '#00a550' },
+  { code: 'ORANGE', name: 'Orange Money', color: '#FF6B00' },
+  { code: 'MTN',    name: 'MTN MoMo',     color: '#FFD700' },
+  { code: 'WAVE',   name: 'Wave',         color: '#1DA1F2' },
+  { code: 'AIRTEL', name: 'Airtel Money', color: '#E30613' },
+  { code: 'MOOV',   name: 'Moov Money',   color: '#00A651' },
+  { code: 'MPESA',  name: 'M-Pesa',       color: '#00a550' },
 ]
 
 // ─── Instructions USSD par opérateur et par pays ──────────────────────────────
@@ -406,7 +430,7 @@ export default function PaymentPage() {
                       <button key={op.code} onClick={() => setForm(f => ({ ...f, operator: op.code }))}
                         style={{ padding: '8px 4px', border: '2px solid ' + (selected ? op.color : '#334155'), borderRadius: 9, background: selected ? op.color + '22' : '#0f172a', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 3 }}>
-                          <op.Logo />
+                          <OperatorLogo code={op.code} size={36} />
                         </div>
                         <div style={{ fontSize: 9, color: selected ? op.color : '#64748b', fontWeight: 600, lineHeight: 1.2 }}>{op.name.split(' ')[0]}</div>
                       </button>

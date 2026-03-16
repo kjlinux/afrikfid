@@ -52,6 +52,40 @@ export default function AdminClients() {
     if (selected?.id === id) openDetail({ id })
   }
 
+  const exportGdpr = async (client) => {
+    try {
+      const r = await api.get(`/clients/${client.id}/export`)
+      const blob = new Blob([JSON.stringify(r.data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `rgpd-export-${client.afrikfidId || client.id}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert('Erreur export RGPD : ' + (e.response?.data?.error || e.message))
+    }
+  }
+
+  const [confirmAnonymize, setConfirmAnonymize] = useState(null) // client à anonymiser
+  const [anonymizeLoading, setAnonymizeLoading] = useState(false)
+
+  const anonymizeClient = async () => {
+    if (!confirmAnonymize) return
+    setAnonymizeLoading(true)
+    try {
+      await api.delete(`/clients/${confirmAnonymize.id}`)
+      setConfirmAnonymize(null)
+      setSelected(null)
+      setClientDetail(null)
+      load()
+    } catch (e) {
+      alert('Erreur anonymisation : ' + (e.response?.data?.error || e.message))
+    } finally {
+      setAnonymizeLoading(false)
+    }
+  }
+
   return (
     <div style={{ padding: '24px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -150,6 +184,32 @@ export default function AdminClients() {
         </div>
       </div>
 
+      {/* Modale confirmation anonymisation */}
+      {confirmAnonymize && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #ef4444', padding: 28, width: 420, maxWidth: '90vw' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444', marginBottom: 12 }}>Anonymiser ce client ?</div>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8 }}>
+              Cette action est <strong style={{ color: '#f1f5f9' }}>irréversible</strong>. Les données personnelles de&nbsp;
+              <strong style={{ color: '#f1f5f9' }}>{confirmAnonymize.fullName}</strong> seront remplacées par des valeurs neutres (RGPD — droit à l'oubli).
+            </p>
+            <p style={{ fontSize: 12, color: '#64748b', marginBottom: 20 }}>
+              Les transactions historiques sont conservées à des fins comptables.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmAnonymize(null)} disabled={anonymizeLoading}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>
+                Annuler
+              </button>
+              <button onClick={anonymizeClient} disabled={anonymizeLoading}
+                style={{ flex: 1, padding: '10px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                {anonymizeLoading ? 'Anonymisation...' : 'Confirmer l\'anonymisation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Detail Drawer */}
       {selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'flex-end', zIndex: 1000 }}>
@@ -210,6 +270,27 @@ export default function AdminClients() {
                     </div>
                   ))}
                 </div>
+
+                {/* RGPD actions */}
+                {!selected.anonymized_at ? (
+                  <div style={{ background: '#0f172a', borderRadius: 10, padding: 16 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>Droits RGPD</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => exportGdpr(selected)}
+                        style={{ flex: 1, padding: '9px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        ⬇ Exporter données
+                      </button>
+                      <button onClick={() => setConfirmAnonymize(selected)}
+                        style={{ flex: 1, padding: '9px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        🗑 Anonymiser (oubli)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#ef4444' }}>
+                    Client anonymisé le {selected.anonymized_at?.split('T')[0]}
+                  </div>
+                )}
               </>
             )}
           </div>

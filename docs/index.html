@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Afrik'Fid — Documentation Technique</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --accent: #f0883e;
+      --accent2: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --purple: #bc8cff;
+      --teal: #39d353;
+      --sidebar-w: 260px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      display: flex;
+    }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0;
+      overflow-y: auto;
+      padding: 24px 0 40px;
+      z-index: 100;
+    }
+    #sidebar .logo {
+      padding: 0 20px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    #sidebar .logo .name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    #sidebar .logo .version {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+    #sidebar nav a {
+      display: block;
+      padding: 5px 20px;
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      border-left: 2px solid transparent;
+    }
+    #sidebar nav a:hover,
+    #sidebar nav a.active {
+      color: var(--text);
+      background: var(--bg3);
+      border-left-color: var(--accent);
+    }
+    #sidebar nav .section-label {
+      padding: 14px 20px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text2);
+    }
+
+    /* ── MAIN ── */
+    #content {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 48px 80px;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, #1a2035 0%, #1a2d1a 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 48px;
+      margin-bottom: 48px;
+    }
+    .hero h1 {
+      font-size: 40px;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero .tagline {
+      font-size: 18px;
+      color: var(--text2);
+      margin-bottom: 24px;
+    }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .badge-green  { color: var(--green);  border-color: var(--green);  background: rgba(63,185,80,.1); }
+    .badge-blue   { color: var(--accent2); border-color: var(--accent2); background: rgba(88,166,255,.1); }
+    .badge-orange { color: var(--accent);  border-color: var(--accent);  background: rgba(240,136,62,.1); }
+    .badge-purple { color: var(--purple);  border-color: var(--purple);  background: rgba(188,140,255,.1); }
+    .badge-yellow { color: var(--yellow);  border-color: var(--yellow);  background: rgba(210,153,34,.1); }
+
+    /* ── SECTIONS ── */
+    section {
+      margin-bottom: 56px;
+      scroll-margin-top: 24px;
+    }
+    h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .icon { font-size: 22px; }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 24px 0 12px;
+    }
+    h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent2);
+      margin: 16px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    p { color: var(--text2); margin-bottom: 12px; }
+    p strong { color: var(--text); }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .card-grid .card { margin-bottom: 0; }
+    .card .card-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card p { margin-bottom: 0; font-size: 13px; }
+
+    /* ── TABLES ── */
+    .table-wrap { overflow-x: auto; margin-bottom: 16px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      background: var(--bg3);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg3); }
+    td code, th code {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      color: var(--accent2);
+    }
+
+    /* ── CODE ── */
+    pre {
+      background: #161b22 !important;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    code:not(.hljs) {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 12.5px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      color: var(--accent2);
+    }
+
+    /* ── FLOW DIAGRAM ── */
+    .flow {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--text2);
+      margin-bottom: 16px;
+    }
+    .flow .step-num { color: var(--accent); font-weight: 700; }
+    .flow .arrow { color: var(--text2); }
+    .flow .ok { color: var(--green); }
+    .flow .err { color: var(--red); }
+    .flow .info { color: var(--accent2); }
+
+    /* ── ALERT BOXES ── */
+    .alert {
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      display: flex;
+      gap: 10px;
+    }
+    .alert-info    { background: rgba(88,166,255,.1);  border: 1px solid rgba(88,166,255,.3);  color: #9ec8ff; }
+    .alert-warn    { background: rgba(210,153,34,.1);  border: 1px solid rgba(210,153,34,.3);  color: #e3b341; }
+    .alert-success { background: rgba(63,185,80,.1);   border: 1px solid rgba(63,185,80,.3);   color: #7ee787; }
+    .alert-danger  { background: rgba(248,81,73,.1);   border: 1px solid rgba(248,81,73,.3);   color: #ff7b72; }
+
+    /* ── ROUTE LIST ── */
+    .route-list { list-style: none; }
+    .route-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .route-list li:last-child { border-bottom: none; }
+    .method {
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      min-width: 46px;
+      text-align: center;
+    }
+    .GET    { background: rgba(63,185,80,.15);   color: var(--green);   border: 1px solid rgba(63,185,80,.3); }
+    .POST   { background: rgba(88,166,255,.15);  color: var(--accent2); border: 1px solid rgba(88,166,255,.3); }
+    .PATCH  { background: rgba(210,153,34,.15);  color: var(--yellow);  border: 1px solid rgba(210,153,34,.3); }
+    .PUT    { background: rgba(188,140,255,.15); color: var(--purple);  border: 1px solid rgba(188,140,255,.3); }
+    .DELETE { background: rgba(248,81,73,.15);   color: var(--red);     border: 1px solid rgba(248,81,73,.3); }
+    .route-path { font-family: monospace; color: var(--text); font-size: 13px; }
+    .route-desc { color: var(--text2); flex: 1; }
+
+    /* ── TIER CARDS ── */
+    .tier-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .tier-card {
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid;
+      text-align: center;
+    }
+    .tier-OPEN   { border-color: var(--text2);   background: rgba(139,148,158,.08); }
+    .tier-LIVE   { border-color: var(--green);   background: rgba(63,185,80,.08); }
+    .tier-GOLD   { border-color: var(--yellow);  background: rgba(210,153,34,.08); }
+    .tier-ROYAL  { border-color: var(--purple);  background: rgba(188,140,255,.08); }
+    .tier-name   { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .tier-pct    { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .tier-cond   { font-size: 11px; color: var(--text2); }
+    .tier-OPEN  .tier-name, .tier-OPEN  .tier-pct { color: var(--text2); }
+    .tier-LIVE  .tier-name, .tier-LIVE  .tier-pct { color: var(--green); }
+    .tier-GOLD  .tier-name, .tier-GOLD  .tier-pct { color: var(--yellow); }
+    .tier-ROYAL .tier-name, .tier-ROYAL .tier-pct { color: var(--purple); }
+
+    /* ── CRON TABLE ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── LANGUAGE TABS ── */
+    .lang-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .lang-tab {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      background: transparent;
+      transition: color .15s, background .15s;
+      margin-bottom: -1px;
+    }
+    .lang-tab:hover { color: var(--text); background: var(--bg3); }
+    .lang-tab.active {
+      color: var(--accent);
+      background: var(--bg2);
+      border-color: var(--border);
+      border-bottom-color: var(--bg2);
+    }
+    .lang-panel { display: none; }
+    .lang-panel.active { display: block; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      #sidebar { display: none; }
+      #content { margin-left: 0; padding: 24px 20px; }
+      .tier-grid { grid-template-columns: repeat(2, 1fr); }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+    /* ── TOC PROGRESS ── */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      z-index: 999;
+      transition: width .1s;
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="logo">
+    <div class="name">Afrik'Fid</div>
+    <div class="version">Documentation Technique v2.0</div>
+  </div>
+  <nav>
+    <div class="section-label">Introduction</div>
+    <a href="#overview">Vue d'ensemble</a>
+    <a href="#model">Modèle X/Y/Z</a>
+    <a href="#architecture">Architecture</a>
+
+    <div class="section-label">Sécurité</div>
+    <a href="#auth">Authentification &amp; Rôles</a>
+    <a href="#security">Sécurité &amp; Chiffrement</a>
+
+    <div class="section-label">Fonctionnalités</div>
+    <a href="#payments">Flux de Paiement</a>
+    <a href="#loyalty">Système de Fidélité</a>
+    <a href="#fraud">Anti-Fraude</a>
+    <a href="#webhooks">Webhooks</a>
+    <a href="#currencies">Multi-Devises</a>
+    <a href="#notifications">Notifications</a>
+
+    <div class="section-label">API Reference</div>
+    <a href="#api-auth">Auth</a>
+    <a href="#api-payments">Paiements</a>
+    <a href="#api-merchants">Marchands</a>
+    <a href="#api-clients">Clients</a>
+    <a href="#api-loyalty">Fidélité</a>
+    <a href="#api-links">Payment Links</a>
+    <a href="#api-fraud">Fraude</a>
+    <a href="#api-reports">Rapports</a>
+    <a href="#api-webhooks">Webhooks</a>
+    <a href="#api-misc">Autres</a>
+    <a href="#integration">Intégration</a>
+
+    <div class="section-label">Système</div>
+    <a href="#workers">Workers &amp; Crons</a>
+    <a href="#frontend">Interface Frontend</a>
+    <a href="#rgpd">RGPD &amp; Conformité</a>
+    <a href="#monitoring">Monitoring</a>
+    <a href="#install">Installation</a>
+    <a href="#glossary">Glossaire</a>
+  </nav>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main id="content">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Afrik'Fid</h1>
+    <p class="tagline">Passerelle de paiement B2B pour l'Afrique avec programme de fidélité intégré</p>
+    <div class="badges">
+      <span class="badge badge-green">Node.js 22</span>
+      <span class="badge badge-blue">Express 4.18</span>
+      <span class="badge badge-blue">PostgreSQL 16</span>
+      <span class="badge badge-purple">Redis 7</span>
+      <span class="badge badge-orange">React 18</span>
+      <span class="badge badge-yellow">CDC v2.0 Compliant</span>
+      <span class="badge badge-green">Docker Ready</span>
+    </div>
+  </div>
+
+  <!-- VUE D'ENSEMBLE -->
+  <section id="overview">
+    <h2>Vue d'ensemble</h2>
+    <p><strong>Afrik'Fid</strong> est une plateforme de paiement B2B complète pensée pour les marchés africains. Elle permet aux marchands d'accepter des paiements de leurs clients via Mobile Money ou carte bancaire, tout en offrant automatiquement un programme de cashback (fidélité) aux acheteurs.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Marchands</div>
+        <p>Intègrent l'API pour accepter des paiements, suivre leurs ventes, gérer les liens de paiement et recevoir leurs virements automatiques.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Clients</div>
+        <p>Paient via Mobile Money ou carte. Gagnent automatiquement du cashback crédité sur leur portefeuille selon leur niveau de fidélité.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Administrateurs</div>
+        <p>Supervisent la plateforme : KYC marchands, règles anti-fraude, taux de change, audit, distributions et litiges.</p>
+      </div>
+    </div>
+
+    <h3>Stack technique</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Couche</th><th>Technologie</th><th>Rôle</th></tr></thead>
+        <tbody>
+          <tr><td>API Backend</td><td>Node.js 22 + Express 4.18</td><td>Serveur REST, workers, crons</td></tr>
+          <tr><td>Base de données</td><td>PostgreSQL 16</td><td>Stockage principal (10 migrations)</td></tr>
+          <tr><td>Cache / Sessions</td><td>Redis 7</td><td>Révocation JWT, lockout, refresh tokens</td></tr>
+          <tr><td>Frontend</td><td>React 18 + Vite + React Router 6</td><td>Dashboards admin, marchand, client</td></tr>
+          <tr><td>Graphiques</td><td>Recharts</td><td>Visualisation volumes et KPIs</td></tr>
+          <tr><td>Validation</td><td>Zod</td><td>Schémas d'entrée centralisés</td></tr>
+          <tr><td>Tests</td><td>Jest 29 + Supertest</td><td>Tests unitaires et d'intégration</td></tr>
+          <tr><td>Déploiement</td><td>Docker / Kubernetes / PM2</td><td>Prod, dev, CI/CD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- MODÈLE X/Y/Z -->
+  <section id="model">
+    <h2>Modèle X/Y/Z — Le coeur d'Afrik'Fid</h2>
+    <p>Toute transaction sur Afrik'Fid suit le modèle <strong>X/Y/Z</strong>, qui définit comment le montant payé est redistribué entre le marchand, le client et la plateforme.</p>
+
+    <div class="card">
+      <div class="card-title">Formule fondamentale</div>
+      <div class="flow">
+        <span class="info">X%</span> = Remise marchand (pourcentage que le marchand consent à reverser)<br>
+        <span class="ok">Y%</span> = Cashback client (rebate crédité sur le portefeuille du client)<br>
+        <span class="step-num">Z%</span> = Commission Afrik'Fid = X% − Y%<br><br>
+        Contrainte : <span class="err">Y ≤ X</span> (le client ne peut pas gagner plus que ce que le marchand cède)<br>
+        <br>
+        <span class="ok">Exemple concret :</span><br>
+        Achat de 10 000 XOF, marchand configure X=8%, Y=5%<br>
+        → Client gagne : 500 XOF de cashback<br>
+        → Afrik'Fid perçoit : 300 XOF (Z = 8%-5% = 3%)<br>
+        → Marchand reverse : 800 XOF (dont 500 vont au client)
+      </div>
+    </div>
+
+    <h3>Niveaux de fidélité</h3>
+    <p>Le taux Y% appliqué dépend du <strong>niveau de fidélité</strong> du client, qui évolue automatiquement selon son historique d'achats.</p>
+
+    <div class="tier-grid">
+      <div class="tier-card tier-OPEN">
+        <div class="tier-name">OPEN</div>
+        <div class="tier-pct">0%</div>
+        <div class="tier-cond">Nouveau client</div>
+      </div>
+      <div class="tier-card tier-LIVE">
+        <div class="tier-name">LIVE</div>
+        <div class="tier-pct">5%</div>
+        <div class="tier-cond">3 achats / 3 mois</div>
+      </div>
+      <div class="tier-card tier-GOLD">
+        <div class="tier-name">GOLD</div>
+        <div class="tier-pct">8%</div>
+        <div class="tier-cond">6 achats / 6 mois</div>
+      </div>
+      <div class="tier-card tier-ROYAL">
+        <div class="tier-name">ROYAL</div>
+        <div class="tier-pct">12%</div>
+        <div class="tier-cond">12 achats / 12 mois</div>
+      </div>
+    </div>
+
+    <div class="alert alert-info">
+      <span>i</span>
+      <div>Les seuils (nombre d'achats, montant cumulé, durée) sont configurables par l'admin depuis le dashboard ou via <code>PUT /api/v1/loyalty/config/:status</code>. Des surcharges par pays sont également possibles.</div>
+    </div>
+
+    <div class="alert alert-warn">
+      <span>!</span>
+      <div><strong>Rétrogradation :</strong> Un client inactif pendant la fenêtre de son tier peut redescendre au niveau inférieur. Le batch de fidélité évalue cela chaque nuit.</div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture">
+    <h2>Architecture</h2>
+    <p>L'application est organisée en <strong>monorepo</strong> avec deux applications distinctes.</p>
+
+    <div class="flow">
+afrikid/<br>
+├── apps/<br>
+│   ├── api/                      <span class="info"># Backend Node.js</span><br>
+│   │   └── src/<br>
+│   │       ├── config/           <span class="ok"># constants.js, schemas.js</span><br>
+│   │       ├── middleware/        <span class="ok"># auth, validate, error-handler, rate-limit</span><br>
+│   │       ├── lib/              <span class="ok"># loyalty-engine, fraud, crypto, notifications…</span><br>
+│   │       ├── routes/           <span class="ok"># auth, payments, merchants, clients…</span><br>
+│   │       └── workers/          <span class="ok"># webhook-dispatcher, loyalty-batch, disbursement…</span><br>
+│   └── web/                      <span class="info"># Frontend React</span><br>
+│       └── src/<br>
+│           ├── pages/admin/      <span class="ok"># Dashboard, Merchants, Fraud, Webhooks…</span><br>
+│           ├── pages/merchant/   <span class="ok"># Dashboard, PaymentLinks, KYC…</span><br>
+│           ├── pages/client/     <span class="ok"># Dashboard, Profile</span><br>
+│           └── components/ui.jsx <span class="ok"># Design system réutilisable</span><br>
+├── docs/                         <span class="accent">← Vous êtes ici</span><br>
+└── docker-compose.*.yml
+    </div>
+
+    <h3>Couches backend</h3>
+    <div class="flow">
+HTTP Request<br>
+    <span class="arrow">↓</span><br>
+Rate Limiter (200 req/15min par IP)<br>
+    <span class="arrow">↓</span><br>
+CORS + Helmet (sécurité headers)<br>
+    <span class="arrow">↓</span><br>
+Auth Middleware (JWT ou API Key)<br>
+    <span class="arrow">↓</span><br>
+Validate Middleware (Zod schema)<br>
+    <span class="arrow">↓</span><br>
+Route Handler (business logic)<br>
+    <span class="arrow">↓</span><br>
+Lib (loyalty-engine, fraud, crypto, notifications…)<br>
+    <span class="arrow">↓</span><br>
+PostgreSQL (via pg Pool)<br>
+    <span class="arrow">↓</span><br>
+Error Handler Middleware (ZodError→400, JWT→401…)<br>
+    <span class="arrow">↓</span><br>
+JSON Response
+    </div>
+  </section>
+
+  <!-- AUTHENTIFICATION -->
+  <section id="auth">
+    <h2>Authentification &amp; Rôles</h2>
+
+    <h3>3 rôles distincts</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rôle</th><th>Accès</th><th>Authentification</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-purple">admin</span></td>
+            <td>Toute la plateforme (lecture/écriture)</td>
+            <td>Email + mot de passe + 2FA TOTP optionnel</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">merchant</span></td>
+            <td>Ses propres transactions, clients, liens, stats</td>
+            <td>Email + mot de passe + API Key (header <code>X-API-Key</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">client</span></td>
+            <td>Son profil, wallet, historique</td>
+            <td>Téléphone + mot de passe</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tokens JWT</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Access Token</div>
+        <p>Durée : <strong>15 minutes</strong>. Envoyé dans le header <code>Authorization: Bearer &lt;token&gt;</code>. Contient le JTI (ID unique) pour révocation.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Refresh Token</div>
+        <p>Durée : <strong>7 jours</strong>. Stocké en Redis. Permet d'obtenir un nouvel access token sans re-login via <code>POST /auth/refresh</code>.</p>
+      </div>
+    </div>
+
+    <h3>2FA (TOTP)</h3>
+    <p>Les admins et marchands peuvent activer l'authentification à deux facteurs via une application comme Google Authenticator ou Authy.</p>
+    <div class="flow">
+<span class="step-num">1.</span> <code>POST /auth/2fa/setup</code>  → reçoit secret + QR code (URI otpauth://)<br>
+<span class="step-num">2.</span> L'utilisateur scanne le QR avec son app authenticator<br>
+<span class="step-num">3.</span> <code>POST /auth/2fa/verify</code> avec le code à 6 chiffres → active le 2FA<br>
+<span class="step-num">4.</span> Lors du login suivant, si 2FA actif → doit fournir <code>totp_code</code> dans le body<br>
+<span class="step-num">5.</span> 10 codes de secours single-use générés à l'activation
+    </div>
+
+    <h3>Protection contre le brute-force</h3>
+    <ul style="color:var(--text2); padding-left:20px; font-size:13px; margin-bottom:12px;">
+      <li>5 tentatives échouées → compte bloqué <strong>15 minutes</strong> (via Redis)</li>
+      <li>Rate limiter global : <strong>200 requêtes / 15 min</strong> par IP</li>
+      <li>Rate limiter spécifique login : <strong>20 tentatives / 15 min</strong></li>
+    </ul>
+  </section>
+
+  <!-- SÉCURITÉ -->
+  <section id="security">
+    <h2>Sécurité &amp; Chiffrement</h2>
+
+    <h3>Chiffrement AES-256-GCM</h3>
+    <p>Les données sensibles (PII) sont chiffrées en base de données avec AES-256-GCM. Même un accès direct à la DB ne révèle pas ces données.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Champ</th><th>Table</th><th>Type</th></tr></thead>
+        <tbody>
+          <tr><td>Numéro de téléphone</td><td><code>clients</code></td><td>Chiffré AES + hash HMAC pour recherche</td></tr>
+          <tr><td>Email</td><td><code>clients</code></td><td>Chiffré AES + hash HMAC pour recherche</td></tr>
+          <tr><td>Numéro de compte bancaire</td><td><code>merchants</code></td><td>Chiffré AES + hash HMAC</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="alert alert-info">
+      <span>i</span>
+      <div>La <strong>recherche par téléphone</strong> utilise le champ <code>phone_hash</code> (HMAC-SHA256 du numéro) pour éviter de déchiffrer toutes les entrées lors d'une recherche.</div>
+    </div>
+
+    <h3>Rotation des clés</h3>
+    <p>Chaque jour à 3h00, un worker vérifie si la clé AES a plus de <strong>90 jours</strong>. Si oui, elle est automatiquement tournée (conformité PCI-DSS). Les clés API marchands sont également rotées tous les 90 jours (3h30).</p>
+
+    <h3>Récapitulatif sécurité</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mécanisme</th><th>Détail</th></tr></thead>
+        <tbody>
+          <tr><td>Chiffrement PII</td><td>AES-256-GCM (lib/crypto.js)</td></tr>
+          <tr><td>Tokens JWT</td><td>RS256, JTI, révocation Redis</td></tr>
+          <tr><td>2FA</td><td>TOTP (speakeasy) + QR code (qrcode)</td></tr>
+          <tr><td>Webhooks</td><td>Signature HMAC-SHA256 sur chaque payload</td></tr>
+          <tr><td>Rate limiting</td><td>200 req/15min (express-rate-limit)</td></tr>
+          <tr><td>Brute-force</td><td>Lockout Redis 15 min après 5 échecs</td></tr>
+          <tr><td>CORS</td><td>Whitelist via <code>CORS_ORIGINS</code> (CSV), fallback * en dev</td></tr>
+          <tr><td>Headers HTTP</td><td>Helmet.js avec CSP strict</td></tr>
+          <tr><td>Rotation clés</td><td>AES + API Keys tous les 90 jours (cron)</td></tr>
+          <tr><td>RGPD</td><td>Export données + anonymisation (droit à l'oubli)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FLUX DE PAIEMENT -->
+  <section id="payments">
+    <h2>Flux de Paiement</h2>
+
+    <h3>Méthodes acceptées</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Mobile Money</div>
+        <p><strong>Orange Money</strong> (CI, SN, BF, ML, NE, CM)<br>
+        <strong>MTN MoMo</strong> (CI, CM, BF, BJ, CG)<br>
+        <strong>Airtel Money</strong> (NE, TD, BF, KE)<br>
+        <strong>M-Pesa</strong> Safaricom (Kenya)<br>
+        <strong>Wave</strong> (SN, CI, ML, BF)<br>
+        <strong>Moov Money</strong> (CI, BF, BJ, TG, NE)</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Carte Bancaire</div>
+        <p><strong>CinetPay</strong> — zone UEMOA + CEMAC (défaut)<br>
+        <strong>Flutterwave</strong> — alternative configurable via <code>CARD_PROVIDER=flutterwave</code><br><br>
+        Bascule sandbox automatique si identifiants non configurés.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Payment Links</div>
+        <p>Liens de paiement partageables générés par le marchand. Montant fixe ou libre, nombre max d'utilisations, date d'expiration.</p>
+      </div>
+    </div>
+
+    <h3>Flux complet d'un paiement</h3>
+    <div class="flow">
+<span class="step-num">1. Initiation</span><br>
+  Marchand → <code>POST /api/v1/payments/initiate</code><br>
+  Body: { amount, currency, operator, phone, client_id, idempotency_key }<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">2. Validation</span><br>
+  Zod schema vérifie le body<br>
+  Vérification idempotency_key (dédoublonnage)<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">3. Anti-fraude</span><br>
+  <code>checkTransaction()</code> → score de risque (0–100)<br>
+  Score >= 70 → transaction BLOQUÉE, alerte admin SSE<br>
+  Vérification blacklist téléphone<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">4. Calcul distribution</span><br>
+  <code>calculateDistribution()</code> → montants X, Y, Z selon tier client<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">5. Création transaction</span><br>
+  Status = <span class="info">PENDING</span>, expire dans 2 minutes<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">6. Appel opérateur</span><br>
+  <span class="ok">Mobile Money</span> → adapter correspondant (Orange/MTN/Airtel/M-Pesa…)<br>
+  <span class="ok">Carte</span> → CinetPay ou Flutterwave, redirect URL retournée<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">7. Callback opérateur</span><br>
+  Opérateur appelle <code>POST /payments/mm/orange/notify</code> (ou MTN/Airtel…)<br>
+  Vérification signature HMAC (si configurée)<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">8. Confirmation</span><br>
+  Status → <span class="ok">COMPLETED</span> ou <span class="err">FAILED</span><br>
+  Cashback crédité sur le portefeuille client (montant Y)<br>
+  Webhook <code>payment.success</code> envoyé au marchand<br>
+  Notification SMS/Email au client<br>
+  <span class="arrow">↓</span><br>
+<span class="step-num">9. Virement marchand</span><br>
+  Worker disbursement à 06h00 → vire les fonds dus aux marchands
+    </div>
+
+    <h3>Zones géographiques et devises</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Zone</th><th>Pays</th><th>Devise</th><th>Opérateurs</th></tr></thead>
+        <tbody>
+          <tr><td>UEMOA</td><td>CI, SN, BF, ML, NE, TG, BJ</td><td>XOF</td><td>Orange, MTN, Wave, Moov, Airtel, CinetPay</td></tr>
+          <tr><td>CEMAC</td><td>CM, TD, CG, GA</td><td>XAF</td><td>Orange, MTN, Airtel, CinetPay</td></tr>
+          <tr><td>Afrique de l'Est</td><td>Kenya (KE)</td><td>KES</td><td>M-Pesa (Daraja), Airtel</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Mode Sandbox</h3>
+    <p>Lorsque <code>SANDBOX_MODE=true</code> (ou identifiants opérateur absents), tous les paiements passent par des simulateurs internes. Idéal pour les tests sans risque de vrai mouvement d'argent.</p>
+
+    <div class="alert alert-success">
+      <span>OK</span>
+      <div>En sandbox, utilisez <code>POST /api/v1/payments/:id/confirm</code> pour simuler manuellement la confirmation d'un paiement en attente.</div>
+    </div>
+
+    <h3>Idempotence</h3>
+    <p>Passez le header <code>Idempotency-Key: &lt;uuid-unique&gt;</code> dans chaque requête d'initiation. Si la même clé est envoyée deux fois, la deuxième requête retourne le résultat de la première sans créer un doublon.</p>
+
+    <h3>Remboursements &amp; Litiges</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Remboursement</div>
+        <p><code>POST /payments/:id/refund</code> — remboursement total ou partiel. L'admin valide depuis le dashboard. Le cashback est réduit proportionnellement.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Litige (Chargeback)</div>
+        <p><code>POST /payments/:id/dispute</code> — initie une procédure de contestation. Suivi depuis <code>/admin/disputes</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FIDÉLITÉ -->
+  <section id="loyalty">
+    <h2>Système de Fidélité</h2>
+
+    <p>Le moteur de fidélité (<code>lib/loyalty-engine.js</code>) évalue automatiquement chaque client et met à jour son niveau de cashback.</p>
+
+    <h3>Évaluation des niveaux</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Niveau</th><th>Cashback</th><th>Condition (achats)</th><th>Fenêtre</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-yellow" style="color:var(--text2);border-color:var(--text2)">OPEN</span></td><td>0%</td><td>Moins de 3 achats</td><td>—</td></tr>
+          <tr><td><span class="badge badge-green">LIVE</span></td><td>5%</td><td>≥ 3 achats ou montant seuil</td><td>3 derniers mois</td></tr>
+          <tr><td><span class="badge badge-yellow">GOLD</span></td><td>8%</td><td>≥ 6 achats ou montant seuil</td><td>6 derniers mois</td></tr>
+          <tr><td><span class="badge badge-purple">ROYAL</span></td><td>12%</td><td>≥ 12 achats ou montant seuil</td><td>12 derniers mois</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Batch nocturne</h3>
+    <p>Chaque nuit à <strong>2h00</strong>, le worker <code>workers/loyalty-batch.js</code> évalue tous les clients actifs :</p>
+    <ol style="color:var(--text2); padding-left:20px; font-size:13px; line-height:2;">
+      <li>Calcule achats et montants sur la fenêtre glissante du tier</li>
+      <li>Détermine si le client monte, reste stable, ou descend de tier</li>
+      <li>Met à jour le statut en base</li>
+      <li>Envoie une notification SMS/Email si changement de tier</li>
+      <li>Déclenche le webhook <code>loyalty.status_changed</code> si un marchand écoute</li>
+    </ol>
+
+    <h3>Surcharges par pays</h3>
+    <p>L'admin peut configurer des taux Y% différents par pays via <code>PUT /api/v1/loyalty/config-country/:countryId/:status</code>. Par exemple, les clients au Kenya (KES) peuvent avoir un taux ROYAL de 10% au lieu de 12%.</p>
+
+    <h3>Portefeuille (Wallet)</h3>
+    <p>Chaque client possède un portefeuille virtuel où s'accumulent ses cashbacks. Il peut les consulter sur son dashboard et les utiliser lors de prochains achats (selon configuration marchand).</p>
+  </section>
+
+  <!-- FRAUDE -->
+  <section id="fraud">
+    <h2>Anti-Fraude</h2>
+
+    <p>Le module <code>lib/fraud.js</code> analyse chaque transaction avant traitement et lui attribue un <strong>score de risque de 0 à 100</strong>.</p>
+
+    <h3>Règles disponibles</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Règle</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>max_amount</code></td><td>Montant maximum autorisé par transaction</td></tr>
+          <tr><td><code>max_tx_per_hour</code></td><td>Nombre max de transactions par heure (par client/téléphone)</td></tr>
+          <tr><td><code>max_tx_per_day</code></td><td>Nombre max de transactions par jour</td></tr>
+          <tr><td><code>max_daily_volume</code></td><td>Volume total max par jour pour un client</td></tr>
+          <tr><td><code>blacklist_phone</code></td><td>Blocage immédiat si le numéro est en liste noire</td></tr>
+          <tr><td><code>velocity_check</code></td><td>Détecte les rafales inhabituelles de paiements</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Comportement selon le score</h3>
+    <div class="flow">
+Score 0–30   → <span class="ok">Transaction autorisée</span><br>
+Score 31–69  → <span class="info">Transaction autorisée avec log d'alerte</span><br>
+Score >= 70  → <span class="err">Transaction BLOQUÉE</span><br>
+              → Alerte temps réel envoyée à l'admin (SSE + email)<br>
+              → Webhook <code>fraud.blocked</code> (si configuré)<br>
+              → Log dans la table fraud_alerts
+    </div>
+
+    <h3>Blacklist téléphones</h3>
+    <p>L'admin peut ajouter/retirer un numéro via <code>POST /api/v1/fraud/blacklist/phone</code>. Tout paiement depuis un numéro blacklisté est immédiatement rejeté (score 100).</p>
+
+    <h3>Seuils marchand</h3>
+    <p>Chaque marchand peut avoir des limites spécifiques : <code>max_transaction_amount</code>, <code>daily_volume_limit</code>, et activer/désactiver le <code>allow_guest_mode</code> (paiements sans compte client).</p>
+
+    <div class="alert alert-warn">
+      <span>!</span>
+      <div>Les alertes fraude en temps réel nécessitent une connexion SSE active (<code>GET /api/v1/sse</code>). Le dashboard admin affiche ces alertes automatiquement.</div>
+    </div>
+  </section>
+
+  <!-- WEBHOOKS -->
+  <section id="webhooks">
+    <h2>Webhooks</h2>
+
+    <p>Les webhooks permettent à votre application marchand de recevoir des notifications en temps réel lors d'événements importants.</p>
+
+    <h3>Événements disponibles</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Événement</th><th>Déclencheur</th></tr></thead>
+        <tbody>
+          <tr><td><code>payment.success</code></td><td>Paiement confirmé avec succès</td></tr>
+          <tr><td><code>payment.expired</code></td><td>Paiement pending expiré (&gt; 2 min)</td></tr>
+          <tr><td><code>payment.failed</code></td><td>Paiement échoué côté opérateur</td></tr>
+          <tr><td><code>refund.completed</code></td><td>Remboursement traité</td></tr>
+          <tr><td><code>loyalty.status_changed</code></td><td>Client change de tier fidélité</td></tr>
+          <tr><td><code>distribution.completed</code></td><td>Virement marchand effectué</td></tr>
+          <tr><td><code>fraud.blocked</code></td><td>Transaction bloquée pour fraude</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Signature et sécurité</h3>
+    <p>Chaque payload webhook est signé avec <strong>HMAC-SHA256</strong>. Vérifiez toujours la signature avant de traiter un webhook.</p>
+    <pre><code class="language-javascript">const crypto = require('crypto');
+
+function verifyWebhook(payload, signature, secret) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+
+// Dans votre endpoint
+app.post('/webhook', (req, res) => {
+  const sig = req.headers['x-afrikfid-signature'];
+  if (!verifyWebhook(req.body, sig, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+  // Traiter l'événement...
+  res.sendStatus(200);
+});</code></pre>
+
+    <h3>Stratégie de retry</h3>
+    <div class="flow">
+<span class="step-num">Tentative 1</span> → immédiate<br>
+<span class="err">Échec</span> → attente 30 min<br>
+<span class="step-num">Tentative 2</span> → +30 min<br>
+<span class="err">Échec</span> → attente 4h<br>
+<span class="step-num">Tentative 3</span> → +4h<br>
+<span class="err">Échec</span> → attente 20h<br>
+<span class="step-num">Tentative 4</span> → +20h (dernière)<br>
+<span class="err">Échec</span> → statut = <span class="err">DEAD</span> (retry manuel possible depuis le dashboard)
+    </div>
+
+    <div class="alert alert-info">
+      <span>i</span>
+      <div>Un retry manuel est disponible depuis <code>POST /api/v1/webhooks/:id/retry</code> ou depuis le dashboard admin <strong>Webhooks</strong>.</div>
+    </div>
+  </section>
+
+  <!-- DEVISES -->
+  <section id="currencies">
+    <h2>Multi-Devises</h2>
+
+    <p>Afrik'Fid supporte trois devises africaines converties en EUR pour les rapports consolidés.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Devise</th><th>Zone</th><th>Taux de base</th></tr></thead>
+        <tbody>
+          <tr><td>XOF (Franc CFA BCEAO)</td><td>UEMOA</td><td>~655 XOF = 1 EUR</td></tr>
+          <tr><td>XAF (Franc CFA BEAC)</td><td>CEMAC</td><td>~655 XAF = 1 EUR</td></tr>
+          <tr><td>KES (Shilling Kenyan)</td><td>Kenya</td><td>~130 KES = 1 EUR</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Mise à jour automatique des taux</h3>
+    <p>Un worker (<code>workers/exchange-rates.js</code>) s'exécute <strong>chaque heure</strong> et met à jour les taux depuis :</p>
+    <ol style="color:var(--text2); padding-left:20px; font-size:13px; line-height:2;">
+      <li><strong>Open Exchange Rates</strong> (si <code>OPENEXCHANGERATES_APP_ID</code> configuré)</li>
+      <li><strong>Fixer.io</strong> (si <code>FIXER_API_KEY</code> configuré)</li>
+      <li>Taux manuels depuis le dashboard admin <strong>Taux de Change</strong></li>
+    </ol>
+
+    <p>L'admin peut également modifier les taux manuellement depuis <code>/admin/exchange-rates</code> ou via <code>PUT /api/v1/reports/exchange-rates/:currency</code>.</p>
+  </section>
+
+  <!-- NOTIFICATIONS -->
+  <section id="notifications">
+    <h2>Notifications</h2>
+
+    <p>Les notifications sont envoyées de manière <strong>asynchrone</strong> (fire-and-forget via <code>setImmediate</code>) pour ne pas bloquer le flux de paiement.</p>
+
+    <h3>Canaux disponibles</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">SMS</div>
+        <p>Via <strong>Africa's Talking</strong>. Configurer <code>AT_API_KEY</code> et <code>AT_USERNAME</code>. En l'absence de credentials, passe en mode sandbox (logs console).</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Email</div>
+        <p>Via <strong>SMTP générique</strong> (Mailtrap, SendGrid…) ou <strong>Mailgun API</strong>. Configurer <code>SMTP_HOST/USER/PASS</code> ou <code>MAILGUN_API_KEY</code>.</p>
+      </div>
+    </div>
+
+    <h3>Événements notifiés</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Événement</th><th>Destinataire</th><th>Canal</th></tr></thead>
+        <tbody>
+          <tr><td>Paiement confirmé</td><td>Client</td><td>SMS + Email</td></tr>
+          <tr><td>Cashback crédité</td><td>Client</td><td>SMS</td></tr>
+          <tr><td>Montée de tier fidélité</td><td>Client</td><td>SMS + Email</td></tr>
+          <tr><td>KYC approuvé/rejeté</td><td>Marchand</td><td>Email</td></tr>
+          <tr><td>Alerte fraude</td><td>Admin</td><td>Email (<code>ADMIN_ALERT_EMAIL</code>)</td></tr>
+          <tr><td>Virement effectué</td><td>Marchand</td><td>Email</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- API REFERENCE: AUTH -->
+  <section id="api-auth">
+    <h2>API — Authentification</h2>
+    <p>Base URL : <code>POST /api/v1/auth</code></p>
+    <ul class="route-list">
+      <li><span class="method POST">POST</span><span class="route-path">/auth/admin/login</span><span class="route-desc">Login admin (email + password + totp_code optionnel)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/merchant/login</span><span class="route-desc">Login marchand (email + password + totp_code optionnel)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/client/login</span><span class="route-desc">Login client public (phone + password)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/refresh</span><span class="route-desc">Renouveler l'access token (body: { refresh_token })</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/logout</span><span class="route-desc">Révoquer les tokens (invalidation Redis)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/2fa/setup</span><span class="route-desc">Initialiser le 2FA, retourne secret + QR code URI</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/2fa/verify</span><span class="route-desc">Vérifier un code TOTP et activer le 2FA</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/auth/2fa/disable</span><span class="route-desc">Désactiver le 2FA (requiert code TOTP)</span></li>
+    </ul>
+
+    <h4>Exemple — Login marchand</h4>
+    <pre><code class="language-bash">curl -X POST https://api.afrikfid.com/api/v1/auth/merchant/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "shop@example.com", "password": "SecurePass123!"}'
+
+# Réponse
+{
+  "access_token": "eyJhbGciOiJSUzI1NiJ9...",
+  "refresh_token": "d4e5f6a7-...",
+  "expires_in": 900
+}</code></pre>
+  </section>
+
+  <!-- API REFERENCE: PAYMENTS -->
+  <section id="api-payments">
+    <h2>API — Paiements</h2>
+    <p>Base URL : <code>/api/v1/payments</code> — Authentification : API Key marchand via header <code>X-API-Key</code></p>
+    <ul class="route-list">
+      <li><span class="method POST">POST</span><span class="route-path">/payments/initiate</span><span class="route-desc">Créer un paiement (Mobile Money ou Carte)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payments/:id/confirm</span><span class="route-desc">Confirmer manuellement (sandbox uniquement)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payments/:id/refund</span><span class="route-desc">Initier un remboursement (total ou partiel)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/payments/:id/status</span><span class="route-desc">Statut d'une transaction</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payments/:id/dispute</span><span class="route-desc">Initier un litige (chargeback)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payments/mm/orange/notify</span><span class="route-desc">Callback Orange Money (HMAC optionnel)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payments/mm/airtel/notify</span><span class="route-desc">Callback Airtel Money</span></li>
+    </ul>
+
+    <h4>Exemple — Initier un paiement Mobile Money</h4>
+    <pre><code class="language-bash">curl -X POST https://api.afrikfid.com/api/v1/payments/initiate \
+  -H "X-API-Key: sk_live_..." \
+  -H "Idempotency-Key: uuid-unique-123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 5000,
+    "currency": "XOF",
+    "operator": "ORANGE",
+    "phone": "+22507123456",
+    "client_id": "cli_abc123",
+    "description": "Achat #1042"
+  }'</code></pre>
+
+    <h4>Statuts de transaction possibles</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Statut</th><th>Signification</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-yellow">PENDING</span></td><td>En attente de confirmation opérateur (expire après 2 min)</td></tr>
+          <tr><td><span class="badge badge-green">COMPLETED</span></td><td>Paiement confirmé et cashback crédité</td></tr>
+          <tr><td><span class="badge badge-orange" style="color:var(--red);border-color:var(--red)">FAILED</span></td><td>Échec côté opérateur ou client</td></tr>
+          <tr><td><span class="badge badge-yellow">REFUNDED</span></td><td>Remboursement effectué</td></tr>
+          <tr><td><span class="badge badge-orange" style="color:var(--text2);border-color:var(--text2)">EXPIRED</span></td><td>Délai de 2 minutes dépassé sans confirmation</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- API REFERENCE: MERCHANTS -->
+  <section id="api-merchants">
+    <h2>API — Marchands</h2>
+    <p>Base URL : <code>/api/v1/merchants</code></p>
+    <ul class="route-list">
+      <li><span class="method POST">POST</span><span class="route-path">/merchants</span><span class="route-desc">Créer un marchand (admin uniquement)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/merchants</span><span class="route-desc">Lister les marchands (admin, paginé)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/merchants/me</span><span class="route-desc">Profil du marchand connecté</span></li>
+      <li><span class="method PATCH">PATCH</span><span class="route-path">/merchants/me</span><span class="route-desc">Mettre à jour les paramètres du marchand</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/merchants/me/kyc/submit</span><span class="route-desc">Soumettre les documents KYC</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/merchants/me/2fa/setup</span><span class="route-desc">Activer le 2FA marchand</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/merchants/me/stats</span><span class="route-desc">Statistiques du marchand (daily/monthly)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/merchants/me/settlement</span><span class="route-desc">Historique des virements reçus</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/merchants/me/api-keys/rotate</span><span class="route-desc">Régénérer les clés API (sandbox + production)</span></li>
+    </ul>
+
+    <h3>KYC (Know Your Customer)</h3>
+    <p>Un marchand doit soumettre des documents KYC pour activer les paiements en production. L'admin valide ou rejette depuis le dashboard. La notification est envoyée par email au marchand.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Statut KYC</th><th>Signification</th><th>Accès production</th></tr></thead>
+        <tbody>
+          <tr><td>PENDING</td><td>Documents soumis, en attente de révision</td><td>Non</td></tr>
+          <tr><td>APPROVED</td><td>KYC validé par un admin</td><td>Oui</td></tr>
+          <tr><td>REJECTED</td><td>Documents refusés (motif fourni)</td><td>Non</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- API REFERENCE: CLIENTS -->
+  <section id="api-clients">
+    <h2>API — Clients</h2>
+    <p>Base URL : <code>/api/v1/clients</code></p>
+    <ul class="route-list">
+      <li><span class="method POST">POST</span><span class="route-path">/clients</span><span class="route-desc">Inscrire un nouveau client</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/clients</span><span class="route-desc">Lister les clients (admin)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/clients/:id/profile</span><span class="route-desc">Profil + wallet + progression tier</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/clients/:id/transactions</span><span class="route-desc">Historique des transactions</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/clients/:id/wallet</span><span class="route-desc">Solde wallet et mouvements</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/clients/lookup</span><span class="route-desc">Identifier un client par téléphone ou afrikfid_id</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/clients/:id/gdpr/export</span><span class="route-desc">Export RGPD (portabilité des données)</span></li>
+      <li><span class="method DELETE">DELETE</span><span class="route-path">/clients/:id</span><span class="route-desc">Anonymiser le client (RGPD droit à l'oubli)</span></li>
+    </ul>
+  </section>
+
+  <!-- API REFERENCE: LOYALTY -->
+  <section id="api-loyalty">
+    <h2>API — Fidélité</h2>
+    <ul class="route-list">
+      <li><span class="method GET">GET</span><span class="route-path">/loyalty/config</span><span class="route-desc">Lire la configuration des tiers (seuils)</span></li>
+      <li><span class="method PUT">PUT</span><span class="route-path">/loyalty/config/:status</span><span class="route-desc">Modifier les seuils d'un tier (admin)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/loyalty/batch</span><span class="route-desc">Lancer manuellement le batch d'évaluation</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/loyalty/stats</span><span class="route-desc">Distribution des clients par tier</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/loyalty/config-country</span><span class="route-desc">Taux Y% par pays</span></li>
+      <li><span class="method PUT">PUT</span><span class="route-path">/loyalty/config-country/:countryId/:status</span><span class="route-desc">Modifier le taux d'un pays pour un tier</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/loyalty/wallet-config</span><span class="route-desc">Configuration plafond du wallet global</span></li>
+    </ul>
+  </section>
+
+  <!-- API REFERENCE: PAYMENT LINKS -->
+  <section id="api-links">
+    <h2>API — Payment Links</h2>
+    <p>Les liens de paiement permettent d'encaisser sans intégration technique lourde — partagez simplement un lien.</p>
+    <ul class="route-list">
+      <li><span class="method POST">POST</span><span class="route-path">/payment-links</span><span class="route-desc">Créer un lien (marchand)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/payment-links</span><span class="route-desc">Lister les liens du marchand</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/payment-links/:code/info</span><span class="route-desc">Infos publiques du lien (public)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payment-links/:code/identify-client</span><span class="route-desc">Vérifier si le client existe (public)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/payment-links/:code/pay</span><span class="route-desc">Payer via le lien (public)</span></li>
+    </ul>
+
+    <h4>Exemple de création de lien</h4>
+    <pre><code class="language-bash">curl -X POST https://api.afrikfid.com/api/v1/payment-links \
+  -H "X-API-Key: sk_live_..." \
+  -d '{
+    "amount": 2500,
+    "currency": "XOF",
+    "description": "Inscription formation #5",
+    "max_uses": 50,
+    "expires_at": "2026-12-31T23:59:59Z"
+  }'
+# Retourne: { "code": "PAY-XF8K2", "url": "https://pay.afrikfid.com/PAY-XF8K2" }</code></pre>
+  </section>
+
+  <!-- API REFERENCE: FRAUD -->
+  <section id="api-fraud">
+    <h2>API — Anti-Fraude</h2>
+    <ul class="route-list">
+      <li><span class="method GET">GET</span><span class="route-path">/fraud/rules</span><span class="route-desc">Lister les règles actives</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/fraud/rules</span><span class="route-desc">Créer une règle personnalisée</span></li>
+      <li><span class="method PATCH">PATCH</span><span class="route-path">/fraud/rules/:id</span><span class="route-desc">Modifier une règle</span></li>
+      <li><span class="method DELETE">DELETE</span><span class="route-path">/fraud/rules/:id</span><span class="route-desc">Désactiver une règle</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/fraud/alerts</span><span class="route-desc">Historique des alertes et blocages</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/fraud/blacklist/phone</span><span class="route-desc">Ajouter un téléphone à la liste noire</span></li>
+      <li><span class="method DELETE">DELETE</span><span class="route-path">/fraud/blacklist/phone/:phone</span><span class="route-desc">Retirer un téléphone de la liste noire</span></li>
+    </ul>
+  </section>
+
+  <!-- API REFERENCE: REPORTS -->
+  <section id="api-reports">
+    <h2>API — Rapports</h2>
+    <ul class="route-list">
+      <li><span class="method GET">GET</span><span class="route-path">/reports/overview</span><span class="route-desc">KPIs : volume, revenus, taux de succès, conversion</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/reports/daily</span><span class="route-desc">Détail journalier par méthode et tier fidélité</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/reports/transactions/csv</span><span class="route-desc">Export CSV des transactions (filtres disponibles)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/reports/transactions/pdf</span><span class="route-desc">Export PDF via PDFKit (server-side)</span></li>
+    </ul>
+  </section>
+
+  <!-- API REFERENCE: WEBHOOKS -->
+  <section id="api-webhooks">
+    <h2>API — Webhooks</h2>
+    <ul class="route-list">
+      <li><span class="method GET">GET</span><span class="route-path">/webhooks</span><span class="route-desc">Lister les événements webhook (admin)</span></li>
+      <li><span class="method POST">POST</span><span class="route-path">/webhooks/:id/retry</span><span class="route-desc">Retry manuel d'un webhook échoué</span></li>
+    </ul>
+  </section>
+
+  <!-- API REFERENCE: MISC -->
+  <section id="api-misc">
+    <h2>API — Autres Endpoints</h2>
+    <ul class="route-list">
+      <li><span class="method GET">GET</span><span class="route-path">/distributions/:id</span><span class="route-desc">Détail d'une distribution (virement marchand)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/distributions</span><span class="route-desc">Lister les distributions</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/audit-logs</span><span class="route-desc">Journaux d'audit système (admin)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/sse</span><span class="route-desc">Stream d'événements temps réel (SSE)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/health</span><span class="route-desc">Santé de l'API (DB latency, queue, uptime)</span></li>
+      <li><span class="method GET">GET</span><span class="route-path">/metrics</span><span class="route-desc">Métriques Prometheus (latences P95, throughput)</span></li>
+    </ul>
+  </section>
+
+  <!-- INTEGRATION -->
+  <section id="integration">
+    <h2>Intégration</h2>
+    <p>Des exemples complets d'intégration de l'API Afrik'Fid en JavaScript (Node.js), Python et PHP sont fournis ci-dessous.</p>
+
+    <h3>URL de base</h3>
+    <div class="alert alert-info">
+      <span>i</span>
+      <div>
+        L'URL de base de l'API est <code>https://api.afrikfid.com/api/v1</code> en production.<br>
+        Pour le sandbox, utilisez la même URL avec <code>SANDBOX_MODE=true</code> côté serveur.
+      </div>
+    </div>
+
+    <h3>Headers requis</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Header</th><th>Valeur</th><th>Obligatoire</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>Authorization</code></td><td><code>Bearer &lt;access_token&gt;</code></td><td>Oui (routes protégées)</td><td>Token JWT obtenu après login</td></tr>
+          <tr><td><code>X-API-Key</code></td><td><code>sk_live_...</code> ou <code>sk_sandbox_...</code></td><td>Oui (routes marchands)</td><td>Clé API du marchand (alternative au Bearer)</td></tr>
+          <tr><td><code>Content-Type</code></td><td><code>application/json</code></td><td>Oui (POST/PATCH/PUT)</td><td>Format du corps de la requête</td></tr>
+          <tr><td><code>Idempotency-Key</code></td><td>UUID v4 unique</td><td>Recommandé (POST /payments/initiate)</td><td>Évite les doublons en cas de retry réseau</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Flux d'authentification</h3>
+    <div class="flow">
+<span class="step-num">1.</span> Appelez <code>POST /auth/merchant/login</code> avec email + password<br>
+<span class="arrow">↓</span><br>
+<span class="step-num">2.</span> Récupérez <code>access_token</code> (valide 15 min) et <code>refresh_token</code> (valide 7 jours)<br>
+<span class="arrow">↓</span><br>
+<span class="step-num">3.</span> Ajoutez <code>Authorization: Bearer &lt;access_token&gt;</code> à chaque requête<br>
+<span class="arrow">↓</span><br>
+<span class="step-num">4.</span> Lorsque l'access token expire (401), appelez <code>POST /auth/refresh</code> avec le refresh_token<br>
+<span class="arrow">↓</span><br>
+<span class="step-num">5.</span> Pour les appels serveur-à-serveur, utilisez directement <code>X-API-Key</code> sans login
+    </div>
+
+    <!-- Language Tabs -->
+    <div class="lang-tabs" role="tablist">
+      <button class="lang-tab active" onclick="showLang('js', this)" role="tab">JS / Node.js</button>
+      <button class="lang-tab" onclick="showLang('python', this)" role="tab">Python</button>
+      <button class="lang-tab" onclick="showLang('php', this)" role="tab">PHP</button>
+    </div>
+
+    <!-- JavaScript Panel -->
+    <div id="lang-js" class="lang-panel active">
+      <h4>JavaScript — Node.js (fetch)</h4>
+      <pre><code class="language-javascript">const crypto = require('crypto');
+
+class AfrikFidClient {
+  constructor(baseUrl, apiKey) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.apiKey = apiKey;
+    this.accessToken = null;
+    this.refreshToken = null;
+  }
+
+  async _request(method, path, data = null, extraHeaders = {}) {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-API-Key': this.apiKey,
+      ...extraHeaders,
+    };
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+    const opts = { method, headers };
+    if (data) {
+      opts.body = JSON.stringify(data);
+    }
+    const res = await fetch(`${this.baseUrl}${path}`, opts);
+    const json = await res.json();
+    if (!res.ok) {
+      const err = new Error(json.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.body = json;
+      throw err;
+    }
+    return json;
+  }
+
+  async login(email, password) {
+    const data = await this._request('POST', '/auth/merchant/login', { email, password });
+    this.accessToken = data.access_token;
+    this.refreshToken = data.refresh_token;
+    return data;
+  }
+
+  async refreshAccessToken() {
+    const data = await this._request('POST', '/auth/refresh', {
+      refresh_token: this.refreshToken,
+    });
+    this.accessToken = data.access_token;
+    return data;
+  }
+
+  async initiatePayment(data) {
+    const idempotencyKey = data.idempotency_key || crypto.randomUUID();
+    return this._request('POST', '/payments/initiate', data, {
+      'Idempotency-Key': idempotencyKey,
+    });
+  }
+
+  async getTransactionStatus(id) {
+    return this._request('GET', `/payments/${id}/status`);
+  }
+
+  async createPaymentLink(data) {
+    return this._request('POST', '/payment-links', data);
+  }
+
+  static verifyWebhook(payload, signature, secret) {
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(typeof payload === 'string' ? payload : JSON.stringify(payload))
+      .digest('hex');
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(signature, 'hex'),
+        Buffer.from(expected, 'hex')
+      );
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ── Exemple d'utilisation ──────────────────────────────────────
+async function main() {
+  const client = new AfrikFidClient(
+    'https://api.afrikfid.com/api/v1',
+    'sk_live_your_api_key_here'
+  );
+
+  // Login (optionnel si vous utilisez X-API-Key pour tout)
+  await client.login('shop@example.com', 'SecurePass123!');
+  console.log('Access token:', client.accessToken);
+
+  // Initier un paiement Mobile Money
+  const payment = await client.initiatePayment({
+    amount: 5000,
+    currency: 'XOF',
+    operator: 'ORANGE',
+    phone: '+22507123456',
+    client_id: 'cli_abc123',
+    description: 'Commande #1042',
+  });
+  console.log('Transaction créée:', payment.transaction_id, '| Statut:', payment.status);
+
+  // Vérifier le statut
+  const status = await client.getTransactionStatus(payment.transaction_id);
+  console.log('Statut actuel:', status.status);
+
+  // Créer un lien de paiement
+  const link = await client.createPaymentLink({
+    amount: 2500,
+    currency: 'XOF',
+    description: 'Inscription formation #5',
+    max_uses: 50,
+    expires_at: '2026-12-31T23:59:59Z',
+  });
+  console.log('Lien de paiement:', link.url);
+}
+
+main().catch(console.error);
+
+// ── Vérification webhook dans un endpoint Express ──────────────
+// const express = require('express');
+// const app = express();
+// app.use(express.json());
+//
+// app.post('/webhook', (req, res) => {
+//   const sig = req.headers['x-afrikfid-signature'];
+//   if (!AfrikFidClient.verifyWebhook(req.body, sig, process.env.WEBHOOK_SECRET)) {
+//     return res.status(401).json({ error: 'Invalid signature' });
+//   }
+//   const { event, data } = req.body;
+//   if (event === 'payment.success') {
+//     console.log('Paiement recu:', data.transaction_id);
+//   }
+//   res.sendStatus(200);
+// });</code></pre>
+    </div>
+
+    <!-- Python Panel -->
+    <div id="lang-python" class="lang-panel">
+      <h4>Python (requests)</h4>
+      <pre><code class="language-python">import hashlib
+import hmac
+import json
+import uuid
+import requests
+
+
+class AfrikFidClient:
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url.rstrip('/')
+        self.api_key = api_key
+        self.access_token = None
+        self.refresh_token = None
+
+    def _headers(self, extra: dict = None) -> dict:
+        headers = {
+            'Content-Type': 'application/json',
+            'X-API-Key': self.api_key,
+        }
+        if self.access_token:
+            headers['Authorization'] = f'Bearer {self.access_token}'
+        if extra:
+            headers.update(extra)
+        return headers
+
+    def _request(self, method: str, path: str, data: dict = None, extra_headers: dict = None):
+        url = f'{self.base_url}{path}'
+        headers = self._headers(extra_headers)
+        response = requests.request(method, url, json=data, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    def login(self, email: str, password: str) -> dict:
+        result = self._request('POST', '/auth/merchant/login', {
+            'email': email,
+            'password': password,
+        })
+        self.access_token = result['access_token']
+        self.refresh_token = result['refresh_token']
+        return result
+
+    def refresh_access_token(self) -> dict:
+        result = self._request('POST', '/auth/refresh', {
+            'refresh_token': self.refresh_token,
+        })
+        self.access_token = result['access_token']
+        return result
+
+    def initiate_payment(self, data: dict) -> dict:
+        idempotency_key = data.pop('idempotency_key', str(uuid.uuid4()))
+        return self._request(
+            'POST', '/payments/initiate', data,
+            extra_headers={'Idempotency-Key': idempotency_key}
+        )
+
+    def get_transaction_status(self, transaction_id: str) -> dict:
+        return self._request('GET', f'/payments/{transaction_id}/status')
+
+    def create_payment_link(self, data: dict) -> dict:
+        return self._request('POST', '/payment-links', data)
+
+    @staticmethod
+    def verify_webhook(payload, signature: str, secret: str) -> bool:
+        if isinstance(payload, dict):
+            payload = json.dumps(payload, separators=(',', ':'), sort_keys=False)
+        if isinstance(payload, str):
+            payload = payload.encode('utf-8')
+        expected = hmac.new(
+            secret.encode('utf-8'),
+            payload,
+            hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+
+# ── Exemple d'utilisation ──────────────────────────────────────
+if __name__ == '__main__':
+    client = AfrikFidClient(
+        base_url='https://api.afrikfid.com/api/v1',
+        api_key='sk_live_your_api_key_here',
+    )
+
+    # Login
+    auth = client.login('shop@example.com', 'SecurePass123!')
+    print('Access token:', auth['access_token'][:30], '...')
+
+    # Initier un paiement
+    payment = client.initiate_payment({
+        'amount': 5000,
+        'currency': 'XOF',
+        'operator': 'ORANGE',
+        'phone': '+22507123456',
+        'client_id': 'cli_abc123',
+        'description': 'Commande #1042',
+    })
+    print(f"Transaction: {payment['transaction_id']} | Statut: {payment['status']}")
+
+    # Vérifier le statut
+    status = client.get_transaction_status(payment['transaction_id'])
+    print('Statut actuel:', status['status'])
+
+    # Créer un lien de paiement
+    link = client.create_payment_link({
+        'amount': 2500,
+        'currency': 'XOF',
+        'description': 'Inscription formation #5',
+        'max_uses': 50,
+        'expires_at': '2026-12-31T23:59:59Z',
+    })
+    print('Lien de paiement:', link['url'])
+
+    # Vérifier une signature webhook
+    import os
+    payload_example = {'event': 'payment.success', 'data': {'transaction_id': 'tx_123'}}
+    secret = os.getenv('WEBHOOK_SECRET', 'my_secret')
+    # En pratique, la signature vient du header x-afrikfid-signature
+    sig_example = 'abc123...'
+    valid = AfrikFidClient.verify_webhook(payload_example, sig_example, secret)
+    print('Signature valide:', valid)</code></pre>
+    </div>
+
+    <!-- PHP Panel -->
+    <div id="lang-php" class="lang-panel">
+      <h4>PHP (cURL)</h4>
+      <pre><code class="language-php">&lt;?php
+
+class AfrikFidClient
+{
+    private string $baseUrl;
+    private string $apiKey;
+    private ?string $accessToken = null;
+    private ?string $refreshToken = null;
+
+    public function __construct(string $baseUrl, string $apiKey)
+    {
+        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->apiKey = $apiKey;
+    }
+
+    private function request(string $method, string $path, array $data = null, array $extraHeaders = []): array
+    {
+        $url = $this->baseUrl . $path;
+
+        $headers = [
+            'Content-Type: application/json',
+            'X-API-Key: ' . $this->apiKey,
+        ];
+        if ($this->accessToken) {
+            $headers[] = 'Authorization: Bearer ' . $this->accessToken;
+        }
+        foreach ($extraHeaders as $key => $value) {
+            $headers[] = "$key: $value";
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+
+        if ($data !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $decoded = json_decode($response, true);
+        if ($httpCode >= 400) {
+            $message = $decoded['message'] ?? "HTTP $httpCode";
+            throw new RuntimeException($message, $httpCode);
+        }
+        return $decoded;
+    }
+
+    public function login(string $email, string $password): array
+    {
+        $result = $this->request('POST', '/auth/merchant/login', [
+            'email'    => $email,
+            'password' => $password,
+        ]);
+        $this->accessToken  = $result['access_token'];
+        $this->refreshToken = $result['refresh_token'];
+        return $result;
+    }
+
+    public function refreshAccessToken(): array
+    {
+        $result = $this->request('POST', '/auth/refresh', [
+            'refresh_token' => $this->refreshToken,
+        ]);
+        $this->accessToken = $result['access_token'];
+        return $result;
+    }
+
+    public function initiatePayment(array $data): array
+    {
+        $idempotencyKey = $data['idempotency_key'] ?? sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
+        unset($data['idempotency_key']);
+        return $this->request('POST', '/payments/initiate', $data, [
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
+    }
+
+    public function getTransactionStatus(string $id): array
+    {
+        return $this->request('GET', "/payments/$id/status");
+    }
+
+    public function createPaymentLink(array $data): array
+    {
+        return $this->request('POST', '/payment-links', $data);
+    }
+
+    public static function verifyWebhook(string $payload, string $signature, string $secret): bool
+    {
+        $expected = hash_hmac('sha256', $payload, $secret);
+        return hash_equals($expected, $signature);
+    }
+}
+
+
+// ── Exemple d'utilisation ──────────────────────────────────────
+$client = new AfrikFidClient(
+    'https://api.afrikfid.com/api/v1',
+    'sk_live_your_api_key_here'
+);
+
+// Login
+$auth = $client->login('shop@example.com', 'SecurePass123!');
+echo 'Access token: ' . substr($auth['access_token'], 0, 30) . "...\n";
+
+// Initier un paiement
+$payment = $client->initiatePayment([
+    'amount'      => 5000,
+    'currency'    => 'XOF',
+    'operator'    => 'ORANGE',
+    'phone'       => '+22507123456',
+    'client_id'   => 'cli_abc123',
+    'description' => 'Commande #1042',
+]);
+echo "Transaction: {$payment['transaction_id']} | Statut: {$payment['status']}\n";
+
+// Vérifier le statut
+$status = $client->getTransactionStatus($payment['transaction_id']);
+echo "Statut actuel: {$status['status']}\n";
+
+// Créer un lien de paiement
+$link = $client->createPaymentLink([
+    'amount'      => 2500,
+    'currency'    => 'XOF',
+    'description' => 'Inscription formation #5',
+    'max_uses'    => 50,
+    'expires_at'  => '2026-12-31T23:59:59Z',
+]);
+echo "Lien de paiement: {$link['url']}\n";
+
+
+// ── Vérification webhook dans un endpoint PHP ──────────────────
+// $rawBody  = file_get_contents('php://input');
+// $sig      = $_SERVER['HTTP_X_AFRIKFID_SIGNATURE'] ?? '';
+// $secret   = getenv('WEBHOOK_SECRET');
+//
+// if (!AfrikFidClient::verifyWebhook($rawBody, $sig, $secret)) {
+//     http_response_code(401);
+//     echo json_encode(['error' => 'Invalid signature']);
+//     exit;
+// }
+//
+// $event = json_decode($rawBody, true);
+// if ($event['event'] === 'payment.success') {
+//     // Traiter la confirmation de paiement
+//     error_log('Paiement recu: ' . $event['data']['transaction_id']);
+// }
+// http_response_code(200);</code></pre>
+    </div>
+
+    <div class="alert alert-warn">
+      <span>!</span>
+      <div><strong>Sécurité :</strong> Ne jamais exposer votre clé API (<code>sk_live_...</code>) côté client (navigateur, app mobile). Les appels signés doivent toujours transiter par votre serveur backend.</div>
+    </div>
+  </section>
+
+  <!-- WORKERS -->
+  <section id="workers">
+    <h2>Workers &amp; Tâches Cron</h2>
+    <p>Tous les workers sont désactivés automatiquement en mode test (<code>NODE_ENV=test</code>). Ils tournent en parallèle du serveur HTTP.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Heure/Fréquence</th><th>Worker</th><th>Rôle</th></tr></thead>
+        <tbody>
+          <tr><td><code>Toutes les 30s</code></td><td>transaction-expiry.js</td><td>Expire les transactions PENDING de +2 min → déclenche webhook <code>payment.expired</code></td></tr>
+          <tr><td><code>Toutes les 2 min</code></td><td>webhook-dispatcher.js</td><td>Traite la queue de retry webhooks (backoff exponentiel)</td></tr>
+          <tr><td><code>Chaque heure</code></td><td>exchange-rates.js</td><td>Met à jour les taux XOF/XAF/KES depuis Open Exchange Rates ou Fixer.io</td></tr>
+          <tr><td><code>Chaque heure</code></td><td>refund-sla.js</td><td>Surveille les remboursements dépassant le SLA</td></tr>
+          <tr><td><code>02:00 quotidien</code></td><td>loyalty-batch.js</td><td>Évalue tous les clients et met à jour leur tier fidélité</td></tr>
+          <tr><td><code>03:00 quotidien</code></td><td>key-rotation.js</td><td>Vérifie et tourne la clé AES si +90 jours (PCI-DSS)</td></tr>
+          <tr><td><code>03:30 quotidien</code></td><td>api-key-rotation.js</td><td>Rotation des clés API marchands si +90 jours</td></tr>
+          <tr><td><code>06:00 quotidien</code></td><td>disbursement.js</td><td>Vire automatiquement les fonds dus aux marchands</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FRONTEND -->
+  <section id="frontend">
+    <h2>Interface Frontend</h2>
+    <p>Le frontend React (<code>apps/web/</code>) propose 3 interfaces adaptées à chaque rôle.</p>
+
+    <h3>Dashboard Admin</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Route</th><th>Page</th><th>Fonctionnalité</th></tr></thead>
+        <tbody>
+          <tr><td><code>/admin</code></td><td>Dashboard</td><td>KPIs temps réel (refresh 30s), export CSV/PDF, liens rapides</td></tr>
+          <tr><td><code>/admin/merchants</code></td><td>Marchands</td><td>Liste + KYC review (approuver/rejeter avec notif email)</td></tr>
+          <tr><td><code>/admin/clients</code></td><td>Clients</td><td>Annuaire, tier fidélité, actions RGPD</td></tr>
+          <tr><td><code>/admin/transactions</code></td><td>Transactions</td><td>Historique complet + filtres + export CSV/PDF</td></tr>
+          <tr><td><code>/admin/loyalty</code></td><td>Fidélité</td><td>Config des tiers, seuils par pays, stats distribution</td></tr>
+          <tr><td><code>/admin/fraud</code></td><td>Anti-Fraude</td><td>CRUD règles, blacklist téléphones, historique alertes</td></tr>
+          <tr><td><code>/admin/webhooks</code></td><td>Webhooks</td><td>Événements, stats par statut, retry manuel, détail payload</td></tr>
+          <tr><td><code>/admin/exchange-rates</code></td><td>Taux de Change</td><td>Affichage et édition manuelle des taux XOF/XAF/KES</td></tr>
+          <tr><td><code>/admin/audit-logs</code></td><td>Audit</td><td>Journal système avec filtres, modal détail, export CSV/PDF</td></tr>
+          <tr><td><code>/admin/refunds</code></td><td>Remboursements</td><td>File de traitement des demandes de remboursement</td></tr>
+          <tr><td><code>/admin/disputes</code></td><td>Litiges</td><td>Gestion des chargebacks</td></tr>
+          <tr><td><code>/admin/profile</code></td><td>Profil Admin</td><td>Paramètres compte + activation 2FA</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Dashboard Marchand</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Route</th><th>Page</th><th>Fonctionnalité</th></tr></thead>
+        <tbody>
+          <tr><td><code>/merchant</code></td><td>Dashboard</td><td>Volume journalier (graphique), clé API masquée, KPIs</td></tr>
+          <tr><td><code>/merchant/transactions</code></td><td>Transactions</td><td>Historique ventes + filtres + export</td></tr>
+          <tr><td><code>/merchant/payment-links</code></td><td>Liens de paiement</td><td>Créer/gérer/partager des liens de paiement</td></tr>
+          <tr><td><code>/merchant/clients</code></td><td>Clients</td><td>Liste de sa clientèle</td></tr>
+          <tr><td><code>/merchant/kyc</code></td><td>KYC</td><td>Upload documents + suivi statut</td></tr>
+          <tr><td><code>/merchant/refunds</code></td><td>Remboursements</td><td>Demandes en cours et historique</td></tr>
+          <tr><td><code>/merchant/settings</code></td><td>Paramètres</td><td>Profil, compte de virement, 2FA</td></tr>
+          <tr><td><code>/merchant/profile</code></td><td>Profil</td><td>Infos compte et détails merchant</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Dashboard Client</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Route</th><th>Page</th><th>Fonctionnalité</th></tr></thead>
+        <tbody>
+          <tr><td><code>/client</code></td><td>Dashboard</td><td>Progression tier fidélité, solde wallet, historique</td></tr>
+          <tr><td><code>/client/profile</code></td><td>Profil</td><td>Informations personnelles + historique transactions</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Pages publiques</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Route</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>/login</code></td><td>Connexion admin / marchand</td></tr>
+          <tr><td><code>/register</code></td><td>Inscription marchand</td></tr>
+          <tr><td><code>/register-client</code></td><td>Inscription client</td></tr>
+          <tr><td><code>/pay/:code</code></td><td>Page de paiement publique (payment link) — 3 étapes : infos client, choix méthode, confirmation</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- RGPD -->
+  <section id="rgpd">
+    <h2>RGPD &amp; Conformité</h2>
+
+    <h3>Droits des personnes</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Portabilité des données</div>
+        <p><code>GET /clients/:id/gdpr/export</code> — Retourne toutes les données personnelles du client en JSON (nom, téléphone déchiffré, transactions, wallet).</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Droit à l'oubli</div>
+        <p><code>DELETE /clients/:id</code> — Anonymise toutes les données PII (name → "ANONYMIZED", phone → hash, email → null). Les transactions sont conservées (obligation légale).</p>
+      </div>
+    </div>
+
+    <h3>Conformité CDC v2.0</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Exigence</th><th>Implémentation</th></tr></thead>
+        <tbody>
+          <tr><td>Chiffrement PII</td><td>AES-256-GCM sur phone/email/bank_account</td></tr>
+          <tr><td>Audit trail</td><td>Table <code>audit_logs</code> + endpoint admin</td></tr>
+          <tr><td>Expiration transactions</td><td>Worker cron 30s, webhook <code>payment.expired</code></td></tr>
+          <tr><td>Distributions traçables</td><td>Table <code>distributions</code>, endpoint <code>GET /distributions/:id</code></td></tr>
+          <tr><td>Rotations clés</td><td>Automatique tous les 90 jours</td></tr>
+          <tr><td>Loyalty Y% par pays</td><td>Table <code>loyalty_config_country</code></td></tr>
+          <tr><td>Rétrogradation inactivité</td><td>Implémentée dans <code>loyalty-engine.js</code></td></tr>
+          <tr><td>Seuils marchand</td><td><code>max_transaction_amount</code>, <code>daily_volume_limit</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- MONITORING -->
+  <section id="monitoring">
+    <h2>Monitoring &amp; Observabilité</h2>
+
+    <h3>Health Check</h3>
+    <pre><code class="language-bash">curl https://api.afrikfid.com/api/v1/health
+
+# Réponse
+{
+  "status": "ok",
+  "db_latency_ms": 3,
+  "redis": "connected",
+  "webhook_queue_depth": 2,
+  "uptime_seconds": 86412
+}</code></pre>
+
+    <h3>Métriques Prometheus</h3>
+    <p>Disponibles à <code>GET /api/v1/metrics</code> (format texte Prometheus) :</p>
+    <ul style="color:var(--text2); padding-left:20px; font-size:13px; line-height:2.2;">
+      <li><code>http_request_duration_seconds</code> — Latences par route (buckets 50ms→5s)</li>
+      <li><code>http_requests_total</code> — Compteur par méthode/route/status code</li>
+      <li><code>payment_total</code> — Paiements par statut/opérateur/devise</li>
+      <li><code>webhook_queue_depth</code> — Webhooks en attente de retry</li>
+    </ul>
+
+    <h3>Grafana (Docker Compose prod)</h3>
+    <p>Le fichier <code>docker-compose.prod.yml</code> inclut un stack Prometheus + Grafana préconfigurée avec :</p>
+    <ul style="color:var(--text2); padding-left:20px; font-size:13px; line-height:2;">
+      <li>Uptime et throughput (requêtes/sec)</li>
+      <li>Taux de succès des paiements</li>
+      <li>Volume par devise</li>
+      <li>Taux d'erreur 5xx</li>
+      <li>Santé de la queue webhooks</li>
+    </ul>
+  </section>
+
+  <!-- INSTALLATION -->
+  <section id="install">
+    <h2>Installation &amp; Démarrage</h2>
+
+    <h3>Prérequis</h3>
+    <ul style="color:var(--text2); padding-left:20px; font-size:13px; line-height:2;">
+      <li>Node.js 22+ (avec support <code>--experimental-sqlite</code> pour les tests)</li>
+      <li>PostgreSQL 16+</li>
+      <li>Redis 7+</li>
+      <li>Docker + Docker Compose (optionnel mais recommandé)</li>
+    </ul>
+
+    <h3>Variables d'environnement essentielles</h3>
+    <pre><code class="language-bash"># Core
+PORT=4001
+NODE_ENV=development
+DATABASE_URL=postgresql://user:pass@localhost:5432/afrikfid
+REDIS_URL=redis://localhost:6379
+
+# Sécurité (OBLIGATOIRES en prod)
+JWT_SECRET=&lt;minimum 64 caractères aléatoires&gt;
+ENCRYPTION_KEY=&lt;64 caractères hexadécimaux&gt;
+HMAC_SECRET=&lt;chaîne aléatoire&gt;
+
+# Paiements
+SANDBOX_MODE=true
+CARD_PROVIDER=cinetpay          # ou flutterwave
+CINETPAY_SITE_ID=...
+CINETPAY_API_KEY=...
+
+# Mobile Money (optionnel — fallback sandbox si absent)
+ORANGE_CLIENT_ID=...
+MTN_SUBSCRIPTION_KEY=...
+MPESA_CONSUMER_KEY=...
+AIRTEL_CLIENT_ID=...
+
+# Notifications
+AT_API_KEY=...                  # Africa's Talking (SMS)
+AT_USERNAME=sandbox
+SMTP_HOST=smtp.mailtrap.io
+SMTP_USER=...
+SMTP_PASS=...
+
+# Fonctionnalités
+CORS_ORIGINS=http://localhost:5173,https://app.afrikfid.com
+ADMIN_ALERT_EMAIL=admin@afrikfid.com
+OPENEXCHANGERATES_APP_ID=...    # Taux de change auto
+DASHBOARD_URL=https://app.afrikfid.com</code></pre>
+
+    <h3>Démarrage en développement</h3>
+    <pre><code class="language-bash"># Backend API (port 4001)
+cd apps/api
+npm install
+npm start
+
+# Frontend React (port 5173)
+cd apps/web
+npm install
+npm run dev</code></pre>
+
+    <h3>Démarrage avec Docker Compose</h3>
+    <pre><code class="language-bash"># Développement (avec hot-reload)
+docker-compose -f docker-compose.dev.yml up
+
+# Production (avec Prometheus + Grafana)
+docker-compose -f docker-compose.prod.yml up -d</code></pre>
+
+    <h3>Exécuter les tests</h3>
+    <pre><code class="language-bash">cd apps/api
+NODE_OPTIONS="--experimental-sqlite --experimental-vm-modules" \
+NODE_ENV=test \
+npx jest --forceExit --runInBand</code></pre>
+
+    <div class="alert alert-success">
+      <span>OK</span>
+      <div>Les tests utilisent SQLite in-memory (via <code>__mocks__/db.js</code>). Aucune base PostgreSQL ni Redis n'est nécessaire pour faire tourner les tests.</div>
+    </div>
+
+    <h3>Migrations de base de données</h3>
+    <p>Les migrations s'exécutent automatiquement au démarrage de l'API via <code>lib/migrations.js</code>. 10 migrations versionnées sont incluses (schema initial → RGPD → 2FA → chiffrement).</p>
+  </section>
+
+  <!-- GLOSSAIRE -->
+  <section id="glossary">
+    <h2>Glossaire</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Terme</th><th>Définition</th></tr></thead>
+        <tbody>
+          <tr><td><strong>X%</strong></td><td>Pourcentage de remise que le marchand accepte de reverser sur chaque transaction</td></tr>
+          <tr><td><strong>Y%</strong></td><td>Pourcentage de cashback effectivement crédité au client (dépend de son tier fidélité)</td></tr>
+          <tr><td><strong>Z%</strong></td><td>Commission Afrik'Fid = X% - Y%</td></tr>
+          <tr><td><strong>Tier / Niveau</strong></td><td>Palier de fidélité d'un client (OPEN, LIVE, GOLD, ROYAL)</td></tr>
+          <tr><td><strong>Wallet</strong></td><td>Portefeuille virtuel du client accumulant ses cashbacks</td></tr>
+          <tr><td><strong>Distribution</strong></td><td>Opération de virement des fonds dus à un marchand après déduction des commissions</td></tr>
+          <tr><td><strong>Disbursement</strong></td><td>Processus automatique quotidien (06h00) de calcul et envoi des distributions</td></tr>
+          <tr><td><strong>KYC</strong></td><td>Know Your Customer — vérification d'identité du marchand avant activation production</td></tr>
+          <tr><td><strong>Payment Link</strong></td><td>URL de paiement partageable créée par un marchand sans intégration technique</td></tr>
+          <tr><td><strong>Sandbox</strong></td><td>Mode test où aucun vrai paiement n'est déclenché</td></tr>
+          <tr><td><strong>HMAC-SHA256</strong></td><td>Algorithme de signature cryptographique pour authentifier les webhooks et callbacks</td></tr>
+          <tr><td><strong>TOTP</strong></td><td>Time-based One-Time Password — code 2FA généré toutes les 30 secondes par une app authenticator</td></tr>
+          <tr><td><strong>JTI</strong></td><td>JWT ID — identifiant unique d'un token permettant sa révocation individuelle</td></tr>
+          <tr><td><strong>PII</strong></td><td>Personally Identifiable Information — données personnelles (téléphone, email, compte bancaire)</td></tr>
+          <tr><td><strong>SSE</strong></td><td>Server-Sent Events — flux unidirectionnel du serveur vers le navigateur pour les alertes temps réel</td></tr>
+          <tr><td><strong>XOF</strong></td><td>Franc CFA BCEAO (zone UEMOA : Côte d'Ivoire, Sénégal, etc.)</td></tr>
+          <tr><td><strong>XAF</strong></td><td>Franc CFA BEAC (zone CEMAC : Cameroun, Tchad, etc.)</td></tr>
+          <tr><td><strong>KES</strong></td><td>Shilling Kenyan (Kenya)</td></tr>
+          <tr><td><strong>CDC v2.0</strong></td><td>Cahier des Charges version 2.0 — spécification fonctionnelle à laquelle Afrik'Fid est conforme</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); text-align:center; color: var(--text2); font-size: 12px;">
+      Afrik'Fid Documentation Technique — Version 2.0 — 2026<br>
+      Conforme CDC v2.0 · Phases A+B+C+D+5 complétées
+    </div>
+  </section>
+
+</main>
+
+<script>
+  hljs.highlightAll();
+
+  // Progress bar
+  window.addEventListener('scroll', () => {
+    const el = document.getElementById('progress-bar');
+    const total = document.body.scrollHeight - window.innerHeight;
+    const pct = (window.scrollY / total * 100).toFixed(1);
+    el.style.width = pct + '%';
+  });
+
+  // Active sidebar link
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('#sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`#sidebar nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+
+  // Language tab switcher
+  function showLang(lang, btn) {
+    document.querySelectorAll('.lang-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+    const panel = document.getElementById('lang-' + lang);
+    if (panel) {
+      panel.classList.add('active');
+      // Re-highlight newly shown code blocks
+      panel.querySelectorAll('pre code').forEach(block => {
+        if (!block.classList.contains('hljs')) {
+          hljs.highlightElement(block);
+        }
+      });
+    }
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

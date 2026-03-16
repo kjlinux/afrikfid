@@ -241,7 +241,12 @@ router.get('/:id/loyalty-history', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/v1/clients/:id — RGPD droit à l'effacement (admin ou client lui-même)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
+  // Autoriser : admin OU le client lui-même
+  const isAdmin = !!req.admin;
+  const isOwner = req.client && req.client.id === req.params.id;
+  if (!isAdmin && !isOwner) return res.status(403).json({ error: 'Accès non autorisé' });
+
   const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
@@ -264,16 +269,20 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     WHERE id = $4
   `, [anonPhone, anonHash, anonEmail, client.id]);
 
-  // Log audit
+  const actorType = isAdmin ? 'admin' : 'client';
+  const actorId = isAdmin ? req.admin.id : req.client.id;
   await db.query(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
-    VALUES ($1, 'admin', $2, 'gdpr_anonymize', 'client', $3, $4)`,
-    [uuidv4(), req.admin.id, client.id, req.ip]);
+    VALUES ($1, $2, $3, 'gdpr_anonymize', 'client', $4, $5)`,
+    [uuidv4(), actorType, actorId, client.id, req.ip]);
 
   res.json({ message: 'Données client anonymisées (RGPD). Les transactions historiques sont conservées à des fins comptables.', clientId: client.id });
 });
 
-// GET /api/v1/clients/:id/export — RGPD portabilité des données (admin)
-router.get('/:id/export', requireAdmin, async (req, res) => {
+// GET /api/v1/clients/:id/export — RGPD portabilité des données (admin ou client lui-même)
+router.get('/:id/export', requireAuth, async (req, res) => {
+  const isAdmin = !!req.admin;
+  const isOwner = req.client && req.client.id === req.params.id;
+  if (!isAdmin && !isOwner) return res.status(403).json({ error: 'Accès non autorisé' });
   const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
