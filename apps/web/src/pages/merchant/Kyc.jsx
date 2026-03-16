@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import api from '../../api.js'
 import { Spinner, Alert } from '../../components/ui.jsx'
-import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 const STATUS_CONFIG = {
   pending:   { label: 'Non soumis',    color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  icon: ClockIcon },
@@ -210,7 +210,7 @@ export default function MerchantKyc() {
               />
 
               <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#475569' }}>
-                🔒 Vos documents sont chiffrés et stockés de manière sécurisée. Ils ne seront utilisés que pour la vérification de votre identité conformément à notre politique RGPD.
+                <LockClosedIcon className="inline w-4 h-4 mr-1" />Vos documents sont chiffrés et stockés de manière sécurisée. Ils ne seront utilisés que pour la vérification de votre identité conformément à notre politique RGPD.
               </div>
 
               {error && (
@@ -254,8 +254,8 @@ export default function MerchantKyc() {
         <div style={{ background: '#1e293b', borderRadius: 14, padding: 28, border: '1px solid #334155' }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 16 }}>Votre dossier</h2>
           <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.7 }}>
-            <div>✅ RCCM déposé</div>
-            <div>✅ CNI du gérant déposée</div>
+            <div><CheckCircleIcon className="inline w-4 h-4 mr-1 text-emerald-500" />RCCM déposé</div>
+            <div><CheckCircleIcon className="inline w-4 h-4 mr-1 text-emerald-500" />CNI du gérant déposée</div>
             <div style={{ marginTop: 12, color: '#94a3b8' }}>
               Si vous avez besoin de modifier votre dossier, contactez notre support.
             </div>

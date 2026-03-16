@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Spinner, Pagination, EmptyState, exportCsv, exportPdf } from '../../components/ui.jsx'
+import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 
 const ACTOR_COLORS = { admin: '#f59e0b', merchant: '#3b82f6', system: '#8b5cf6' }
 const ACTION_COLORS = { create: '#10b981', update: '#3b82f6', delete: '#ef4444', login: '#f59e0b', refund: '#8b5cf6' }
@@ -93,7 +94,7 @@ export default function AdminAuditLogs() {
 
       {/* Table */}
       {loading ? <Spinner /> : logs.length === 0 ? (
-        <EmptyState icon="📋" title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
+        <EmptyState icon={<ClipboardDocumentListIcon className="w-10 h-10 text-slate-500" />} title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
       ) : (
         <Card>
           <div style={{ overflowX: 'auto' }}>

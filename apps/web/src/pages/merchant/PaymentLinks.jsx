@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import { CheckCircleIcon } from '@heroicons/react/24/outline'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
@@ -57,7 +58,7 @@ export default function MerchantLinks() {
       {/* Nouveau lien généré */}
       {newLink && (
         <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981', marginBottom: 12 }}>✅ Lien créé avec succès !</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircleIcon className="w-4 h-4" />Lien créé avec succès !</div>
           <div style={{ background: '#0f172a', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <code style={{ fontSize: 13, color: '#f59e0b', wordBreak: 'break-all' }}>{newLink.payUrl}</code>
             <button onClick={() => copyToClipboard(newLink.payUrl)}

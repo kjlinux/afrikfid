@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { SparklesIcon, BoltIcon, BanknotesIcon } from '@heroicons/react/24/outline'
 
 const COUNTRIES = [
   { id: 'CI', name: "Côte d'Ivoire", currency: 'XOF', flag: '🇨🇮' },
@@ -108,7 +109,7 @@ export default function Register() {
   if (success) return (
     <Screen>
       <div style={{ background: '#1e293b', borderRadius: 16, padding: 40, maxWidth: 440, width: '100%', textAlign: 'center', border: '1px solid #334155' }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+        <SparklesIcon className="w-16 h-16 mx-auto text-emerald-500" style={{ marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#10b981', marginBottom: 10 }}>Demande envoyée !</h2>
         <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>
           Votre demande d'inscription a bien été reçue.<br />
@@ -278,7 +279,7 @@ export default function Register() {
                     {
                       value: 'immediate',
                       label: 'Remise immédiate',
-                      icon: '⚡',
+                      Icon: BoltIcon,
                       desc: 'Le montant Y% est déduit du prix au moment du paiement. Le client paie directement le montant réduit.',
                       example: '10 000 XOF → client paie 8 800 XOF (Y=12%)',
                       badge: 'Idéal en magasin',
@@ -286,7 +287,7 @@ export default function Register() {
                     {
                       value: 'cashback',
                       label: 'Cashback différé',
-                      icon: '💰',
+                      Icon: BanknotesIcon,
                       desc: 'Le client paie le montant intégral. Le Y% est crédité sur son portefeuille Afrik\'Fid pour un prochain achat.',
                       example: '10 000 XOF payés → 1 200 XOF crédités (Y=12%)',
                       badge: 'Renforce la fidélisation',
@@ -294,7 +295,7 @@ export default function Register() {
                   ].map(m => (
                     <button key={m.value} type="button" onClick={() => set('rebate_mode', m.value)}
                       style={{ padding: '14px 12px', border: '2px solid ' + (form.rebate_mode === m.value ? '#f59e0b' : '#334155'), borderRadius: 10, background: form.rebate_mode === m.value ? 'rgba(245,158,11,0.08)' : '#0f172a', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ fontSize: 22, marginBottom: 6 }}>{m.icon}</div>
+                      <m.Icon className="w-6 h-6" style={{ marginBottom: 6 }} />
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>{m.label}</div>
                       <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6, lineHeight: 1.5 }}>{m.desc}</div>
                       <div style={{ fontSize: 9, color: '#64748b', background: '#1e293b', borderRadius: 4, padding: '3px 6px', fontFamily: 'monospace' }}>{m.example}</div>

@@ -12,6 +12,10 @@ import {
   BuildingStorefrontIcon,
   UsersIcon,
   ClockIcon,
+  BellIcon,
+  ShieldCheckIcon,
+  ArrowsRightLeftIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
 const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
@@ -206,13 +210,13 @@ export default function AdminDashboard() {
       {/* Liens rapides Admin */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
-          { label: 'Webhooks', icon: '🔔', desc: 'Gestion des événements', href: '/admin/webhooks', color: '#3b82f6' },
-          { label: 'Fraude', icon: '🛡️', desc: 'Règles & blacklist', href: '/admin/fraud', color: '#ef4444' },
-          { label: 'Taux de change', icon: '💱', desc: 'XOF / XAF / KES / EUR', href: '/admin/exchange-rates', color: '#10b981' },
+          { label: 'Webhooks', Icon: BellIcon, desc: 'Gestion des événements', href: '/admin/webhooks', color: '#3b82f6' },
+          { label: 'Fraude', Icon: ShieldCheckIcon, desc: 'Règles & blacklist', href: '/admin/fraud', color: '#ef4444' },
+          { label: 'Taux de change', Icon: ArrowsRightLeftIcon, desc: 'XOF / XAF / KES / EUR', href: '/admin/exchange-rates', color: '#10b981' },
         ].map(item => (
           <a key={item.href} href={item.href}
             style={{ background: '#1e293b', borderRadius: 12, padding: '16px 20px', border: '1px solid #334155', textDecoration: 'none', display: 'block', transition: 'border-color 0.15s' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{item.icon}</div>
+            <item.Icon className="w-6 h-6" style={{ marginBottom: 8, color: item.color }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: item.color }}>{item.label}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{item.desc}</div>
           </a>
@@ -260,7 +264,7 @@ function ByCountrySection({ period }) {
           {data.byCountry.filter(c => parseFloat(c.total_volume) > 0).map(c => (
             <tr key={c.country_id} style={{ borderBottom: '1px solid #1e293b' }}>
               <td style={{ padding: '8px 10px', color: '#f1f5f9', fontWeight: 500 }}>
-                <span style={{ marginRight: 6, fontSize: 14 }}>{COUNTRY_FLAG[c.country_id] || '🌍'}</span>
+                <span style={{ marginRight: 6, fontSize: 14 }}>{COUNTRY_FLAG[c.country_id] || <GlobeAltIcon className="inline w-4 h-4" />}</span>
                 {c.country_name}
               </td>
               <td style={{ padding: '8px 10px' }}>

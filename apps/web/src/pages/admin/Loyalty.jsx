@@ -160,7 +160,7 @@ export default function AdminLoyalty() {
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Programme de Fidélité</h1>
         <button onClick={runBatch}
           style={{ padding: '10px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 8, color: '#8b5cf6', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
-          🔄 Lancer le batch
+          <ArrowPathIcon className="inline w-4 h-4 mr-1" /> Lancer le batch
         </button>
       </div>
 

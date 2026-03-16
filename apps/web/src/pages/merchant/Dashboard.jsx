@@ -12,6 +12,8 @@ import {
   GiftIcon,
   CheckCircleIcon,
   ShieldExclamationIcon,
+  LinkIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
@@ -106,7 +108,7 @@ export default function MerchantDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Bonjour, {profile.name} 👋</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Bonjour, {profile.name}</h1>
           <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
             <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
               Remise X = {profile.rebatePercent}%
@@ -227,12 +229,12 @@ export default function MerchantDashboard() {
       {/* Liens rapides */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 20 }}>
         <a href="/merchant/links" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', textDecoration: 'none', display: 'block' }}>
-          <div style={{ fontSize: 22, marginBottom: 6 }}>🔗</div>
+          <LinkIcon className="w-6 h-6" style={{ marginBottom: 6, color: '#f59e0b' }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b' }}>Liens de paiement</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Créer et gérer vos liens</div>
         </a>
         <a href="/merchant/transactions" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', textDecoration: 'none', display: 'block' }}>
-          <div style={{ fontSize: 22, marginBottom: 6 }}>📋</div>
+          <ClipboardDocumentListIcon className="w-6 h-6" style={{ marginBottom: 6, color: '#3b82f6' }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: '#3b82f6' }}>Transactions</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Historique complet</div>
         </a>

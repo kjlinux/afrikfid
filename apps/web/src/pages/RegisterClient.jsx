@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { publicApi as api } from '../api.js'
+import { SparklesIcon } from '@heroicons/react/24/outline'
 
 const COUNTRIES = [
   { id: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮', prefix: '+225', currency: 'XOF', digits: 10 },
@@ -71,7 +72,7 @@ export default function RegisterClient() {
   if (success) return (
     <Screen>
       <div style={{ background: '#1e293b', borderRadius: 16, padding: 36, maxWidth: 420, width: '100%', textAlign: 'center', border: '1px solid #334155' }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+        <SparklesIcon className="w-16 h-16 mx-auto text-emerald-500" style={{ marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#10b981', marginBottom: 10 }}>Compte créé !</h2>
         <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Votre identifiant Afrik'Fid</div>
