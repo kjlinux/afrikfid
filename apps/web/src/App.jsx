@@ -16,6 +16,7 @@ import {
   LinkIcon,
   Cog6ToothIcon,
   UserCircleIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline'
 
 // Pages
@@ -32,12 +33,17 @@ import AdminAuditLogs from './pages/admin/AuditLogs.jsx'
 import AdminRefunds from './pages/admin/Refunds.jsx'
 import AdminDisputes from './pages/admin/Disputes.jsx'
 import AdminProfile from './pages/admin/Profile.jsx'
+import AdminSubscriptions from './pages/admin/Subscriptions.jsx'
+import AdminSuccessFees from './pages/admin/SuccessFees.jsx'
+import AdminRFM from './pages/admin/RFM.jsx'
+import AdminCampaigns from './pages/admin/Campaigns.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
 import MerchantClients from './pages/merchant/Clients.jsx'
 import MerchantSettings from './pages/merchant/Settings.jsx'
 import MerchantRefunds from './pages/merchant/Refunds.jsx'
+import MerchantIntelligence from './pages/merchant/Intelligence.jsx'
 import MerchantKyc from './pages/merchant/Kyc.jsx'
 import MerchantProfile from './pages/merchant/Profile.jsx'
 import ClientProfile from './pages/client/Profile.jsx'
@@ -124,6 +130,10 @@ function AdminLayout({ children }) {
     { path: '/admin/exchange-rates', label: 'Taux de change', icon: ArrowsRightLeftIcon },
     { path: '/admin/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
     { path: '/admin/disputes', label: 'Litiges', icon: ScaleIcon },
+    { path: '/admin/subscriptions', label: 'Abonnements', icon: CreditCardIcon },
+    { path: '/admin/success-fees', label: 'Success Fees', icon: ChartBarIcon },
+    { path: '/admin/rfm', label: 'Segmentation RFM', icon: ChartBarIcon },
+    { path: '/admin/campaigns', label: 'Campagnes', icon: BellAlertIcon },
     { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: ClipboardDocumentListIcon },
     { path: '/admin/profile', label: 'Profil & Sécurité', icon: UserCircleIcon },
   ]
@@ -204,6 +214,7 @@ function MerchantLayout({ children }) {
     { path: '/merchant/transactions', label: 'Transactions', icon: CreditCardIcon },
     { path: '/merchant/links', label: 'Liens de paiement', icon: LinkIcon },
     { path: '/merchant/clients', label: 'Clients fidélisés', icon: UsersIcon },
+    { path: '/merchant/intelligence', label: 'Intelligence', icon: ChartBarIcon },
     { path: '/merchant/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
     { path: '/merchant/kyc', label: 'Vérification KYC', icon: ShieldCheckIcon },
     { path: '/merchant/settings', label: 'Paramètres', icon: Cog6ToothIcon },
@@ -289,6 +300,10 @@ export default function App() {
           <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
           <Route path="/admin/refunds" element={<Protected role="admin"><AdminLayout><AdminRefunds /></AdminLayout></Protected>} />
           <Route path="/admin/disputes" element={<Protected role="admin"><AdminLayout><AdminDisputes /></AdminLayout></Protected>} />
+          <Route path="/admin/subscriptions" element={<Protected role="admin"><AdminLayout><AdminSubscriptions /></AdminLayout></Protected>} />
+          <Route path="/admin/success-fees" element={<Protected role="admin"><AdminLayout><AdminSuccessFees /></AdminLayout></Protected>} />
+          <Route path="/admin/rfm" element={<Protected role="admin"><AdminLayout><AdminRFM /></AdminLayout></Protected>} />
+          <Route path="/admin/campaigns" element={<Protected role="admin"><AdminLayout><AdminCampaigns /></AdminLayout></Protected>} />
           <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
           <Route path="/admin/profile" element={<Protected role="admin"><AdminLayout><AdminProfile /></AdminLayout></Protected>} />
 
@@ -297,6 +312,7 @@ export default function App() {
           <Route path="/merchant/transactions" element={<Protected role="merchant"><MerchantLayout><MerchantTransactions /></MerchantLayout></Protected>} />
           <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
           <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
+          <Route path="/merchant/intelligence" element={<Protected role="merchant"><MerchantLayout><MerchantIntelligence /></MerchantLayout></Protected>} />
           <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
           <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
           <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />

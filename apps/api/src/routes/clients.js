@@ -101,45 +101,35 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
 
   // Score d'activité + éligibilité prochain statut (CDC §4.3.1)
   const loyaltyConfigs = (await db.query('SELECT * FROM loyalty_config ORDER BY sort_order')).rows;
-  const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+  const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE'];
   const currentIdx = statusOrder.indexOf(client.loyalty_status);
   const nextStatus = currentIdx < statusOrder.length - 1 ? statusOrder[currentIdx + 1] : null;
 
+  // CDC v3 : éligibilité basée sur les points statut 12 mois glissants
+  const currentPoints12m = parseInt(client.status_points_12m) || 0;
   let nextStatusEligibility = null;
   if (nextStatus) {
     const nextConfig = loyaltyConfigs.find(c => c.status === nextStatus);
     if (nextConfig) {
-      const evalMonths = nextConfig.evaluation_months || 3;
-      const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - evalMonths);
-      const periodStats = (await db.query(
-        `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-         FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
-        [client.id, cutoff.toISOString()]
-      )).rows[0];
-
-      const purchasesNeeded = Math.max(0, nextConfig.min_purchases - parseInt(periodStats.count));
-      const amountNeeded = Math.max(0, nextConfig.min_cumulative_amount - parseFloat(periodStats.total));
-      const purchasesProgress = nextConfig.min_purchases > 0
-        ? Math.min(100, Math.round((parseInt(periodStats.count) / nextConfig.min_purchases) * 100))
-        : 100;
-      const amountProgress = nextConfig.min_cumulative_amount > 0
-        ? Math.min(100, Math.round((parseFloat(periodStats.total) / nextConfig.min_cumulative_amount) * 100))
+      const requiredPoints = parseInt(nextConfig.min_status_points) || 0;
+      const pointsNeeded = Math.max(0, requiredPoints - currentPoints12m);
+      const pointsProgress = requiredPoints > 0
+        ? Math.min(100, Math.round((currentPoints12m / requiredPoints) * 100))
         : 100;
 
       nextStatusEligibility = {
         targetStatus: nextStatus,
-        evaluationMonths: evalMonths,
-        currentPurchases: parseInt(periodStats.count),
-        requiredPurchases: nextConfig.min_purchases,
-        purchasesNeeded,
-        purchasesProgress,
-        currentAmount: parseFloat(periodStats.total),
-        requiredAmount: parseFloat(nextConfig.min_cumulative_amount),
-        amountNeeded,
-        amountProgress,
-        overallProgress: Math.round((purchasesProgress + amountProgress) / 2),
-        eligible: purchasesNeeded === 0 && amountNeeded === 0,
+        currentStatusPoints12m: currentPoints12m,
+        requiredStatusPoints: requiredPoints,
+        pointsNeeded,
+        pointsProgress,
+        eligible: pointsNeeded === 0,
+        // Pour ROYAL_ELITE : condition alternative
+        ...(nextStatus === 'ROYAL_ELITE' ? {
+          alternativeCondition: '3 ans ROYAL consécutifs',
+          consecutiveRoyalYears: parseInt(client.consecutive_royal_years) || 0,
+          royalEliteViaYears: (parseInt(client.consecutive_royal_years) || 0) >= 3,
+        } : {}),
       };
     }
   }
@@ -390,6 +380,10 @@ function sanitizeClient(c) {
     totalPurchases: c.total_purchases,
     totalAmount: c.total_amount,
     walletBalance: c.wallet_balance,
+    statusPoints: c.status_points || 0,
+    statusPoints12m: c.status_points_12m || 0,
+    rewardPoints: c.reward_points || 0,
+    lifetimeStatusPoints: c.lifetime_status_points || 0,
     isActive: c.is_active,
     createdAt: c.created_at,
   };

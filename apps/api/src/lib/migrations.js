@@ -636,6 +636,234 @@ const MIGRATIONS = [
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
     `,
   },
+  {
+    version: 22,
+    name: '022_cdc_v3_points_royal_elite_subscriptions',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Points Statut / Récompense séparés (§2.3)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Points statut : 1 pt = 500 FCFA d'achat, servent à la qualification
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS status_points INTEGER DEFAULT 0;
+      -- Points statut sur 12 mois glissants (recalculé par batch)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS status_points_12m INTEGER DEFAULT 0;
+      -- Points récompense : 1 pt = 100 FCFA, dépensables librement
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS reward_points INTEGER DEFAULT 0;
+      -- Points historiques cumulés (ne décroît jamais, pour ROYAL ELITE)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS lifetime_status_points INTEGER DEFAULT 0;
+      -- Date anniversaire client (pour trigger ANNIVERSAIRE)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS birth_date DATE DEFAULT NULL;
+
+      -- Points attribués par transaction
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status_points_earned INTEGER DEFAULT 0;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reward_points_earned INTEGER DEFAULT 0;
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Statut ROYAL ELITE (§2.2)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Seuil points statut pour qualification (remplace min_purchases + min_cumulative_amount)
+      ALTER TABLE loyalty_config ADD COLUMN IF NOT EXISTS min_status_points INTEGER DEFAULT 0;
+      -- Conversion points statut : montant en FCFA pour 1 point (défaut 500)
+      ALTER TABLE loyalty_config ADD COLUMN IF NOT EXISTS points_per_unit_amount INTEGER DEFAULT 500;
+      -- Conversion points récompense : montant en FCFA pour 1 point (défaut 100)
+      ALTER TABLE loyalty_config ADD COLUMN IF NOT EXISTS reward_points_per_unit INTEGER DEFAULT 100;
+
+      -- Compteur d'années consécutives en ROYAL (pour ROYAL ELITE: 3 ans)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS consecutive_royal_years INTEGER DEFAULT 0;
+      -- Date d'accession au statut ROYAL (pour calcul des années consécutives)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS royal_since TIMESTAMPTZ DEFAULT NULL;
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Packages Marchands & Subscriptions (§1.4, §3.3)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS package TEXT DEFAULT 'STARTER_BOOST'
+        CHECK (package IN ('STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'));
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS sector TEXT DEFAULT 'general';
+
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        package TEXT NOT NULL CHECK (package IN ('STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM')),
+        base_monthly_fee NUMERIC NOT NULL DEFAULT 25000,
+        effective_monthly_fee NUMERIC NOT NULL DEFAULT 25000,
+        recruitment_discount_percent NUMERIC DEFAULT 0,
+        recruited_clients_count INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled')),
+        started_at TIMESTAMPTZ DEFAULT NOW(),
+        next_billing_at TIMESTAMPTZ,
+        cancelled_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_merchant ON subscriptions(merchant_id);
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status, next_billing_at);
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Success Fee (§3.5)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS success_fees (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        reference_avg_basket NUMERIC DEFAULT 0,
+        current_avg_basket NUMERIC DEFAULT 0,
+        growth_amount NUMERIC DEFAULT 0,
+        fee_percent NUMERIC DEFAULT 3,
+        fee_amount NUMERIC DEFAULT 0,
+        total_revenue_period NUMERIC DEFAULT 0,
+        total_transactions_period INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'calculated' CHECK (status IN ('calculated', 'invoiced', 'paid', 'waived')),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_success_fees_merchant ON success_fees(merchant_id, period_start DESC);
+
+      -- Panier moyen de référence (calculé sur les 3 premiers mois)
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS reference_avg_basket NUMERIC DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS reference_basket_calculated_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS success_fee_percent NUMERIC DEFAULT 3;
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Starter Boost Recrutement (§2.6)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Tracking du recrutement client par marchand (quel marchand a recruté quel client)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS recruited_by_merchant_id TEXT REFERENCES merchants(id) DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS recruited_at TIMESTAMPTZ DEFAULT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_clients_recruited_by ON clients(recruited_by_merchant_id, recruited_at);
+    `,
+  },
+  {
+    version: 23,
+    name: '023_rfm_triggers_campaigns',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Scores RFM (§5.1-5.3)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS rfm_scores (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        r_score INTEGER NOT NULL DEFAULT 1 CHECK (r_score BETWEEN 1 AND 5),
+        f_score INTEGER NOT NULL DEFAULT 1 CHECK (f_score BETWEEN 1 AND 5),
+        m_score INTEGER NOT NULL DEFAULT 1 CHECK (m_score BETWEEN 1 AND 5),
+        rfm_total INTEGER GENERATED ALWAYS AS (r_score + f_score + m_score) STORED,
+        segment TEXT NOT NULL DEFAULT 'PERDUS',
+        last_purchase_at TIMESTAMPTZ,
+        purchase_count INTEGER DEFAULT 0,
+        total_amount NUMERIC DEFAULT 0,
+        calculated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(merchant_id, client_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_rfm_scores_segment ON rfm_scores(merchant_id, segment);
+      CREATE INDEX IF NOT EXISTS idx_rfm_scores_client ON rfm_scores(client_id);
+
+      -- Seuils RFM configurables par secteur
+      CREATE TABLE IF NOT EXISTS rfm_sector_thresholds (
+        id TEXT PRIMARY KEY,
+        sector TEXT NOT NULL,
+        dimension TEXT NOT NULL CHECK (dimension IN ('recency', 'frequency', 'monetary')),
+        score_5 NUMERIC NOT NULL,
+        score_4 NUMERIC NOT NULL,
+        score_3 NUMERIC NOT NULL,
+        score_2 NUMERIC NOT NULL,
+        score_1 NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(sector, dimension)
+      );
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Triggers automatiques (§5.4)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS triggers (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        trigger_type TEXT NOT NULL,
+        target_segment TEXT,
+        channel TEXT DEFAULT 'sms',
+        message_template TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        cooldown_hours INTEGER DEFAULT 24,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_triggers_merchant ON triggers(merchant_id, trigger_type);
+
+      CREATE TABLE IF NOT EXISTS trigger_logs (
+        id TEXT PRIMARY KEY,
+        trigger_id TEXT NOT NULL REFERENCES triggers(id) ON DELETE CASCADE,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_trigger_logs_client ON trigger_logs(client_id, trigger_type, created_at DESC);
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Campagnes (§5.5)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS campaigns (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        target_segment TEXT NOT NULL,
+        channel TEXT DEFAULT 'sms',
+        message_template TEXT NOT NULL,
+        scheduled_at TIMESTAMPTZ,
+        status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'running', 'completed', 'cancelled')),
+        total_targeted INTEGER DEFAULT 0,
+        total_sent INTEGER DEFAULT 0,
+        total_converted INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS campaign_actions (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'converted', 'failed')),
+        sent_at TIMESTAMPTZ,
+        converted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_campaign_actions_campaign ON campaign_actions(campaign_id, status);
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 — Historique statuts fidélité (si pas déjà créé)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS loyalty_status_history (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        old_status TEXT NOT NULL,
+        new_status TEXT NOT NULL,
+        reason TEXT,
+        changed_by TEXT DEFAULT 'batch',
+        stats TEXT,
+        changed_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_loyalty_history_client ON loyalty_status_history(client_id, changed_at DESC);
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

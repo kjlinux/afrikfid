@@ -76,6 +76,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       COUNT(CASE WHEN loyalty_status = 'LIVE' THEN 1 END) as live_count,
       COUNT(CASE WHEN loyalty_status = 'GOLD' THEN 1 END) as gold_count,
       COUNT(CASE WHEN loyalty_status = 'ROYAL' THEN 1 END) as royal_count,
+      COUNT(CASE WHEN loyalty_status = 'ROYAL_ELITE' THEN 1 END) as royal_elite_count,
       COUNT(*) as total
     FROM clients WHERE is_active = TRUE
   `)).rows[0];
@@ -106,7 +107,7 @@ router.put('/config-country/:countryId/:status', requireAdmin, async (req, res) 
   const country = (await db.query('SELECT id FROM countries WHERE id = $1', [countryId])).rows[0];
   if (!country) return res.status(404).json({ error: 'Pays non trouvé' });
 
-  const loyaltyStatuses = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
+  const loyaltyStatuses = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE'];
   if (!loyaltyStatuses.includes(status)) {
     return res.status(400).json({ error: `Statut invalide. Valeurs: ${loyaltyStatuses.join(', ')}` });
   }

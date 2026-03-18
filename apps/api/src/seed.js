@@ -39,19 +39,20 @@ async function seed() {
 
   // ─── Loyalty Config ────────────────────────────────────────────────────────
   const loyaltyConfigs = [
-    { id: 'LC-OPEN',  status: 'OPEN',  client_rebate_percent: 0,  label: 'Open',  color: '#6B7280', sort_order: 0, min_purchases: 0,  min_cumulative_amount: 0,       evaluation_months: 3,  inactivity_months: 12 },
-    { id: 'LC-LIVE',  status: 'LIVE',  client_rebate_percent: 5,  label: 'Live',  color: '#3B82F6', sort_order: 1, min_purchases: 3,  min_cumulative_amount: 50000,   evaluation_months: 3,  inactivity_months: 6 },
-    { id: 'LC-GOLD',  status: 'GOLD',  client_rebate_percent: 8,  label: 'Gold',  color: '#F59E0B', sort_order: 2, min_purchases: 10, min_cumulative_amount: 200000,  evaluation_months: 6,  inactivity_months: 6 },
-    { id: 'LC-ROYAL', status: 'ROYAL', client_rebate_percent: 12, label: 'Royal', color: '#8B5CF6', sort_order: 3, min_purchases: 30, min_cumulative_amount: 1000000, evaluation_months: 12, inactivity_months: 12 },
+    { id: 'LC-OPEN',        status: 'OPEN',        client_rebate_percent: 0,  label: 'Open',        color: '#6B7280', sort_order: 0, min_purchases: 0,  min_cumulative_amount: 0,       evaluation_months: 12, inactivity_months: 12, min_status_points: 0 },
+    { id: 'LC-LIVE',        status: 'LIVE',        client_rebate_percent: 5,  label: 'Live',        color: '#3B82F6', sort_order: 1, min_purchases: 3,  min_cumulative_amount: 50000,   evaluation_months: 12, inactivity_months: 12, min_status_points: 1000 },
+    { id: 'LC-GOLD',        status: 'GOLD',        client_rebate_percent: 8,  label: 'Gold',        color: '#F59E0B', sort_order: 2, min_purchases: 10, min_cumulative_amount: 200000,  evaluation_months: 12, inactivity_months: 12, min_status_points: 5000 },
+    { id: 'LC-ROYAL',       status: 'ROYAL',       client_rebate_percent: 12, label: 'Royal',       color: '#8B5CF6', sort_order: 3, min_purchases: 30, min_cumulative_amount: 1000000, evaluation_months: 12, inactivity_months: 12, min_status_points: 15000 },
+    { id: 'LC-ROYAL_ELITE', status: 'ROYAL_ELITE', client_rebate_percent: 12, label: 'Royal Élite', color: '#DC2626', sort_order: 4, min_purchases: 0,  min_cumulative_amount: 0,       evaluation_months: 12, inactivity_months: 12, min_status_points: 50000 },
   ];
   for (const lc of loyaltyConfigs) {
     await db.query(
-      `INSERT INTO loyalty_config (id, status, client_rebate_percent, label, color, sort_order, min_purchases, min_cumulative_amount, evaluation_months, inactivity_months)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
-      [lc.id, lc.status, lc.client_rebate_percent, lc.label, lc.color, lc.sort_order, lc.min_purchases, lc.min_cumulative_amount, lc.evaluation_months, lc.inactivity_months]
+      `INSERT INTO loyalty_config (id, status, client_rebate_percent, label, color, sort_order, min_purchases, min_cumulative_amount, evaluation_months, inactivity_months, min_status_points)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
+      [lc.id, lc.status, lc.client_rebate_percent, lc.label, lc.color, lc.sort_order, lc.min_purchases, lc.min_cumulative_amount, lc.evaluation_months, lc.inactivity_months, lc.min_status_points]
     );
   }
-  console.log('[SEED] Config fidélité');
+  console.log('[SEED] Config fidélité (5 statuts dont ROYAL_ELITE)');
 
   // ─── Admins ────────────────────────────────────────────────────────────────
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@2026!';
@@ -143,6 +144,29 @@ async function seed() {
   }
   const merchantList = Object.values(merchantMap);
   console.log(`[SEED] ${merchantList.length} marchands`);
+
+  // ─── Subscriptions marchands (CDC v3 §1.4) ──────────────────────────────
+  const packageAssignments = [
+    { email: 'supermarche@demo.af', pkg: 'GROWTH',        fee: 0,     sector: 'epicerie' },
+    { email: 'pharmacie@demo.af',   pkg: 'STARTER_PLUS',  fee: 0,     sector: 'pharmacie' },
+    { email: 'restaurant@demo.af',  pkg: 'STARTER_BOOST', fee: 25000, sector: 'restaurant' },
+    { email: 'tech@demo.af',        pkg: 'PREMIUM',       fee: 0,     sector: 'informatique' },
+    { email: 'nairobi@demo.af',     pkg: 'GROWTH',        fee: 0,     sector: 'epicerie' },
+    { email: 'agrishop@demo.af',    pkg: 'STARTER_BOOST', fee: 25000, sector: 'general' },
+  ];
+  for (const pa of packageAssignments) {
+    const m = merchantMap[pa.email];
+    if (!m) continue;
+    await db.query('UPDATE merchants SET package = $1, sector = $2 WHERE id = $3', [pa.pkg, pa.sector, m.id]);
+    if (pa.fee > 0) {
+      await db.query(
+        `INSERT INTO subscriptions (id, merchant_id, package, base_monthly_fee, effective_monthly_fee, status, next_billing_at)
+         VALUES ($1, $2, $3, $4, $4, 'active', NOW() + INTERVAL '30 days') ON CONFLICT DO NOTHING`,
+        [uuidv4(), m.id, pa.pkg, pa.fee]
+      );
+    }
+  }
+  console.log('[SEED] Packages et subscriptions marchands');
 
   // ─── Loyalty Config Country (overrides Kenya) ──────────────────────────────
   try {

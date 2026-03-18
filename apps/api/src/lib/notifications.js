@@ -1655,6 +1655,33 @@ function notifyDisputeOpened({ dispute, transaction, merchant, client, initiated
   });
 }
 
+/**
+ * Notifications de requalification statut (CDC v3 §2.4.3)
+ * Envoyées J-90, J-30, J-7 avant évaluation, J+1 après
+ */
+function notifyRequalificationReminder({ client, daysRemaining, currentStatus, pointsNeeded }) {
+  setImmediate(async () => {
+    try {
+      const statusLabel = currentStatus || 'votre statut';
+      let message;
+      if (daysRemaining > 0) {
+        message = `Bonjour ${client.full_name}, il vous reste ${daysRemaining} jours pour maintenir votre statut ${statusLabel}. Il vous manque ${pointsNeeded} points statut. Continuez vos achats !`;
+      } else {
+        message = `Bonjour ${client.full_name}, votre statut fidélité a été réévalué. Votre nouveau statut est ${statusLabel}. Merci de votre fidélité !`;
+      }
+
+      if (client.phone) {
+        await sendSMS(client.phone, message);
+      }
+      if (client.email) {
+        await sendEmail(client.email, `Afrik'Fid — Statut fidélité`, message, `<p>${message}</p>`);
+      }
+    } catch (err) {
+      console.error('[NOTIFY] Erreur notification requalification:', err.message);
+    }
+  });
+}
+
 module.exports = {
   // Existants
   notifyPaymentConfirmed,
@@ -1680,6 +1707,7 @@ module.exports = {
   notifyRefundRequested,
   notifyDisputeOpened,
   notifyWalletCapReached,
+  notifyRequalificationReminder,
   // Exposed for testing
   sendSMS,
   sendEmail,

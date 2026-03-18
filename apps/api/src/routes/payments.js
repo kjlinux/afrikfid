@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
-const { calculateDistribution } = require('../lib/loyalty-engine');
+const { calculateDistribution, awardPoints } = require('../lib/loyalty-engine');
 const { requireApiKey, requireClient, requireMerchant } = require('../middleware/auth');
 const { verifyHmacSignature } = require('../middleware/hmac-verify');
 const mobileMoney = require('../lib/adapters/mobile-money');
@@ -1026,10 +1026,8 @@ async function processCompletedPayment(tx) {
       }
     }
 
-    await db.query(
-      `UPDATE clients SET total_purchases = total_purchases + 1, total_amount = total_amount + $1, updated_at = NOW() WHERE id = $2`,
-      [tx.gross_amount, tx.client_id]
-    );
+    // CDC v3 §2.3 — Attribution des points statut et récompense
+    await awardPoints(tx.client_id, tx.id, parseFloat(tx.gross_amount));
   }
 
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);

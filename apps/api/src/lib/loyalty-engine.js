@@ -1,12 +1,25 @@
 /**
- * Moteur de Fidélité Afrik'Fid
- * Gère le calcul X/Y/Z et les transitions de statut
+ * Moteur de Fidélité Afrik'Fid — CDC v3.0
+ *
+ * Points statut (1 pt = 500 FCFA) : qualification aux niveaux
+ * Points récompense (1 pt = 100 FCFA) : dépensables par le client
+ * Statuts : OPEN → LIVE → GOLD → ROYAL → ROYAL_ELITE
+ * Soft Landing : max -1 niveau par période
  */
 
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
 const { decrypt } = require('./crypto');
+const {
+  LOYALTY_POINTS_THRESHOLDS,
+  POINTS_PER_STATUS_UNIT,
+  POINTS_PER_REWARD_UNIT,
+} = require('../config/constants');
+
+const STATUS_ORDER = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE'];
+
+// ─── Config ─────────────────────────────────────────────────────────────────
 
 async function getLoyaltyConfig() {
   const res = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order');
@@ -16,34 +29,32 @@ async function getLoyaltyConfig() {
 /**
  * Retourne le taux Y% pour un statut donné.
  * Priorité : catégorie marchand > pays > global
- * @param {string} loyaltyStatus
- * @param {string|null} countryId
- * @param {string|null} merchantCategory
  */
 async function getClientRebatePercent(loyaltyStatus, countryId = null, merchantCategory = null) {
-  // Priorité 1 : surcharge par catégorie marchand
+  // ROYAL_ELITE utilise le même taux que ROYAL (maximum)
+  const effectiveStatus = loyaltyStatus === 'ROYAL_ELITE' ? 'ROYAL' : loyaltyStatus;
+
   if (merchantCategory) {
     const catOverride = await db.query(
       'SELECT client_rebate_percent FROM loyalty_config_category WHERE status = $1 AND category = $2',
-      [loyaltyStatus, merchantCategory]
+      [effectiveStatus, merchantCategory]
     );
     if (catOverride.rows[0]) return parseFloat(catOverride.rows[0].client_rebate_percent);
   }
-  // Priorité 2 : surcharge par pays
   if (countryId) {
     const override = await db.query(
       'SELECT client_rebate_percent FROM loyalty_config_country WHERE status = $1 AND country_id = $2',
-      [loyaltyStatus, countryId]
+      [effectiveStatus, countryId]
     );
     if (override.rows[0]) return parseFloat(override.rows[0].client_rebate_percent);
   }
-  // Priorité 3 : taux global
-  const res = await db.query('SELECT client_rebate_percent FROM loyalty_config WHERE status = $1', [loyaltyStatus]);
+  const res = await db.query('SELECT client_rebate_percent FROM loyalty_config WHERE status = $1', [effectiveStatus]);
   return res.rows[0] ? parseFloat(res.rows[0].client_rebate_percent) : 0;
 }
 
+// ─── Distribution X/Y/Z ────────────────────────────────────────────────────
+
 async function calculateDistribution(grossAmount, merchantRebatePercent, clientLoyaltyStatus = 'OPEN', countryId = null, merchantCategory = null, merchantId = null) {
-  // Priorité X% : taux par catégorie produit marchand > taux global marchand 
   let effectiveX = merchantRebatePercent;
   if (merchantId && merchantCategory) {
     const catRate = await db.query(
@@ -77,80 +88,122 @@ async function calculateDistribution(grossAmount, merchantRebatePercent, clientL
   };
 }
 
+// ─── Calcul des points (CDC v3 §2.3) ───────────────────────────────────────
+
+/**
+ * Calcule les points statut et récompense pour un montant donné.
+ * @param {number} grossAmount - Montant brut en FCFA
+ * @returns {{ statusPoints: number, rewardPoints: number }}
+ */
+function calculatePoints(grossAmount) {
+  const statusPoints = Math.floor(grossAmount / POINTS_PER_STATUS_UNIT);
+  const rewardPoints = Math.floor(grossAmount / POINTS_PER_REWARD_UNIT);
+  return { statusPoints, rewardPoints };
+}
+
+/**
+ * Attribue les points après un paiement complété.
+ */
+async function awardPoints(clientId, transactionId, grossAmount) {
+  const { statusPoints, rewardPoints } = calculatePoints(grossAmount);
+
+  await db.query(
+    `UPDATE clients SET
+       status_points = COALESCE(status_points, 0) + $1,
+       status_points_12m = COALESCE(status_points_12m, 0) + $1,
+       lifetime_status_points = COALESCE(lifetime_status_points, 0) + $1,
+       reward_points = COALESCE(reward_points, 0) + $2,
+       total_purchases = total_purchases + 1,
+       total_amount = total_amount + $3,
+       updated_at = NOW()
+     WHERE id = $4`,
+    [statusPoints, rewardPoints, grossAmount, clientId]
+  );
+
+  await db.query(
+    `UPDATE transactions SET status_points_earned = $1, reward_points_earned = $2 WHERE id = $3`,
+    [statusPoints, rewardPoints, transactionId]
+  );
+
+  return { statusPoints, rewardPoints };
+}
+
+// ─── Évaluation de statut (CDC v3 §2.2, §2.4) ─────────────────────────────
+
 async function evaluateClientStatus(clientId) {
   const clientRes = await db.query('SELECT * FROM clients WHERE id = $1', [clientId]);
   const client = clientRes.rows[0];
   if (!client) return null;
 
-  const configsRes = await db.query('SELECT * FROM loyalty_config ORDER BY sort_order DESC');
-  const configs = configsRes.rows;
+  const currentStatus = client.loyalty_status;
 
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  const recentRes = await db.query(
-    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-     FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
-    [clientId, threeMonthsAgo.toISOString()]
-  );
-  const recentStats = { count: parseInt(recentRes.rows[0].count), total: parseFloat(recentRes.rows[0].total) };
-
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  const sixRes = await db.query(
-    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
-     FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
-    [clientId, sixMonthsAgo.toISOString()]
-  );
-  const sixMonthStats = { count: parseInt(sixRes.rows[0].count), total: parseFloat(sixRes.rows[0].total) };
-
+  // Recalculer status_points_12m : somme des points statut des 12 derniers mois
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const twelveRes = await db.query(
-    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
+  const pointsRes = await db.query(
+    `SELECT COALESCE(SUM(status_points_earned), 0) as pts
      FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
     [clientId, twelveMonthsAgo.toISOString()]
   );
-  const twelveMonthStats = { count: parseInt(twelveRes.rows[0].count), total: parseFloat(twelveRes.rows[0].total) };
+  const statusPoints12m = parseInt(pointsRes.rows[0].pts);
 
-  const currentStatus = client.loyalty_status;
-  let newStatus = 'OPEN';
+  // Mettre à jour le champ recalculé
+  await db.query(
+    'UPDATE clients SET status_points_12m = $1 WHERE id = $2',
+    [statusPoints12m, clientId]
+  );
 
-  // Rétrogradation par inactivité  : si aucune transaction dans inactivity_months
-  const currentConfig = configs.find(c => c.status === currentStatus);
-  if (currentConfig && currentConfig.inactivity_months > 0 && currentStatus !== 'OPEN') {
-    const inactivityCutoff = new Date();
-    inactivityCutoff.setMonth(inactivityCutoff.getMonth() - currentConfig.inactivity_months);
-    const activityRes = await db.query(
-      `SELECT COUNT(*) as count FROM transactions WHERE client_id = $1 AND status = 'completed' AND initiated_at >= $2`,
-      [clientId, inactivityCutoff.toISOString()]
-    );
-    if (parseInt(activityRes.rows[0].count) === 0) {
-      return {
-        clientId,
-        currentStatus,
-        newStatus: 'OPEN',
-        changed: currentStatus !== 'OPEN',
-        reason: 'inactivity',
-        stats: { recentStats, sixMonthStats, twelveMonthStats },
-      };
-    }
+  const lifetimePoints = parseInt(client.lifetime_status_points) || 0;
+  const consecutiveRoyalYears = parseInt(client.consecutive_royal_years) || 0;
+
+  // ── Vérifier ROYAL ELITE ──
+  // Condition: 3 ans ROYAL consécutifs OU 50 000 pts historiques
+  const isRoyalEliteEligible =
+    consecutiveRoyalYears >= 3 ||
+    lifetimePoints >= LOYALTY_POINTS_THRESHOLDS.ROYAL_ELITE;
+
+  // ── Déterminer le statut mérité par les points 12m ──
+  let meritedStatus = 'OPEN';
+  if (statusPoints12m >= LOYALTY_POINTS_THRESHOLDS.ROYAL) {
+    meritedStatus = 'ROYAL';
+  } else if (statusPoints12m >= LOYALTY_POINTS_THRESHOLDS.GOLD) {
+    meritedStatus = 'GOLD';
+  } else if (statusPoints12m >= LOYALTY_POINTS_THRESHOLDS.LIVE) {
+    meritedStatus = 'LIVE';
   }
 
-  const royalConfig = configs.find(c => c.status === 'ROYAL');
-  if (royalConfig && twelveMonthStats.count >= royalConfig.min_purchases &&
-    twelveMonthStats.total >= royalConfig.min_cumulative_amount) {
-    newStatus = 'ROYAL';
-  } else {
-    const goldConfig = configs.find(c => c.status === 'GOLD');
-    if (goldConfig && sixMonthStats.count >= goldConfig.min_purchases &&
-      sixMonthStats.total >= goldConfig.min_cumulative_amount) {
-      newStatus = 'GOLD';
-    } else {
-      const liveConfig = configs.find(c => c.status === 'LIVE');
-      if (liveConfig && recentStats.count >= liveConfig.min_purchases &&
-        recentStats.total >= liveConfig.min_cumulative_amount) {
-        newStatus = 'LIVE';
+  let newStatus = meritedStatus;
+
+  // Promotion vers ROYAL ELITE
+  if (isRoyalEliteEligible && (meritedStatus === 'ROYAL' || currentStatus === 'ROYAL_ELITE')) {
+    newStatus = 'ROYAL_ELITE';
+  }
+
+  // ── Soft Landing (CDC v3 §2.4.2) : max -1 niveau par période ──
+  const currentIdx = STATUS_ORDER.indexOf(currentStatus);
+  const newIdx = STATUS_ORDER.indexOf(newStatus);
+
+  if (newIdx < currentIdx) {
+    // Déclassement : max 1 niveau
+    // ROYAL_ELITE → ROYAL (avec 6 mois supplémentaires de conservation)
+    if (currentStatus === 'ROYAL_ELITE') {
+      // Vérifier si les 6 mois de conservation sont écoulés
+      const royalSince = client.royal_since ? new Date(client.royal_since) : null;
+      if (royalSince) {
+        const sixMonthsAfterLoss = new Date(royalSince);
+        // On laisse 6 mois de grâce après la perte de qualification ROYAL_ELITE
+        sixMonthsAfterLoss.setMonth(sixMonthsAfterLoss.getMonth() + 42); // 3 ans + 6 mois
+        if (new Date() < sixMonthsAfterLoss) {
+          newStatus = 'ROYAL_ELITE'; // Conservation pendant 6 mois
+        } else {
+          newStatus = 'ROYAL'; // Déclassement vers ROYAL uniquement
+        }
+      } else {
+        newStatus = 'ROYAL';
       }
+    } else {
+      // Max -1 niveau : ROYAL→GOLD, GOLD→LIVE, LIVE→OPEN
+      newStatus = STATUS_ORDER[currentIdx - 1];
     }
   }
 
@@ -159,26 +212,45 @@ async function evaluateClientStatus(clientId) {
     currentStatus,
     newStatus,
     changed: currentStatus !== newStatus,
-    stats: { recentStats, sixMonthStats, twelveMonthStats },
+    statusPoints12m,
+    lifetimePoints,
+    consecutiveRoyalYears,
   };
 }
 
+// ─── Application du changement de statut ────────────────────────────────────
+
 async function applyStatusChange(clientId, newStatus, { reason = 'manual', changedBy = 'admin', stats = null } = {}) {
-  const clientRes = await db.query('SELECT loyalty_status FROM clients WHERE id = $1', [clientId]);
+  const clientRes = await db.query('SELECT loyalty_status, royal_since FROM clients WHERE id = $1', [clientId]);
   const oldStatus = clientRes.rows[0]?.loyalty_status || 'OPEN';
 
+  // Mettre à jour royal_since si on accède à ROYAL
+  let royalSinceUpdate = '';
+  const params = [newStatus, clientId];
+  if (newStatus === 'ROYAL' && oldStatus !== 'ROYAL' && oldStatus !== 'ROYAL_ELITE') {
+    royalSinceUpdate = ', royal_since = NOW(), consecutive_royal_years = 0';
+  }
+  if (newStatus === 'ROYAL_ELITE' && oldStatus !== 'ROYAL_ELITE') {
+    // Garde royal_since existant
+  }
+  // Si on descend de ROYAL/ROYAL_ELITE, reset
+  if (newStatus !== 'ROYAL' && newStatus !== 'ROYAL_ELITE' && (oldStatus === 'ROYAL' || oldStatus === 'ROYAL_ELITE')) {
+    royalSinceUpdate = ', royal_since = NULL, consecutive_royal_years = 0';
+  }
+
   await db.query(
-    `UPDATE clients SET loyalty_status = $1, status_since = NOW(), updated_at = NOW() WHERE id = $2`,
-    [newStatus, clientId]
+    `UPDATE clients SET loyalty_status = $1, status_since = NOW(), updated_at = NOW()${royalSinceUpdate} WHERE id = $2`,
+    params
   );
 
-  // Enregistrer dans l'historique (CDC §4.3.1)
   await db.query(
     `INSERT INTO loyalty_status_history (id, client_id, old_status, new_status, reason, changed_by, stats, changed_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
     [uuidv4(), clientId, oldStatus, newStatus, reason, changedBy, stats ? JSON.stringify(stats) : null]
   );
 }
+
+// ─── Batch mensuel de réévaluation (CDC v3 §2.4.1) ─────────────────────────
 
 async function runLoyaltyBatch() {
   const clientsRes = await db.query('SELECT id FROM clients WHERE is_active = TRUE');
@@ -190,31 +262,29 @@ async function runLoyaltyBatch() {
       await applyStatusChange(row.id, evaluation.newStatus, {
         reason: evaluation.reason || 'batch_evaluation',
         changedBy: 'batch',
-        stats: evaluation.stats,
+        stats: {
+          statusPoints12m: evaluation.statusPoints12m,
+          lifetimePoints: evaluation.lifetimePoints,
+          consecutiveRoyalYears: evaluation.consecutiveRoyalYears,
+        },
       });
       const client = (await db.query('SELECT * FROM clients WHERE id = $1', [row.id])).rows[0];
       if (client) {
-        // Déchiffrer phone et email avant d'envoyer les notifications
         let phone = null, email = null;
-        try { phone = client.phone ? decrypt(client.phone) : null } catch { /* ignore */ }
-        try { email = client.email ? decrypt(client.email) : null } catch { /* ignore */ }
+        try { phone = client.phone ? decrypt(client.phone) : null; } catch { /* ignore */ }
+        try { email = client.email ? decrypt(client.email) : null; } catch { /* ignore */ }
         const clientForNotif = { ...client, phone, email };
 
-        const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL'];
-        const isUpgrade = statusOrder.indexOf(evaluation.newStatus) > statusOrder.indexOf(evaluation.currentStatus);
-        const isDowngrade = statusOrder.indexOf(evaluation.newStatus) < statusOrder.indexOf(evaluation.currentStatus);
+        const isUpgrade = STATUS_ORDER.indexOf(evaluation.newStatus) > STATUS_ORDER.indexOf(evaluation.currentStatus);
+        const isDowngrade = STATUS_ORDER.indexOf(evaluation.newStatus) < STATUS_ORDER.indexOf(evaluation.currentStatus);
 
         if (isUpgrade) {
           notifyLoyaltyUpgrade({ client: clientForNotif, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
         } else if (isDowngrade) {
-          // CDC §2.6 — Notifier le client lors d'une rétrogradation par inactivité
-          const inactivityMonths = evaluation.inactivityMonths ||
-            (await db.query('SELECT inactivity_months FROM loyalty_config WHERE status = $1', [evaluation.currentStatus])).rows[0]?.inactivity_months;
           notifyLoyaltyDowngrade({
             client: clientForNotif,
             oldStatus: evaluation.currentStatus,
             newStatus: evaluation.newStatus,
-            inactivityMonths,
           });
         }
       }
@@ -222,8 +292,40 @@ async function runLoyaltyBatch() {
     }
   }
 
+  // Incrémenter consecutive_royal_years pour les clients ROYAL depuis >= 1 an
+  await db.query(`
+    UPDATE clients SET consecutive_royal_years = consecutive_royal_years + 1
+    WHERE loyalty_status IN ('ROYAL', 'ROYAL_ELITE')
+      AND royal_since IS NOT NULL
+      AND royal_since <= NOW() - INTERVAL '1 year' * (consecutive_royal_years + 1)
+  `);
+
   return results;
 }
+
+// ─── Starter Boost : calcul réduction recrutement (CDC v3 §2.6) ────────────
+
+const { STARTER_BOOST_TIERS } = require('../config/constants');
+
+async function calculateStarterBoostDiscount(merchantId) {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const res = await db.query(
+    `SELECT COUNT(*) as count FROM clients
+     WHERE recruited_by_merchant_id = $1 AND recruited_at >= $2`,
+    [merchantId, thirtyDaysAgo.toISOString()]
+  );
+  const recruitedCount = parseInt(res.rows[0].count);
+
+  const tier = STARTER_BOOST_TIERS.find(t => recruitedCount >= t.minClients);
+  return {
+    recruitedCount,
+    discountPercent: tier ? tier.discountPercent : 0,
+  };
+}
+
+// ─── Utilitaires ────────────────────────────────────────────────────────────
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -236,4 +338,8 @@ module.exports = {
   evaluateClientStatus,
   applyStatusChange,
   runLoyaltyBatch,
+  calculatePoints,
+  awardPoints,
+  calculateStarterBoostDiscount,
+  STATUS_ORDER,
 };

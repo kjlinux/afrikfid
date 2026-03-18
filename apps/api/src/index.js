@@ -12,6 +12,12 @@ const { processExpiredTransactions } = require('./workers/transaction-expiry');
 const { processDisbursements } = require('./workers/disbursement');
 const { checkOverdueRefunds } = require('./workers/refund-monitor');
 const { rotateExpiredApiKeys } = require('./workers/key-rotation');
+const loyaltyBatchWorker = require('./workers/loyalty-batch');
+const successFeeWorker = require('./workers/success-fee');
+const rfmBatchWorker = require('./workers/rfm-batch');
+const triggerBatchWorker = require('./workers/trigger-batch');
+const statusNotifWorker = require('./workers/status-notifications');
+const dailySummaryWorker = require('./workers/daily-workflow');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
@@ -120,6 +126,11 @@ app.use('/api/v1/fraud', require('./routes/fraud'));
 app.use('/api/v1/distributions', require('./routes/distributions'));
 app.use('/api/v1/disputes', require('./routes/disputes'));
 app.use('/api/v1/audit-logs', require('./routes/audit'));
+app.use('/api/v1/subscriptions', require('./routes/subscriptions'));
+app.use('/api/v1/success-fees', require('./routes/success-fees'));
+app.use('/api/v1/rfm', require('./routes/rfm'));
+app.use('/api/v1/campaigns', require('./routes/campaigns'));
+app.use('/api/v1/merchant-intelligence', require('./routes/merchant-intelligence'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();
@@ -252,10 +263,10 @@ app.use(errorHandler);
 
 // ─── Crons (désactivés en test) ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  // Batch fidélité: quotidien à 2h ou hebdomadaire le lundi selon LOYALTY_BATCH_FREQUENCY 
-  // Valeurs acceptées: 'daily' (défaut) ou 'weekly' (lundi à 2h)
-  const loyaltyBatchFreq = (process.env.LOYALTY_BATCH_FREQUENCY || 'daily').toLowerCase();
-  const loyaltyCronExpr = loyaltyBatchFreq === 'weekly' ? '0 2 * * 1' : '0 2 * * *';
+  // CDC v3 §2.4.1 : Batch fidélité mensuel (1er du mois) ou fréquence custom via LOYALTY_BATCH_FREQUENCY
+  // Valeurs acceptées: 'monthly' (CDC v3 défaut), 'daily', 'weekly' (lundi à 2h)
+  const loyaltyBatchFreq = (process.env.LOYALTY_BATCH_FREQUENCY || 'monthly').toLowerCase();
+  const loyaltyCronExpr = loyaltyBatchFreq === 'weekly' ? '0 2 * * 1' : loyaltyBatchFreq === 'daily' ? '0 2 * * *' : '0 2 1 * *';
   new CronJob(loyaltyCronExpr, async () => {
     console.log('[CRON] Exécution du batch de fidélité...');
     const db = require('./lib/db');
@@ -364,6 +375,21 @@ if (process.env.NODE_ENV !== 'test') {
       console.error('[REFUND-MONITOR] Erreur:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
+
+  // CDC v3 §3.5 — Success Fee mensuel (1er du mois à 04h00)
+  successFeeWorker.start();
+
+  // CDC v3 §5.1 — Batch RFM quotidien (06h00)
+  rfmBatchWorker.start();
+
+  // CDC v3 §5.4 — Triggers par segment + anniversaires (07h00)
+  triggerBatchWorker.start();
+
+  // CDC v3 §2.4.3 — Notifications requalification statut (08h00)
+  statusNotifWorker.start();
+
+  // CDC v3 §6.4 — Bilan journalier (18h00)
+  dailySummaryWorker.start();
 }
 
 // Ne pas démarrer le serveur HTTP en mode test (Supertest gère ses propres connexions)
