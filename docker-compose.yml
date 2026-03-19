@@ -81,6 +81,8 @@ services:
       REFUND_SLA_HOURS: ${REFUND_SLA_HOURS:-72}
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # IA Insights (PREMIUM — optionnel)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Redis (prod avec mot de passe)
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:

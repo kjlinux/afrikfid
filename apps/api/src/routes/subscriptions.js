@@ -28,12 +28,28 @@ router.get('/', requireAdmin, async (req, res) => {
   res.json({ subscriptions: rows, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// GET /api/v1/subscriptions/:id — détail (admin ou marchand propriétaire)
+// GET /api/v1/subscriptions/:id — détail avec bonus recrutement Starter Boost (CDC v3 §2.6, §3.6)
 router.get('/:id', requireAuth, async (req, res) => {
-  const sub = (await db.query('SELECT s.*, m.name as merchant_name FROM subscriptions s JOIN merchants m ON s.merchant_id = m.id WHERE s.id = $1', [req.params.id])).rows[0];
+  const sub = (await db.query('SELECT s.*, m.name as merchant_name, m.package as merchant_package FROM subscriptions s JOIN merchants m ON s.merchant_id = m.id WHERE s.id = $1', [req.params.id])).rows[0];
   if (!sub) return res.status(404).json({ error: 'Subscription non trouvée' });
   if (req.merchant && req.merchant.id !== sub.merchant_id) return res.status(403).json({ error: 'Accès interdit' });
-  res.json({ subscription: sub });
+
+  // Pour Starter Boost: calculer le bonus recrutement du mois en cours (CDC v3 §2.6)
+  let recruitmentBonus = null;
+  if (sub.package === 'STARTER_BOOST' || sub.merchant_package === 'STARTER_BOOST') {
+    const boost = await calculateStarterBoostDiscount(sub.merchant_id);
+    const baseFee = parseFloat(sub.base_monthly_fee) || 25000;
+    const effectiveFee = baseFee * (1 - boost.discountPercent / 100);
+    recruitmentBonus = {
+      clientsRecruitedThisMonth: boost.recruitedCount,
+      discountPercent: boost.discountPercent,
+      baseMonthlyfee: baseFee,
+      effectiveMonthlyFee: Math.round(effectiveFee),
+      savingsAmount: Math.round(baseFee - effectiveFee),
+    };
+  }
+
+  res.json({ subscription: sub, recruitmentBonus });
 });
 
 // POST /api/v1/subscriptions — créer une subscription (admin)

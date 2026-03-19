@@ -12,6 +12,8 @@ const {
   notifyMerchantWelcome, notifyRefundApproved, notifyRefundRejected, notifyAccountSuspended,
 } = require('../lib/notifications');
 const { kycUpload, toFileMetadata } = require('../lib/upload');
+const { requirePackage } = require('../middleware/require-package');
+const { generateInsights } = require('../lib/ai-insights');
 
 // POST /api/v1/merchants (admin)
 router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) => {
@@ -717,6 +719,25 @@ router.delete('/:id/category-rates/:category', requireAdmin, async (req, res, ne
     }
     res.json({ message: 'Taux catégorie supprimé' });
   } catch (err) { next(err); }
+});
+
+// GET /api/v1/merchants/me/ai-insights — Recommandations IA (PREMIUM uniquement — CDC §6.3)
+router.get('/me/ai-insights', requireMerchant, requirePackage('PREMIUM'), async (req, res, next) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({
+        error: 'SERVICE_UNAVAILABLE',
+        message: 'Le service IA n\'est pas configuré sur ce serveur.',
+      });
+    }
+    const insights = await generateInsights(req.merchant.id);
+    res.json(insights);
+  } catch (err) {
+    if (err.message?.includes('ANTHROPIC_API_KEY')) {
+      return res.status(503).json({ error: 'SERVICE_UNAVAILABLE', message: err.message });
+    }
+    next(err);
+  }
 });
 
 module.exports = router;

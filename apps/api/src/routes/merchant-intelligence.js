@@ -4,6 +4,7 @@ const { Router } = require('express');
 const { pool } = require('../lib/db');
 const { getMerchantRFMStats } = require('../lib/rfm-engine');
 const { MERCHANT_PACKAGES } = require('../config/constants');
+const { requireAuth } = require('../middleware/auth');
 
 const router = Router();
 
@@ -15,9 +16,19 @@ const router = Router();
  * GROWTH: + segmentation RFM détaillée + actions recommandées
  * PREMIUM: + analytics avancés LTV/élasticité
  */
-router.get('/:merchantId', async (req, res, next) => {
+router.get('/:merchantId', requireAuth, async (req, res, next) => {
   try {
     const { merchantId } = req.params;
+
+    // Un marchand ne peut consulter que sa propre intelligence — l'admin voit tout
+    if (req.merchant && req.merchant.id !== merchantId) {
+      return res.status(403).json({ error: 'Accès interdit : vous ne pouvez consulter que votre propre dashboard' });
+    }
+    // Les clients n'ont pas accès aux données d'intelligence marchande
+    if (req.client) {
+      return res.status(403).json({ error: 'Accès réservé aux marchands et administrateurs' });
+    }
+
     const merchant = await pool.query(
       'SELECT id, name, package, sector FROM merchants WHERE id = $1', [merchantId]
     );

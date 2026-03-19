@@ -262,10 +262,23 @@ export default function AdminClients() {
                   {[
                     { label: 'Achats', value: clientDetail.stats?.count || 0 },
                     { label: 'Volume XOF', value: fmt(clientDetail.stats?.total) },
-                    { label: 'Wallet', value: `${fmt(clientDetail.wallet?.balance)} XOF` },
+                    { label: 'Wallet cashback', value: `${fmt(clientDetail.wallet?.balance)} XOF` },
                   ].map(s => (
                     <div key={s.label} style={{ background: '#0f172a', borderRadius: 8, padding: 12, textAlign: 'center' }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>{s.value}</div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Points fidélité (CDC v3 §2.3) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: 'Pts statut (12m)', value: clientDetail.client?.statusPoints12m ?? 0, color: '#6366f1' },
+                    { label: 'Pts récompense', value: clientDetail.client?.rewardPoints ?? 0, color: '#10b981' },
+                    { label: 'Pts statut total', value: clientDetail.client?.lifetimeStatusPoints ?? 0, color: '#8b5cf6' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#0f172a', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: s.color }}>{s.value.toLocaleString()}</div>
                       <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.label}</div>
                     </div>
                   ))}

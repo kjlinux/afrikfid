@@ -115,11 +115,19 @@ const TRIGGER_TYPES = [
 
 // ─── Protocole d'abandon (CDC v3 §5.5) ──────────────────────────────────
 const ABANDON_PROTOCOL_STEPS = [
-  { step: 1, delay_days: 0,  channel: 'sms', label: 'Alerte immédiate' },
-  { step: 2, delay_days: 7,  channel: 'sms', label: 'Rappel J+7' },
-  { step: 3, delay_days: 15, channel: 'sms', label: 'Offre incentive J+15' },
-  { step: 4, delay_days: 30, channel: 'sms', label: 'Dernière chance J+30' },
-  { step: 5, delay_days: 60, channel: 'sms', label: 'Classement PERDU J+60' },
+  { step: 1, delay_days: 0,  channel: 'sms', label: 'Win-back 1 — Offre -15% ou points x2', message: 'Bonjour {client_name}, profitez de -15% chez {merchant_name} ! Votre fidélité compte.' },
+  { step: 2, delay_days: 14, channel: 'sms', label: 'Win-back 2 — Vous nous manquez', message: 'Vous nous manquez {client_name} ! -20% chez {merchant_name} pour votre retour.' },
+  { step: 3, delay_days: 14, channel: 'sms', label: 'Win-back 3 — Dernière chance -30%', message: 'Dernière chance {client_name} ! -30% chez {merchant_name}. Offre limitée.' },
+  { step: 4, delay_days: 7,  channel: 'sms', label: 'Enquête — Pourquoi êtes-vous parti ?', message: '{client_name}, pourquoi êtes-vous parti ? Répondez pour nous aider à améliorer votre expérience chez {merchant_name}.' },
+  { step: 5, delay_days: 30, channel: 'sms', label: 'Classement PERDU définitif', message: null },
+];
+
+// ─── Notifications de statut planifiées (CDC v3 §2.4.3) ────────────────
+const STATUS_NOTIFICATION_SCHEDULE = [
+  { days_before: 90, channels: ['push', 'email'], label: 'Rappel objectif de requalification' },
+  { days_before: 30, channels: ['push', 'sms'],   label: 'Alerte proximité échéance' },
+  { days_before: 7,  channels: ['push', 'sms', 'email'], label: 'Dernière chance de requalification' },
+  { days_after: 1,   channels: ['push', 'email'], label: 'Confirmation nouveau statut' },
 ];
 
 module.exports = {
@@ -135,6 +143,7 @@ module.exports = {
   MERCHANT_SECTORS,
   TRIGGER_TYPES,
   ABANDON_PROTOCOL_STEPS,
+  STATUS_NOTIFICATION_SCHEDULE,
   TX_STATUSES,
   REBATE_MODES,
   MM_OPERATORS,

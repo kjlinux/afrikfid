@@ -5,11 +5,13 @@ const { pool } = require('../lib/db');
 const { v4: uuidv4 } = require('uuid');
 const { calculateMerchantRFM, getMerchantRFMStats } = require('../lib/rfm-engine');
 const { RFM_SEGMENTS, MERCHANT_SECTORS } = require('../config/constants');
+const { requirePackage } = require('../middleware/require-package');
+const { requireAdmin, requireAuth } = require('../middleware/auth');
 
 const router = Router();
 
-// GET /rfm/merchant/:merchantId — scores RFM d'un marchand
-router.get('/merchant/:merchantId', async (req, res, next) => {
+// GET /rfm/merchant/:merchantId — scores RFM d'un marchand (GROWTH+ requis — CDC v3 §6.1)
+router.get('/merchant/:merchantId', requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const { merchantId } = req.params;
     const { segment, page = 1, limit = 20 } = req.query;
@@ -46,16 +48,16 @@ router.get('/merchant/:merchantId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /rfm/merchant/:merchantId/calculate — recalcul RFM manuel
-router.post('/merchant/:merchantId/calculate', async (req, res, next) => {
+// POST /rfm/merchant/:merchantId/calculate — recalcul RFM manuel (GROWTH+ requis)
+router.post('/merchant/:merchantId/calculate', requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const count = await calculateMerchantRFM(req.params.merchantId);
     res.json({ message: `${count} clients scorés`, count });
   } catch (err) { next(err); }
 });
 
-// GET /rfm/stats — stats globales RFM (admin)
-router.get('/stats', async (req, res, next) => {
+// GET /rfm/stats — stats globales RFM (admin uniquement)
+router.get('/stats', requireAdmin, async (req, res, next) => {
   try {
     const segments = await pool.query(
       `SELECT segment, COUNT(*) AS count FROM rfm_scores GROUP BY segment ORDER BY count DESC`
@@ -71,16 +73,16 @@ router.get('/stats', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /rfm/thresholds — seuils RFM par secteur
-router.get('/thresholds', async (req, res, next) => {
+// GET /rfm/thresholds — seuils RFM par secteur (admin ou marchand authentifié)
+router.get('/thresholds', requireAuth, async (req, res, next) => {
   try {
     const rows = await pool.query('SELECT * FROM rfm_sector_thresholds ORDER BY sector, dimension');
     res.json({ thresholds: rows.rows });
   } catch (err) { next(err); }
 });
 
-// PUT /rfm/thresholds/:sector — configurer seuils RFM pour un secteur
-router.put('/thresholds/:sector', async (req, res, next) => {
+// PUT /rfm/thresholds/:sector — configurer seuils RFM pour un secteur (admin uniquement)
+router.put('/thresholds/:sector', requireAdmin, async (req, res, next) => {
   try {
     const { sector } = req.params;
     const { recency, frequency, monetary } = req.body;

@@ -11,6 +11,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
 const { decrypt } = require('./crypto');
+const { triggerPalier } = require('./campaign-engine');
 const {
   LOYALTY_POINTS_THRESHOLDS,
   POINTS_PER_STATUS_UNIT,
@@ -239,7 +240,7 @@ async function applyStatusChange(clientId, newStatus, { reason = 'manual', chang
   }
 
   await db.query(
-    `UPDATE clients SET loyalty_status = $1, status_since = NOW(), updated_at = NOW()${royalSinceUpdate} WHERE id = $2`,
+    `UPDATE clients SET loyalty_status = $1, status_since = NOW(), qualification_deadline = NOW() + INTERVAL '12 months', updated_at = NOW()${royalSinceUpdate} WHERE id = $2`,
     params
   );
 
@@ -286,6 +287,15 @@ async function runLoyaltyBatch() {
             oldStatus: evaluation.currentStatus,
             newStatus: evaluation.newStatus,
           });
+        }
+
+        // Trigger PALIER (CDC v3 §5.4) — notification de changement de statut
+        const merchantIds = (await db.query(
+          "SELECT DISTINCT merchant_id FROM transactions WHERE client_id = $1 AND status = 'completed'",
+          [row.id]
+        )).rows.map(r => r.merchant_id);
+        for (const mid of merchantIds) {
+          triggerPalier(mid, clientForNotif, evaluation.currentStatus, evaluation.newStatus).catch(() => {});
         }
       }
       results.push(evaluation);

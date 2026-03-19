@@ -1,10 +1,92 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
-import { Card, Badge, Spinner } from '../../components/ui.jsx'
+import { Card, Badge, Spinner, Alert } from '../../components/ui.jsx'
 
 const SEG_COLORS = { CHAMPIONS: 'green', FIDELES: 'blue', PROMETTEURS: 'yellow', A_RISQUE: 'orange', HIBERNANTS: 'gray', PERDUS: 'red' }
 const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth', PREMIUM: 'Premium' }
+const PRIO_COLORS = { haute: 'red', moyenne: 'yellow', faible: 'gray' }
+
+function AiInsightsSection() {
+  const [insights, setInsights] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const loadInsights = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    api.get('/merchants/me/ai-insights')
+      .then(r => setInsights(r.data))
+      .catch(e => setError(e.response?.data?.message || 'Erreur lors de la génération des insights'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <Card className="mb-6 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🤖</span>
+          <div>
+            <h2 className="text-lg font-semibold text-purple-900">Recommandations IA</h2>
+            <p className="text-xs text-purple-500">Powered by Claude · Exclusif PREMIUM</p>
+          </div>
+        </div>
+        <button
+          onClick={loadInsights}
+          disabled={loading}
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+        >
+          {loading ? <Spinner size="sm" /> : '✨'}
+          {loading ? 'Analyse en cours...' : insights ? 'Régénérer' : 'Générer les insights'}
+        </button>
+      </div>
+
+      {error && <Alert type="error" className="mb-3">{error}</Alert>}
+
+      {!insights && !loading && !error && (
+        <div className="text-center py-8 text-purple-400">
+          <div className="text-4xl mb-2">🧠</div>
+          <p className="text-sm">Cliquez sur "Générer les insights" pour obtenir des recommandations personnalisées basées sur vos données RFM.</p>
+        </div>
+      )}
+
+      {insights && (
+        <div>
+          {insights.resume && (
+            <div className="p-3 bg-purple-100 rounded-lg mb-4 text-sm text-purple-800 italic">
+              {insights.resume}
+            </div>
+          )}
+
+          {insights.alerte && (
+            <Alert type="warning" className="mb-4">{insights.alerte}</Alert>
+          )}
+
+          <div className="space-y-3">
+            {(insights.recommandations || []).map((rec, i) => (
+              <div key={i} className="p-4 bg-white border border-purple-100 rounded-lg shadow-sm">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className="font-semibold text-sm text-gray-800">{rec.titre}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Badge color={SEG_COLORS[rec.segment] || 'gray'}>{rec.segment}</Badge>
+                    <Badge color={PRIO_COLORS[rec.priorite] || 'gray'}>{rec.priorite}</Badge>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mb-1">📋 {rec.action}</p>
+                <p className="text-xs text-green-700">🎯 {rec.objectif}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex justify-between items-center text-xs text-gray-400">
+            <span>Généré le {new Date(insights.generated_at).toLocaleString('fr-FR')}</span>
+            <span>{insights.context_snapshot?.total_clients_segmented || 0} clients analysés</span>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
 
 export default function MerchantIntelligence() {
   const { user } = useAuth()
@@ -147,6 +229,21 @@ export default function MerchantIntelligence() {
             <h3 className="text-lg font-semibold text-purple-700">Analytics Avances (LTV, Elasticite)</h3>
             <p className="text-sm text-purple-500 mt-1">Disponible avec le package Premium</p>
             <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">Upgrade</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Recommandations IA — PREMIUM uniquement */}
+      {m.analytics_advanced ? (
+        <AiInsightsSection />
+      ) : m.rfm_detailed ? null : null}
+
+      {!m.analytics_advanced && !m.rfm_simple && (
+        <Card className="mb-6 border-dashed border-2 border-purple-300 bg-purple-50">
+          <div className="text-center py-6">
+            <h3 className="text-lg font-semibold text-purple-700">🤖 Recommandations IA</h3>
+            <p className="text-sm text-purple-500 mt-1">Analyse IA de votre portefeuille client — Package Premium</p>
+            <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">Upgrade vers Premium</button>
           </div>
         </Card>
       )}

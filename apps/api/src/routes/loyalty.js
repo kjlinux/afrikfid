@@ -58,8 +58,14 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
   res.json({ config: updated, warnings });
 });
 
-// POST /api/v1/loyalty/batch (admin)
+// POST /api/v1/loyalty/batch (admin) — alias legacy
 router.post('/batch', requireAdmin, async (req, res) => {
+  const results = await runLoyaltyBatch();
+  res.json({ message: `Batch exécuté. ${results.length} changements de statut.`, changes: results });
+});
+
+// POST /api/v1/loyalty/batch/evaluate (admin) — CDC v3 §3.6 endpoint officiel
+router.post('/batch/evaluate', requireAdmin, async (req, res) => {
   const results = await runLoyaltyBatch();
   res.json({ message: `Batch exécuté. ${results.length} changements de statut.`, changes: results });
 });

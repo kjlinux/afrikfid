@@ -6,14 +6,14 @@ const db = require('../lib/db');
 const { requireAdmin, requireApiKey, requireClient, requireAuth } = require('../middleware/auth');
 const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engine');
 const { validate } = require('../middleware/validate');
-const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
+const { CreateClientSchema, UpdateClientProfileSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
 const { notifyClientWelcome } = require('../lib/notifications');
 const { triggerBienvenue } = require('../lib/campaign-engine');
 
 // POST /api/v1/clients
 router.post('/', validate(CreateClientSchema), async (req, res) => {
-  const { full_name, phone, email, country_id, password } = req.body;
+  const { full_name, phone, email, country_id, password, birth_date } = req.body;
 
   const phoneHash = hashField(phone);
   const existing = await db.query('SELECT id FROM clients WHERE phone_hash = $1', [phoneHash]);
@@ -27,9 +27,9 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
   const emailHash = email ? hashField(email) : null;
 
   await db.query(
-    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash]
+    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash, birth_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash, birth_date || null]
   );
 
   await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2)', [uuidv4(), id]);
@@ -149,6 +149,39 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     stats: txStats,
     nextStatusEligibility,
   });
+});
+
+// PATCH /api/v1/clients/:id/profile — mise à jour profil (client lui-même)
+router.patch('/:id/profile', requireAuth, validate(UpdateClientProfileSchema), async (req, res) => {
+  const clientRes = await db.query('SELECT * FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  // Seul le client lui-même ou un admin peut modifier le profil
+  const isOwner = req.client && req.client.id === client.id;
+  if (!req.admin && !isOwner) return res.status(403).json({ error: 'Accès interdit' });
+
+  const { full_name, email, birth_date } = req.body;
+  const updates = [];
+  const params = [];
+  let idx = 1;
+
+  if (full_name) { updates.push(`full_name = $${idx++}`); params.push(full_name); }
+  if (email !== undefined) {
+    const encEmail = email ? encrypt(email) : null;
+    const eHash = email ? hashField(email) : null;
+    updates.push(`email = $${idx++}`); params.push(encEmail);
+    updates.push(`email_hash = $${idx++}`); params.push(eHash);
+  }
+  if (birth_date !== undefined) { updates.push(`birth_date = $${idx++}`); params.push(birth_date); }
+
+  if (updates.length === 0) return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+
+  params.push(client.id);
+  await db.query(`UPDATE clients SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+
+  const updated = (await db.query('SELECT * FROM clients WHERE id = $1', [client.id])).rows[0];
+  res.json({ client: sanitizeClient(updated) });
 });
 
 // GET /api/v1/clients/:id/wallet — client lui-même ou admin uniquement (données financières sensibles)
@@ -360,6 +393,72 @@ router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, 
   });
 });
 
+// POST /api/v1/clients/:id/rewards/spend — CDC v3 §2.3 — Dépenser des points récompense
+// Les points récompense (1 pt = 100 FCFA) peuvent être utilisés chez tout marchand du réseau
+// Cela n'impacte JAMAIS les points statut ni le niveau de fidélité
+router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
+  const { points, merchant_id, description } = req.body;
+  if (!points || !Number.isInteger(points) || points <= 0) {
+    return res.status(400).json({ error: 'points doit être un entier positif' });
+  }
+  if (!merchant_id) return res.status(400).json({ error: 'merchant_id requis' });
+
+  const clientRes = await db.query('SELECT * FROM clients WHERE id = $1 AND is_active = true', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  // Seul le client lui-même ou un admin peut dépenser — les marchands sont explicitement exclus
+  if (!req.admin && !req.client) return res.status(403).json({ error: 'Accès réservé au client ou à l\'administrateur' });
+  if (req.client && req.client.id !== client.id) return res.status(403).json({ error: 'Accès interdit' });
+
+  const currentRewardPoints = parseInt(client.reward_points) || 0;
+  if (currentRewardPoints < points) {
+    return res.status(400).json({
+      error: 'Solde de points récompense insuffisant',
+      available: currentRewardPoints,
+      requested: points,
+    });
+  }
+
+  const merchant = (await db.query('SELECT id, name FROM merchants WHERE id = $1 AND is_active = true', [merchant_id])).rows[0];
+  if (!merchant) return res.status(404).json({ error: 'Marchand non trouvé' });
+
+  // 1 point récompense = 100 FCFA (POINTS_PER_REWARD_UNIT)
+  const amountFCFA = points * 100;
+  const newBalance = currentRewardPoints - points;
+
+  await db.query(
+    `UPDATE clients SET reward_points = $1, updated_at = NOW() WHERE id = $2`,
+    [newBalance, client.id]
+  );
+
+  // Historique dans wallet_movements (type: reward_spend)
+  const wallet = (await db.query('SELECT id, balance FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+  if (wallet) {
+    await db.query(
+      `INSERT INTO wallet_movements (id, wallet_id, type, amount, balance_before, balance_after, description, created_at)
+       VALUES ($1, $2, 'reward_spend', $3, $4, $4, $5, NOW())`,
+      [uuidv4(), wallet.id, amountFCFA, wallet.balance,
+       description || `Dépense ${points} pts récompense chez ${merchant.name}`]
+    );
+  }
+
+  // Log audit
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, entity_type, entity_id, metadata, created_at)
+     VALUES ($1, 'client', $2, 'reward_points_spent', 'client', $2, $3, NOW())`,
+    [uuidv4(), client.id, JSON.stringify({ points, amountFCFA, merchant_id, merchant_name: merchant.name })]
+  );
+
+  res.json({
+    message: `${points} points récompense utilisés (valeur: ${amountFCFA} FCFA)`,
+    pointsSpent: points,
+    amountFCFA,
+    remainingRewardPoints: newBalance,
+    merchantName: merchant.name,
+  });
+});
+
 function sanitizeClient(c) {
   // Déchiffrer le téléphone en toute sécurité — retourne null si échec (clé absente/différente)
   let phoneMasked = null;
@@ -387,6 +486,7 @@ function sanitizeClient(c) {
     statusPoints12m: c.status_points_12m || 0,
     rewardPoints: c.reward_points || 0,
     lifetimeStatusPoints: c.lifetime_status_points || 0,
+    birthDate: c.birth_date || null,
     isActive: c.is_active,
     createdAt: c.created_at,
   };

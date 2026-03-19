@@ -18,6 +18,71 @@ import {
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
 
+// Ordre et labels des packages (CDC v3 §6.1)
+const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
+const PKG_LABEL = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth Intelligent', PREMIUM: 'Premium Performance' }
+const PKG_COLOR = { STARTER_BOOST: '#64748b', STARTER_PLUS: '#3b82f6', GROWTH: '#8b5cf6', PREMIUM: '#f59e0b' }
+
+// Matrice des fonctionnalités par package (CDC v3 §6.1)
+const FEATURE_MATRIX = [
+  { key: 'taux_retour',   label: 'Taux de retour clients',          min: 'STARTER_PLUS', path: '/merchant/clients' },
+  { key: 'top_clients',   label: 'Top clients fidèles',             min: 'STARTER_PLUS', path: '/merchant/clients' },
+  { key: 'rfm',           label: 'Segmentation RFM automatique',    min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'campaigns',     label: 'Campagnes automatisées',          min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'churn',         label: 'Prédiction churn & alertes',      min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'ltv',           label: 'LTV par client et statut',        min: 'PREMIUM',       path: '/merchant/intelligence' },
+  { key: 'elasticite',    label: 'Élasticité-prix & prévisions',    min: 'PREMIUM',       path: '/merchant/intelligence' },
+  { key: 'erp',           label: 'Intégration ERP / CRM',           min: 'PREMIUM',       path: '/merchant/settings' },
+]
+
+function PackageBadge({ pkg }) {
+  return (
+    <span style={{
+      background: `${PKG_COLOR[pkg]}22`, color: PKG_COLOR[pkg],
+      padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+      border: `1px solid ${PKG_COLOR[pkg]}44`,
+    }}>
+      {PKG_LABEL[pkg] || pkg}
+    </span>
+  )
+}
+
+function FeatureAccessPanel({ pkg }) {
+  const pkgIdx = PKG_ORDER.indexOf(pkg)
+  const accessible = FEATURE_MATRIX.filter(f => PKG_ORDER.indexOf(f.min) <= pkgIdx)
+  const locked = FEATURE_MATRIX.filter(f => PKG_ORDER.indexOf(f.min) > pkgIdx)
+  if (locked.length === 0) return null
+  return (
+    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', marginTop: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>
+        Fonctionnalités de votre plan · <PackageBadge pkg={pkg} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {accessible.map(f => (
+          <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.15)' }}>
+            <span style={{ color: '#10b981', fontSize: 14 }}>✓</span>
+            <a href={f.path} style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none' }}>{f.label}</a>
+          </div>
+        ))}
+        {locked.map(f => (
+          <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(100,116,139,0.06)', borderRadius: 6, border: '1px solid rgba(100,116,139,0.15)' }}>
+            <span style={{ color: '#475569', fontSize: 14 }}>🔒</span>
+            <span style={{ fontSize: 12, color: '#475569' }}>{f.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: PKG_COLOR[f.min], fontWeight: 700 }}>{PKG_LABEL[f.min]}</span>
+          </div>
+        ))}
+      </div>
+      {locked.length > 0 && (
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <a href="/merchant/settings" style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600, textDecoration: 'none' }}>
+            Découvrir les plans supérieurs →
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MerchantDashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState(null)
@@ -119,6 +184,7 @@ export default function MerchantDashboard() {
             <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
               {profile.countryId} · {profile.currency}
             </span>
+            {profile.package && <PackageBadge pkg={profile.package} />}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -239,6 +305,9 @@ export default function MerchantDashboard() {
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Historique complet</div>
         </a>
       </div>
+
+      {/* Panneau d'accès aux fonctionnalités selon package (CDC v3 §6.1) */}
+      {profile.package && <FeatureAccessPanel pkg={profile.package} />}
     </div>
   )
 }

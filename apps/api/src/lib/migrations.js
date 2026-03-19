@@ -864,6 +864,39 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_loyalty_history_client ON loyalty_status_history(client_id, changed_at DESC);
     `,
   },
+  {
+    version: 24,
+    name: '024_abandon_protocol_tracking',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 §5.5 — Protocole d'abandon (suivi automatisé 5 étapes)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS abandon_tracking (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        current_step INTEGER NOT NULL DEFAULT 1 CHECK (current_step BETWEEN 1 AND 5),
+        step_started_at TIMESTAMPTZ DEFAULT NOW(),
+        next_step_at TIMESTAMPTZ,
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'reactivated', 'lost', 'cancelled')),
+        reactivated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(client_id, merchant_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_abandon_tracking_status ON abandon_tracking(status, next_step_at);
+      CREATE INDEX IF NOT EXISTS idx_abandon_tracking_client ON abandon_tracking(client_id);
+
+      -- Deadline de requalification fidélité (12 mois glissants depuis dernière évaluation)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS qualification_deadline TIMESTAMPTZ;
+
+      -- Initialiser la deadline pour les clients existants (12 mois après status_since)
+      UPDATE clients SET qualification_deadline = status_since + INTERVAL '12 months'
+        WHERE qualification_deadline IS NULL AND status_since IS NOT NULL AND loyalty_status != 'OPEN';
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

@@ -104,6 +104,8 @@ services:
       # Rate limiting
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX: 200
+      # IA Insights (PREMIUM — optionnel)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

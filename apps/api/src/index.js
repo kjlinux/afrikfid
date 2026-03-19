@@ -19,6 +19,7 @@ const triggerBatchWorker = require('./workers/trigger-batch');
 const statusNotifWorker = require('./workers/status-notifications');
 const dailySummaryWorker = require('./workers/daily-workflow');
 const reconciliationWorker = require('./workers/reconciliation');
+const cleanupWorker = require('./workers/cleanup');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
@@ -394,6 +395,9 @@ if (process.env.NODE_ENV !== 'test') {
 
   // CDC v3 §6.2 — Réconciliation quotidienne (05h00)
   reconciliationWorker.start();
+
+  // CDC v3 §3.1.4 — Nettoyage idempotence + trigger_logs (03h00)
+  cleanupWorker.start();
 }
 
 // Ne pas démarrer le serveur HTTP en mode test (Supertest gère ses propres connexions)

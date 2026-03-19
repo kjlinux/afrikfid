@@ -52,6 +52,8 @@ services:
       SMTP_USER: 4ab2a53ab909f0
       SMTP_PASS: ecd67aed50beff
       SMTP_FROM: "Afrik'Fid Dev <noreply@afrikfid.com>"
+      # IA Insights (PREMIUM — optionnel, laisser vide pour désactiver)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "4001:4001"
     depends_on:

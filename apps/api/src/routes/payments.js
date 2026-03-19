@@ -266,7 +266,9 @@ router.post('/card/notify', async (req, res) => {
       return res.status(403).json({ error: 'Signature invalide' });
     }
   } else if (process.env.NODE_ENV === 'production') {
-    console.warn('[cinetpay/notify] CINETPAY_SECRET_KEY non configuré — validation de signature désactivée (production)');
+    // En production, rejeter si le secret n'est pas configuré
+    console.error('[cinetpay/notify] CINETPAY_SECRET_KEY absent en production — callback rejeté');
+    return res.status(403).json({ error: 'Configuration webhook manquante' });
   }
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [cpm_trans_id])).rows[0];
@@ -320,7 +322,8 @@ router.post('/mm/mpesa/notify', async (req, res) => {
       return res.status(200).json({ ResultCode: 1, ResultDesc: 'Unauthorized' });
     }
   } else if (process.env.NODE_ENV === 'production') {
-    console.warn('[mpesa/notify] MPESA_WEBHOOK_SECRET non configuré — validation désactivée (production)');
+    console.error('[mpesa/notify] MPESA_WEBHOOK_SECRET absent en production — callback rejeté');
+    return res.status(200).json({ ResultCode: 1, ResultDesc: 'Configuration manquante' });
   }
 
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
@@ -362,6 +365,17 @@ router.post('/mm/mpesa/notify', async (req, res) => {
 
 // POST /api/v1/payments/mm/wave/notify (Wave checkout webhook)
 router.post('/mm/wave/notify', async (req, res) => {
+  // Vérification de la signature Wave si configurée
+  if (process.env.WAVE_WEBHOOK_SECRET) {
+    const sig = req.headers['x-wave-signature'] || req.headers['x-signature'];
+    if (!sig || !verifyHmac(process.env.WAVE_WEBHOOK_SECRET, JSON.stringify(req.body), sig, 'hex')) {
+      console.warn('[wave/notify] Signature invalide — callback rejeté');
+      return res.status(403).json({ error: 'Signature invalide' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.error('[wave/notify] WAVE_WEBHOOK_SECRET absent en production — callback rejeté');
+    return res.status(403).json({ error: 'Configuration webhook manquante' });
+  }
   res.status(200).json({ message: 'OK' });
 
   try {
@@ -387,6 +401,17 @@ router.post('/mm/wave/notify', async (req, res) => {
 
 // POST /api/v1/payments/mm/moov/notify (Moov Money callback)
 router.post('/mm/moov/notify', async (req, res) => {
+  // Vérification de la signature Moov si configurée
+  if (process.env.MOOV_WEBHOOK_SECRET) {
+    const sig = req.headers['x-moov-signature'] || req.headers['x-signature'];
+    if (!sig || !verifyHmac(process.env.MOOV_WEBHOOK_SECRET, JSON.stringify(req.body), sig, 'hex')) {
+      console.warn('[moov/notify] Signature invalide — callback rejeté');
+      return res.status(403).json({ error: 'Signature invalide' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.error('[moov/notify] MOOV_WEBHOOK_SECRET absent en production — callback rejeté');
+    return res.status(403).json({ error: 'Configuration webhook manquante' });
+  }
   res.status(200).json({ message: 'OK' });
 
   try {
@@ -445,7 +470,11 @@ router.post('/mm/orange/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      console.warn('[orange/notify] ORANGE_WEBHOOK_SECRET non configuré — validation de signature désactivée (production)');
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[orange/notify] ORANGE_WEBHOOK_SECRET absent en production — callback rejeté');
+        return res.status(403).json({ error: 'Configuration webhook manquante' });
+      }
+      console.warn('[orange/notify] ORANGE_WEBHOOK_SECRET non configuré — validation désactivée (hors production)');
     }
 
     const tx = (await db.query(
@@ -487,7 +516,11 @@ router.post('/mm/airtel/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      console.warn('[airtel/notify] AIRTEL_WEBHOOK_SECRET non configuré — validation de signature désactivée (production)');
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[airtel/notify] AIRTEL_WEBHOOK_SECRET absent en production — callback rejeté');
+        return res.status(403).json({ error: 'Configuration webhook manquante' });
+      }
+      console.warn('[airtel/notify] AIRTEL_WEBHOOK_SECRET non configuré — validation désactivée (hors production)');
     }
 
     const reference = body?.transaction?.id || body?.reference;
@@ -526,7 +559,11 @@ router.post('/mm/mtn/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      console.warn('[mtn/notify] MTN_CALLBACK_API_KEY non configuré — validation désactivée (production)');
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[mtn/notify] MTN_CALLBACK_API_KEY absent en production — callback rejeté');
+        return res.status(403).json({ error: 'Configuration webhook manquante' });
+      }
+      console.warn('[mtn/notify] MTN_CALLBACK_API_KEY non configuré — validation désactivée (hors production)');
     }
 
     // Format MTN MoMo: { financialTransactionId, externalId, status, reason }
@@ -668,6 +705,28 @@ router.post('/:id/refund', requireApiKey, verifyHmacSignature, validate(RefundSc
   await db.query("UPDATE transactions SET status = $1 WHERE id = $2", [newStatus, tx.id]);
   await db.query("UPDATE refunds SET status = 'completed', processed_at = NOW() WHERE id = $1", [refundId]);
 
+  // CDC v3 §2.3 — Retrait des points gagnés lors de la transaction remboursée (proportionnel)
+  // Les status_points_12m sont ajustés (impact sur qualification)
+  // Les reward_points sont ajustés (ne peuvent pas être remboursés en-dessous de 0)
+  if (tx.client_id) {
+    const statusPointsEarned = parseInt(tx.status_points_earned) || 0;
+    const rewardPointsEarned = parseInt(tx.reward_points_earned) || 0;
+    const statusPointsToRemove = Math.floor(statusPointsEarned * refundRatio);
+    const rewardPointsToRemove = Math.floor(rewardPointsEarned * refundRatio);
+
+    if (statusPointsToRemove > 0 || rewardPointsToRemove > 0) {
+      await db.query(
+        `UPDATE clients SET
+           status_points = GREATEST(0, status_points - $1),
+           status_points_12m = GREATEST(0, status_points_12m - $1),
+           reward_points = GREATEST(0, reward_points - $2),
+           updated_at = NOW()
+         WHERE id = $3`,
+        [statusPointsToRemove, rewardPointsToRemove, tx.client_id]
+      );
+    }
+  }
+
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, {
     transactionId: tx.id,
     reference: tx.reference,
@@ -739,6 +798,23 @@ router.post('/:id/refund/dashboard', requireMerchant, async (req, res) => {
   const newStatus = refund_type === 'full' ? 'refunded' : 'partially_refunded';
   await db.query('UPDATE transactions SET status = $1 WHERE id = $2', [newStatus, tx.id]);
   await db.query("UPDATE refunds SET status = 'completed', processed_at = NOW() WHERE id = $1", [refundId]);
+
+  // CDC v3 §2.3 — Retrait proportionnel des points gagnés sur la transaction remboursée
+  if (tx.client_id) {
+    const statusPointsToRemove = Math.floor((parseInt(tx.status_points_earned) || 0) * refundRatio);
+    const rewardPointsToRemove = Math.floor((parseInt(tx.reward_points_earned) || 0) * refundRatio);
+    if (statusPointsToRemove > 0 || rewardPointsToRemove > 0) {
+      await db.query(
+        `UPDATE clients SET
+           status_points = GREATEST(0, status_points - $1),
+           status_points_12m = GREATEST(0, status_points_12m - $1),
+           reward_points = GREATEST(0, reward_points - $2),
+           updated_at = NOW()
+         WHERE id = $3`,
+        [statusPointsToRemove, rewardPointsToRemove, tx.client_id]
+      );
+    }
+  }
 
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount, refundRatio }).catch(() => {});
 

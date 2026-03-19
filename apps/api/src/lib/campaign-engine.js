@@ -205,12 +205,145 @@ async function executeCampaign(campaignId) {
   return sent;
 }
 
+/**
+ * Trigger PALIER : changement de statut fidélité (CDC v3 §5.4)
+ * Appelé depuis loyalty-engine.js lors d'un changement de statut
+ */
+async function triggerPalier(merchantId, client, oldStatus, newStatus) {
+  const triggers = await pool.query(
+    "SELECT t.*, m.name AS merchant_name FROM triggers t JOIN merchants m ON m.id = t.merchant_id WHERE t.merchant_id = $1 AND t.trigger_type = 'PALIER' AND t.is_active = true",
+    [merchantId]
+  );
+  for (const t of triggers.rows) {
+    const enrichedTrigger = {
+      ...t,
+      message_template: (t.message_template || '')
+        .replace('{old_status}', oldStatus)
+        .replace('{new_status}', newStatus),
+    };
+    await fireTrigger(enrichedTrigger, client);
+  }
+}
+
+/**
+ * Protocole d'abandon automatisé (CDC v3 §5.5)
+ * Démarre le suivi pour les clients A_RISQUE, progresse les étapes, classe en PERDU
+ */
+async function runAbandonProtocol() {
+  console.log('[ABANDON] Exécution du protocole d\'abandon...');
+  const now = new Date();
+  let actionsCount = 0;
+
+  // 1. Démarrer le protocole pour les nouveaux clients A_RISQUE sans tracking actif
+  const newAtRisk = await pool.query(`
+    SELECT rs.client_id, rs.merchant_id, c.full_name, c.phone, c.email
+    FROM rfm_scores rs
+    JOIN clients c ON c.id = rs.client_id
+    LEFT JOIN abandon_tracking at ON at.client_id = rs.client_id AND at.merchant_id = rs.merchant_id AND at.status = 'active'
+    WHERE rs.segment IN ('A_RISQUE', 'HIBERNANTS') AND c.is_active = true AND at.id IS NULL
+  `);
+
+  for (const row of newAtRisk.rows) {
+    const step = ABANDON_PROTOCOL_STEPS[0];
+    const nextStepAt = new Date(now);
+    nextStepAt.setDate(nextStepAt.getDate() + (ABANDON_PROTOCOL_STEPS[1]?.delay_days || 14));
+
+    await pool.query(
+      `INSERT INTO abandon_tracking (id, client_id, merchant_id, current_step, step_started_at, next_step_at, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 1, NOW(), $4, 'active', NOW(), NOW())
+       ON CONFLICT (client_id, merchant_id) DO NOTHING`,
+      [uuidv4(), row.client_id, row.merchant_id, nextStepAt.toISOString()]
+    );
+
+    // Envoyer le message de l'étape 1
+    if (step.message) {
+      const message = step.message
+        .replace('{client_name}', row.full_name || '')
+        .replace('{merchant_name}', '');
+      if (row.phone) {
+        try { await sendSMS(row.phone, message); } catch { /* ignore */ }
+      }
+    }
+    actionsCount++;
+  }
+
+  // 2. Progresser les étapes pour les trackings actifs dont la date est atteinte
+  const dueTrackings = await pool.query(`
+    SELECT at.*, c.full_name, c.phone, c.email, m.name AS merchant_name
+    FROM abandon_tracking at
+    JOIN clients c ON c.id = at.client_id
+    JOIN merchants m ON m.id = at.merchant_id
+    WHERE at.status = 'active' AND at.next_step_at <= NOW()
+  `);
+
+  for (const tracking of dueTrackings.rows) {
+    const nextStepIdx = tracking.current_step; // 0-indexed for ABANDON_PROTOCOL_STEPS array
+    if (nextStepIdx >= ABANDON_PROTOCOL_STEPS.length) continue;
+
+    const nextStep = ABANDON_PROTOCOL_STEPS[nextStepIdx];
+
+    if (nextStep.step === 5) {
+      // Étape 5 = classement PERDU définitif
+      await pool.query(
+        "UPDATE abandon_tracking SET current_step = 5, status = 'lost', updated_at = NOW() WHERE id = $1",
+        [tracking.id]
+      );
+      // Mettre à jour le segment RFM en PERDUS
+      await pool.query(
+        "UPDATE rfm_scores SET segment = 'PERDUS' WHERE client_id = $1 AND merchant_id = $2",
+        [tracking.client_id, tracking.merchant_id]
+      );
+    } else {
+      // Calculer la prochaine date
+      const futureStepIdx = nextStepIdx + 1;
+      const futureDelay = futureStepIdx < ABANDON_PROTOCOL_STEPS.length ? ABANDON_PROTOCOL_STEPS[futureStepIdx].delay_days : 30;
+      const nextDate = new Date(now);
+      nextDate.setDate(nextDate.getDate() + futureDelay);
+
+      await pool.query(
+        "UPDATE abandon_tracking SET current_step = $1, step_started_at = NOW(), next_step_at = $2, updated_at = NOW() WHERE id = $3",
+        [nextStep.step, nextDate.toISOString(), tracking.id]
+      );
+
+      // Envoyer le message
+      if (nextStep.message) {
+        const message = nextStep.message
+          .replace('{client_name}', tracking.full_name || '')
+          .replace('{merchant_name}', tracking.merchant_name || '');
+        if (tracking.phone) {
+          try { await sendSMS(tracking.phone, message); } catch { /* ignore */ }
+        }
+      }
+    }
+    actionsCount++;
+  }
+
+  // 3. Réactiver les clients qui ont acheté récemment
+  const reactivated = await pool.query(`
+    UPDATE abandon_tracking SET status = 'reactivated', reactivated_at = NOW(), updated_at = NOW()
+    WHERE status = 'active' AND client_id IN (
+      SELECT DISTINCT t.client_id FROM transactions t
+      JOIN abandon_tracking at2 ON at2.client_id = t.client_id AND at2.merchant_id = t.merchant_id
+      WHERE t.status = 'completed' AND t.initiated_at > at2.created_at AND at2.status = 'active'
+    )
+    RETURNING id
+  `);
+  if (reactivated.rows.length > 0) {
+    console.log(`[ABANDON] ${reactivated.rows.length} client(s) réactivé(s)`);
+  }
+
+  console.log(`[ABANDON] ${actionsCount} actions exécutées`);
+  return actionsCount;
+}
+
 module.exports = {
   fireTrigger,
   canFireTrigger,
   triggerBienvenue,
   triggerPremierAchat,
+  triggerPalier,
   runSegmentTriggers,
   runBirthdayTriggers,
+  runAbandonProtocol,
   executeCampaign,
 };
