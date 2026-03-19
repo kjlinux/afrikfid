@@ -12,13 +12,7 @@ const {
 } = require('../../src/lib/loyalty-engine');
 
 async function clearData() {
-  await db.query('DELETE FROM wallet_movements');
-  await db.query('DELETE FROM wallets');
-  await db.query('DELETE FROM distributions');
-  await db.query('DELETE FROM transactions');
-  await db.query('DELETE FROM clients');
-  await db.query('DELETE FROM merchants');
-  await db.query('DELETE FROM admins');
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, transactions, clients, merchants, admins CASCADE');
 }
 
 // ─── calculateDistribution ───────────────────────────────────────────────────
@@ -104,6 +98,12 @@ describe('getClientRebatePercent', () => {
 describe('evaluateClientStatus', () => {
   beforeEach(async () => {
     await clearData();
+    // Créer un marchand de référence pour les FK
+    await db.query(
+      `INSERT INTO merchants (id, name, email, phone, api_key_public, api_key_secret, rebate_percent, country_id, status, kyc_status)
+       VALUES ('mx', 'Test Merchant', 'mx@test.com', '+2250000000', 'pub-mx', 'sec-mx', 10, 'CI', 'active', 'approved')
+       ON CONFLICT (id) DO NOTHING`
+    );
   });
 
   async function createClient(id, status) {
@@ -115,17 +115,19 @@ describe('evaluateClientStatus', () => {
     );
   }
 
-  async function addTx(clientId, amount, daysAgo) {
+  async function addTx(clientId, amount, daysAgo, statusPointsEarned) {
     const d = new Date();
     d.setDate(d.getDate() - (daysAgo || 5));
+    // CDC v3: status_points_earned = floor(amount / 500) si non spécifié
+    const spe = statusPointsEarned !== undefined ? statusPointsEarned : Math.floor(amount / 500);
     await db.query(
-      'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES ($1, $2, $3, $4, $5, $6, 10, 5, 5, $7, $8, $9, $10, $11, $12, $13, $14)',
+      'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at, status_points_earned) VALUES ($1, $2, $3, $4, $5, $6, 10, 5, 5, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
       [
         'tx-' + Math.random().toString(36).slice(2),
         'REF-' + Math.random().toString(36).slice(2),
         'mx', clientId, amount, amount * 0.95,
         amount * 0.1, amount * 0.05, amount * 0.05, amount * 0.9,
-        'cashback', 'mobile_money', 'completed', d.toISOString()
+        'cashback', 'mobile_money', 'completed', d.toISOString(), spe
       ]
     );
   }
@@ -141,27 +143,30 @@ describe('evaluateClientStatus', () => {
     expect(r.changed).toBe(false);
   });
 
-  test('3 achats en 3 mois => OPEN vers LIVE', async () => {
+  test('Points suffisants => OPEN vers LIVE (1000 pts)', async () => {
     await createClient('c2', 'OPEN');
-    await addTx('c2', 20000, 5);
-    await addTx('c2', 20000, 10);
-    await addTx('c2', 20000, 15);
+    // 500000 FCFA = 1000 points statut (seuil LIVE)
+    await addTx('c2', 200000, 5);
+    await addTx('c2', 200000, 10);
+    await addTx('c2', 100000, 15);
     const r = await evaluateClientStatus('c2');
     expect(r.newStatus).toBe('LIVE');
     expect(r.changed).toBe(true);
   });
 
-  test('10 achats >= 200K en 6 mois => GOLD', async () => {
+  test('Points suffisants => GOLD (5000 pts)', async () => {
     await createClient('c3', 'LIVE');
-    for (let i = 0; i < 10; i++) await addTx('c3', 25000, i * 15 + 1);
+    // 2500000 FCFA = 5000 points statut (seuil GOLD)
+    for (let i = 0; i < 10; i++) await addTx('c3', 250000, i * 15 + 1);
     expect((await evaluateClientStatus('c3')).newStatus).toBe('GOLD');
   });
 
   test('Statut deja correct => changed=false', async () => {
     await createClient('c4', 'LIVE');
-    await addTx('c4', 20000, 5);
-    await addTx('c4', 20000, 10);
-    await addTx('c4', 20000, 15);
+    // 500000 FCFA = 1000 pts => LIVE, déjà LIVE => changed=false
+    await addTx('c4', 200000, 5);
+    await addTx('c4', 200000, 10);
+    await addTx('c4', 100000, 15);
     expect((await evaluateClientStatus('c4')).changed).toBe(false);
   });
 });
@@ -189,6 +194,11 @@ describe('applyStatusChange', () => {
 describe('runLoyaltyBatch', () => {
   beforeEach(async () => {
     await clearData();
+    await db.query(
+      `INSERT INTO merchants (id, name, email, phone, api_key_public, api_key_secret, rebate_percent, country_id, status, kyc_status)
+       VALUES ('mx', 'Test Merchant', 'mx@test.com', '+2250000000', 'pub-mx', 'sec-mx', 10, 'CI', 'active', 'approved')
+       ON CONFLICT (id) DO NOTHING`
+    );
   });
 
   test('Aucun changement => tableau vide', async () => {
@@ -205,16 +215,19 @@ describe('runLoyaltyBatch', () => {
       ['rb2', 'AFD-RB2', 'Charlie', '+22599000203', 'OPEN']
     );
 
+    // 500000 FCFA = 1000 pts statut => LIVE
     const now = new Date();
     for (let i = 0; i < 3; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() - (i + 1));
+      const amount = i < 2 ? 200000 : 100000; // total 500000
+      const spe = Math.floor(amount / 500);
       await db.query(
-        'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+        'INSERT INTO transactions (id, reference, merchant_id, client_id, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent, platform_commission_percent, merchant_rebate_amount, client_rebate_amount, platform_commission_amount, merchant_receives, rebate_mode, payment_method, status, initiated_at, status_points_earned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)',
         [
           'tx-rb2-' + i, 'REF-rb2-' + i, 'mx', 'rb2',
-          20000, 19000, 10, 5, 5, 2000, 1000, 1000, 18000,
-          'cashback', 'mobile_money', 'completed', d.toISOString()
+          amount, amount * 0.95, 10, 5, 5, amount * 0.1, amount * 0.05, amount * 0.05, amount * 0.9,
+          'cashback', 'mobile_money', 'completed', d.toISOString(), spe
         ]
       );
     }

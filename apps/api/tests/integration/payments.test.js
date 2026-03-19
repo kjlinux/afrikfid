@@ -18,14 +18,13 @@ const { clearAll } = require('../helpers/test-db');
 const SANDBOX_KEY = 'af_sandbox_pub_pay_test';
 const SANDBOX_HEADERS = { 'X-API-Key': SANDBOX_KEY, 'X-Sandbox': 'true' };
 
+const MERCHANT_INSERT = `INSERT INTO merchants (id, name, email, rebate_percent, rebate_mode, api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, status, kyc_status, is_active)
+    VALUES ('merch-pay', 'Pay Shop', 'pay@test.af', 10, 'cashback', 'af_pub_pay_test', 'af_sec_pay_test', '${SANDBOX_KEY}', 'af_sandbox_sec_pay_test', 'active', 'approved', TRUE)
+    ON CONFLICT (id) DO NOTHING`;
+
 async function clearData() {
-  await db.query('DELETE FROM wallet_movements');
-  await db.query('DELETE FROM wallets');
-  await db.query('DELETE FROM distributions');
-  await db.query('DELETE FROM refunds');
-  await db.query('DELETE FROM transactions');
-  await db.query('DELETE FROM payment_links');
-  await db.query('DELETE FROM clients');
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, webhook_events, payment_links, notification_log, audit_logs, transactions, clients, merchants, admins CASCADE');
+  await db.query(MERCHANT_INSERT);
 }
 
 beforeAll(async () => {
@@ -151,10 +150,11 @@ describe('Cycle de vie transaction (initiate -> confirm -> refund)', () => {
     expect(res.body.transaction.status).toBe('pending');
   });
 
-  test('POST /:id/confirm => completed + distributions', async () => {
+  test('POST /sandbox/simulate => completed + distributions', async () => {
     const res = await request(app)
-      .post('/api/v1/payments/' + txId + '/confirm')
-      .set(SANDBOX_HEADERS);
+      .post('/api/v1/payments/' + txId + '/sandbox/simulate')
+      .set(SANDBOX_HEADERS)
+      .send({ outcome: 'success' });
     expect(res.status).toBe(200);
     expect(res.body.transaction.status).toBe('completed');
   });
@@ -168,10 +168,11 @@ describe('Cycle de vie transaction (initiate -> confirm -> refund)', () => {
     expect(res.body.distributions.length).toBeGreaterThan(0);
   });
 
-  test('double confirm => 400', async () => {
+  test('double simulate => 400', async () => {
     const res = await request(app)
-      .post('/api/v1/payments/' + txId + '/confirm')
-      .set(SANDBOX_HEADERS);
+      .post('/api/v1/payments/' + txId + '/sandbox/simulate')
+      .set(SANDBOX_HEADERS)
+      .send({ outcome: 'success' });
     expect(res.status).toBe(400);
   });
 

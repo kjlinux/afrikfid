@@ -5,7 +5,7 @@
  */
 
 jest.mock('../../src/lib/db');
-jest.mock('../../src/lib/migrations', () => ({ runMigrations: () => {} }));
+jest.mock('../../src/lib/migrations', () => ({ runMigrations: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/workers/webhook-dispatcher', () => ({
   dispatchWebhook: jest.fn().mockResolvedValue({}),
   processRetryQueue: jest.fn().mockResolvedValue(0),
@@ -17,14 +17,8 @@ const bcrypt = require('bcrypt');
 const app = require('../../src/index');
 const db = require('../../src/lib/db');
 
-function clearData() {
-  db.exec([
-    'DELETE FROM blocked_phones',
-    'DELETE FROM fraud_rules',
-    'DELETE FROM transactions',
-    'DELETE FROM merchants',
-    'DELETE FROM admins',
-  ].join('; '));
+async function clearData() {
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, webhook_events, payment_links, notification_log, audit_logs, transactions, clients, merchants, admins CASCADE');
 }
 
 async function getAdminToken() {

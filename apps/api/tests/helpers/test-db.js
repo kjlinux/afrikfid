@@ -8,14 +8,16 @@
 const db = require('../../src/lib/db');
 
 async function clearAll() {
-  const tables = [
-    'audit_logs', 'notification_log', 'webhook_events', 'payment_links',
-    'refunds', 'wallet_movements', 'wallets', 'distributions',
-    'transactions', 'clients', 'merchants', 'admins',
-  ];
-  for (const t of tables) {
-    await db.query(`DELETE FROM ${t}`);
-  }
+  // Truncate all data tables but preserve reference data (loyalty_config, countries, exchange_rates)
+  await db.query(`
+    TRUNCATE TABLE
+      campaign_actions, campaigns, trigger_logs, triggers, rfm_scores,
+      success_fees, subscriptions, loyalty_status_history,
+      audit_logs, notification_log, webhook_events, payment_links,
+      refunds, disputes, wallet_movements, wallets, distributions,
+      transactions, clients, merchants, admins
+    CASCADE
+  `);
 }
 
 async function insertAdmin({ id = 'adm-01', email = 'admin@test.ci', password_hash, role = 'super_admin', full_name = 'Admin Test' } = {}) {
@@ -43,17 +45,16 @@ async function insertMerchant({
   sandbox_key_secret = 'af_sandbox_sec_001',
   password_hash = null,
   is_active = true,
-  currency = 'XOF',
 } = {}) {
   await db.query(
     `INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
-      password_hash, is_active, currency)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      password_hash, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      ON CONFLICT (id) DO NOTHING`,
     [id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
      api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
-     password_hash, is_active, currency]
+     password_hash, is_active]
   );
 }
 

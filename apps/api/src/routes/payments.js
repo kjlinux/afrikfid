@@ -17,6 +17,7 @@ const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 const { processDisbursementsForMerchant } = require('../workers/disbursement');
+const { triggerPremierAchat } = require('../lib/campaign-engine');
 const { verifyHmac, verifySha256 } = require('../lib/webhook-verify');
 
 // Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
@@ -1028,6 +1029,10 @@ async function processCompletedPayment(tx) {
 
     // CDC v3 §2.3 — Attribution des points statut et récompense
     await awardPoints(tx.client_id, tx.id, parseFloat(tx.gross_amount));
+
+    // CDC v3 §5.4 — Trigger 1ER_ACHAT automatique
+    const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];
+    if (client) triggerPremierAchat(tx.merchant_id, client).catch(() => {});
   }
 
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);

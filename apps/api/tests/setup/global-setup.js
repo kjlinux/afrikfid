@@ -41,16 +41,18 @@ module.exports = async function globalSetup() {
   const client = await pool.connect();
   try {
     await client.query(`
-      INSERT INTO loyalty_config (id, status, client_rebate_percent, label, sort_order, min_purchases, min_cumulative_amount, evaluation_months)
+      INSERT INTO loyalty_config (id, status, client_rebate_percent, label, sort_order, min_purchases, min_cumulative_amount, evaluation_months, min_status_points)
       VALUES
-        ('lc-open',  'OPEN',  0,  'Open',  1, 0,  0,       3),
-        ('lc-live',  'LIVE',  5,  'Live',  2, 3,  50000,   3),
-        ('lc-gold',  'GOLD',  8,  'Gold',  3, 10, 200000,  6),
-        ('lc-royal', 'ROYAL', 12, 'Royal', 4, 30, 1000000, 12)
+        ('lc-open',         'OPEN',         0,  'Open',         0, 0,  0,       12, 0),
+        ('lc-live',         'LIVE',         5,  'Live',         1, 3,  50000,   12, 1000),
+        ('lc-gold',         'GOLD',         8,  'Gold',         2, 10, 200000,  12, 5000),
+        ('lc-royal',        'ROYAL',       12,  'Royal',        3, 30, 1000000, 12, 15000),
+        ('lc-royal_elite',  'ROYAL_ELITE', 12,  'Royal Élite',  4, 0,  0,       12, 50000)
       ON CONFLICT (id) DO UPDATE SET
         client_rebate_percent = EXCLUDED.client_rebate_percent,
         min_purchases = EXCLUDED.min_purchases,
-        min_cumulative_amount = EXCLUDED.min_cumulative_amount
+        min_cumulative_amount = EXCLUDED.min_cumulative_amount,
+        min_status_points = EXCLUDED.min_status_points
     `);
 
     await client.query(`
@@ -63,10 +65,10 @@ module.exports = async function globalSetup() {
     `);
 
     await client.query(`
-      INSERT INTO exchange_rates (from_currency, to_currency, rate)
-      VALUES ('XOF', 'EUR', 0.00152),
-             ('XAF', 'EUR', 0.00152),
-             ('KES', 'EUR', 0.0077)
+      INSERT INTO exchange_rates (id, from_currency, to_currency, rate)
+      VALUES ('er-xof-eur', 'XOF', 'EUR', 0.00152),
+             ('er-xaf-eur', 'XAF', 'EUR', 0.00152),
+             ('er-kes-eur', 'KES', 'EUR', 0.0077)
       ON CONFLICT (from_currency, to_currency) DO NOTHING
     `);
   } finally {

@@ -10,9 +10,7 @@ const db = require('../../src/lib/db');
 const { checkTransaction, computeRiskScore, isPhoneBlocked, createRule, getAllRules, blockPhone, getBlockedPhones } = require('../../src/lib/fraud');
 
 async function clearFraudData() {
-  await db.query('DELETE FROM fraud_rules');
-  await db.query('DELETE FROM blocked_phones');
-  await db.query('DELETE FROM transactions');
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, webhook_events, payment_links, notification_log, audit_logs, transactions, clients, merchants, admins CASCADE');
 }
 
 describe('checkTransaction — Blacklist téléphone', () => {

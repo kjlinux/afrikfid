@@ -42,13 +42,17 @@ const mobileMoney = require('../../src/lib/adapters/mobile-money');
 const { clearAll } = require('../helpers/test-db');
 
 async function clearData() {
-  await db.query('DELETE FROM wallet_movements');
-  await db.query('DELETE FROM wallets');
-  await db.query('DELETE FROM distributions');
-  await db.query('DELETE FROM transactions');
-  await db.query('DELETE FROM payment_links');
-  await db.query('DELETE FROM clients');
-  await db.query('DELETE FROM merchants');
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, webhook_events, payment_links, notification_log, audit_logs, transactions, clients, merchants, admins CASCADE');
+  // Re-insert merchant after truncate to avoid 401 errors
+  const hash = await bcrypt.hash('password123', 8);
+  await db.query(`
+    INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
+      api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
+      password_hash, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE)
+    ON CONFLICT DO NOTHING
+  `, ['merchant-link-test-001', 'Link Test SARL', 'links@test.ci', '+2250700001', 'CI', 8, 'cashback', 'active', 'approved',
+      'af_live_pub_linktest001', 'secret_live', 'af_sandbox_pub_linktest001', 'secret_sandbox', hash]);
 }
 
 let merchantToken;
@@ -62,10 +66,11 @@ async function setupMerchant() {
   await db.query(`
     INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status, kyc_status,
       api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret,
-      password_hash, is_active, currency)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE, $15)
+      password_hash, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE)
+    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash
   `, [id, 'Link Test SARL', 'links@test.ci', '+2250700001', 'CI', 8, 'cashback', 'active', 'approved',
-      apiKey, 'secret_live', 'af_sandbox_pub_linktest001', 'secret_sandbox', hash, 'XOF']);
+      apiKey, 'secret_live', 'af_sandbox_pub_linktest001', 'secret_sandbox', hash]);
   merchantId = id;
 
   const loginRes = await request(app)

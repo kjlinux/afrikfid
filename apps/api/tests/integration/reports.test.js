@@ -18,17 +18,21 @@ const db = require('../../src/lib/db');
 const { clearAll } = require('../helpers/test-db');
 
 async function clearData() {
-  await db.query('DELETE FROM distributions');
-  await db.query('DELETE FROM transactions');
-  await db.query('DELETE FROM clients');
-  await db.query('DELETE FROM merchants');
-  await db.query('DELETE FROM admins');
+  await db.query('TRUNCATE TABLE wallet_movements, wallets, distributions, refunds, disputes, webhook_events, payment_links, notification_log, audit_logs, transactions, clients, merchants, admins CASCADE');
+  // Re-insert merchant after truncate to avoid 401 errors
+  await db.query(`
+    INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status,
+      api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE)
+    ON CONFLICT DO NOTHING
+  `, ['mrc-rep', 'Marchand Reports', 'rep@test.ci', '+2250700002', 'CI', 8, 'cashback', 'active',
+      'k1', 'k2', 'k3', 'k4']);
 }
 
 async function getAdminToken() {
   const hash = await bcrypt.hash('admin123', 8);
   await db.query(
-    "INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ($1, $2, $3, $4, $5)",
+    "INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash",
     ['adm-rep', 'admin@reports.ci', hash, 'super_admin', 'Admin Test']
   );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@reports.ci', password: 'admin123' });
@@ -38,10 +42,11 @@ async function getAdminToken() {
 async function seedMerchantAndTx() {
   await db.query(`
     INSERT INTO merchants (id, name, email, phone, country_id, rebate_percent, rebate_mode, status,
-      api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, is_active, currency)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE, $13)
+      api_key_public, api_key_secret, sandbox_key_public, sandbox_key_secret, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE)
+    ON CONFLICT (id) DO NOTHING
   `, ['mrc-rep', 'Marchand Reports', 'rep@test.ci', '+2250700002', 'CI', 8, 'cashback', 'active',
-      'k1', 'k2', 'k3', 'k4', 'XOF']);
+      'k1', 'k2', 'k3', 'k4']);
 
   // 3 transactions complétées
   for (let i = 0; i < 3; i++) {

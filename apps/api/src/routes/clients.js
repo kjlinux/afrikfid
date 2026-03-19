@@ -9,6 +9,7 @@ const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
 const { notifyClientWelcome } = require('../lib/notifications');
+const { triggerBienvenue } = require('../lib/campaign-engine');
 
 // POST /api/v1/clients
 router.post('/', validate(CreateClientSchema), async (req, res) => {
@@ -35,6 +36,8 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
 
   const client = (await db.query('SELECT * FROM clients WHERE id = $1', [id])).rows[0];
   notifyClientWelcome({ client: { ...client, phone, email } });
+  // CDC v3 §5.4 — Trigger BIENVENUE automatique
+  triggerBienvenue(client).catch(() => {});
   res.status(201).json({ client: sanitizeClient(client) });
 });
 
