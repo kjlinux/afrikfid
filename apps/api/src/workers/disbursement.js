@@ -73,21 +73,18 @@ async function processDisbursements() {
 
       if (!isEligibleForDisbursement(merchant, lastDisbursementAt)) continue;
 
-      // Calculer le montant non encore réglé
-      // On prend les transactions complétées depuis le dernier disbursement
-      const since = lastDisbursementAt || new Date(0).toISOString();
+      // Calculer le montant non encore réglé — filtre sur disbursed_at IS NULL
+      // (évite l'anti-pattern NOT IN avec NULLs qui exclurait toutes les lignes)
       const pendingRes = await db.query(`
-        SELECT COALESCE(SUM(merchant_receives), 0) as amount, COUNT(*) as count, currency
+        SELECT COALESCE(SUM(merchant_receives), 0) as amount,
+               COUNT(*) as count, currency,
+               ARRAY_AGG(id) as tx_ids
         FROM transactions
         WHERE merchant_id = $1
           AND status = 'completed'
-          AND completed_at > $2
-          AND id NOT IN (
-            SELECT DISTINCT d.transaction_id FROM disbursements d
-            WHERE d.beneficiary_type = 'merchant' AND d.beneficiary_id = $3
-          )
+          AND disbursed_at IS NULL
         GROUP BY currency
-      `, [merchant.id, since, merchant.id]);
+      `, [merchant.id]);
 
       for (const row of pendingRes.rows) {
         const amount = parseFloat(row.amount);
@@ -108,20 +105,17 @@ async function processDisbursements() {
 
         if (merchant.mm_phone && merchant.mm_operator) {
           try {
-            const { initiatePayout } = require('../lib/adapters/mobile-money');
-            if (typeof initiatePayout === 'function') {
-              const result = await initiatePayout({
-                operator: merchant.mm_operator,
-                phone: merchant.mm_phone,
-                amount,
-                currency,
-                reference: `DISB-${disbId.slice(0, 8).toUpperCase()}`,
-                merchantName: merchant.name,
-              });
-              if (result.success) {
-                disbStatus = 'completed';
-                operatorRef = result.operatorRef;
-              }
+            const { disburseFunds } = require('../lib/adapters/mobile-money');
+            const result = await disburseFunds({
+              operator: merchant.mm_operator,
+              phone: merchant.mm_phone,
+              amount,
+              currency,
+              reference: `DISB-${disbId.slice(0, 8).toUpperCase()}`,
+            });
+            if (result.success) {
+              disbStatus = 'completed';
+              operatorRef = result.operatorRef;
             }
           } catch (payErr) {
             console.error(`[DISB] Payout failed for merchant ${merchant.id}:`, payErr.message);
@@ -134,6 +128,14 @@ async function processDisbursements() {
           UPDATE disbursements SET status = $1, operator_ref = $2, executed_at = NOW()
           WHERE id = $3
         `, [disbStatus, operatorRef, disbId]);
+
+        // Marquer les transactions comme réglées pour éviter double-disbursement
+        if (row.tx_ids && row.tx_ids.length > 0) {
+          await db.query(
+            `UPDATE transactions SET disbursed_at = NOW() WHERE id = ANY($1::text[])`,
+            [row.tx_ids]
+          );
+        }
 
         // Notification email/SMS marchand
         if (disbStatus === 'completed') {
@@ -183,15 +185,15 @@ async function processDisbursementsForMerchant(merchantId, mode = 'instant') {
   if (!merchant) return; // Pas en mode instant, rien à faire
 
   // Réutilise la logique principale mais sans vérifier l'éligibilité temporelle
+  // Filtre sur disbursed_at IS NULL (évite NOT IN avec NULLs)
   const pendingRes = await db.query(`
-    SELECT COALESCE(SUM(merchant_receives), 0) as amount, COUNT(*) as count, currency
+    SELECT COALESCE(SUM(merchant_receives), 0) as amount,
+           COUNT(*) as count, currency,
+           ARRAY_AGG(id) as tx_ids
     FROM transactions
     WHERE merchant_id = $1
       AND status = 'completed'
-      AND id NOT IN (
-        SELECT DISTINCT d.transaction_id FROM disbursements d
-        WHERE d.beneficiary_type = 'merchant' AND d.beneficiary_id = $1
-      )
+      AND disbursed_at IS NULL
     GROUP BY currency
   `, [merchantId]);
 
@@ -212,20 +214,17 @@ async function processDisbursementsForMerchant(merchantId, mode = 'instant') {
 
     if (merchant.mm_phone && merchant.mm_operator) {
       try {
-        const { initiatePayout } = require('../lib/adapters/mobile-money');
-        if (typeof initiatePayout === 'function') {
-          const result = await initiatePayout({
-            operator: merchant.mm_operator,
-            phone: merchant.mm_phone,
-            amount,
-            currency,
-            reference: `DISB-${disbId.slice(0, 8).toUpperCase()}`,
-            merchantName: merchant.name,
-          });
-          if (result.success) {
-            disbStatus = 'completed';
-            operatorRef = result.operatorRef;
-          }
+        const { disburseFunds } = require('../lib/adapters/mobile-money');
+        const result = await disburseFunds({
+          operator: merchant.mm_operator,
+          phone: merchant.mm_phone,
+          amount,
+          currency,
+          reference: `DISB-${disbId.slice(0, 8).toUpperCase()}`,
+        });
+        if (result.success) {
+          disbStatus = 'completed';
+          operatorRef = result.operatorRef;
         }
       } catch (payErr) {
         console.error(`[DISB/instant] Payout failed for merchant ${merchantId}:`, payErr.message);
@@ -236,6 +235,14 @@ async function processDisbursementsForMerchant(merchantId, mode = 'instant') {
     await db.query(`
       UPDATE disbursements SET status = $1, operator_ref = $2, executed_at = NOW() WHERE id = $3
     `, [disbStatus, operatorRef, disbId]);
+
+    // Marquer les transactions comme réglées pour éviter double-disbursement
+    if (row.tx_ids && row.tx_ids.length > 0) {
+      await db.query(
+        `UPDATE transactions SET disbursed_at = NOW() WHERE id = ANY($1::text[])`,
+        [row.tx_ids]
+      );
+    }
 
     if (merchant.webhook_url) {
       dispatchWebhook(merchantId, WebhookEvents.DISTRIBUTION_COMPLETED, {

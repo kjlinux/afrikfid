@@ -4,7 +4,7 @@
 const LOYALTY_STATUSES = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE'];
 
 // ─── Statuts de transaction ──────────────────────────────────────────────────
-const TX_STATUSES = ['pending', 'completed', 'failed', 'refunded', 'expired'];
+const TX_STATUSES = ['pending', 'processing', 'completed', 'failed', 'refunded', 'expired'];
 
 // ─── Modes de remise ─────────────────────────────────────────────────────────
 const REBATE_MODES = ['cashback', 'immediate'];

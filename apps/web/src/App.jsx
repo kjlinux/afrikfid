@@ -37,6 +37,8 @@ import AdminSubscriptions from './pages/admin/Subscriptions.jsx'
 import AdminSuccessFees from './pages/admin/SuccessFees.jsx'
 import AdminRFM from './pages/admin/RFM.jsx'
 import AdminCampaigns from './pages/admin/Campaigns.jsx'
+import AdminAbandonProtocol from './pages/admin/AbandonProtocol.jsx'
+import AdminChurnAlerts from './pages/admin/ChurnAlerts.jsx'
 import MerchantDashboard from './pages/merchant/Dashboard.jsx'
 import MerchantTransactions from './pages/merchant/Transactions.jsx'
 import MerchantLinks from './pages/merchant/PaymentLinks.jsx'
@@ -134,6 +136,8 @@ function AdminLayout({ children }) {
     { path: '/admin/success-fees', label: 'Success Fees', icon: ChartBarIcon },
     { path: '/admin/rfm', label: 'Segmentation RFM', icon: ChartBarIcon },
     { path: '/admin/campaigns', label: 'Campagnes', icon: BellAlertIcon },
+    { path: '/admin/abandon-protocol', label: 'Protocole abandon', icon: BellAlertIcon },
+    { path: '/admin/churn-alerts', label: 'Alertes Churn', icon: ShieldCheckIcon },
     { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: ClipboardDocumentListIcon },
     { path: '/admin/profile', label: 'Profil & Sécurité', icon: UserCircleIcon },
   ]
@@ -304,6 +308,8 @@ export default function App() {
           <Route path="/admin/success-fees" element={<Protected role="admin"><AdminLayout><AdminSuccessFees /></AdminLayout></Protected>} />
           <Route path="/admin/rfm" element={<Protected role="admin"><AdminLayout><AdminRFM /></AdminLayout></Protected>} />
           <Route path="/admin/campaigns" element={<Protected role="admin"><AdminLayout><AdminCampaigns /></AdminLayout></Protected>} />
+          <Route path="/admin/abandon-protocol" element={<Protected role="admin"><AdminLayout><AdminAbandonProtocol /></AdminLayout></Protected>} />
+          <Route path="/admin/churn-alerts" element={<Protected role="admin"><AdminLayout><AdminChurnAlerts /></AdminLayout></Protected>} />
           <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
           <Route path="/admin/profile" element={<Protected role="admin"><AdminLayout><AdminProfile /></AdminLayout></Protected>} />
 

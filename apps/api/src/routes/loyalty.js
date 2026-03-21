@@ -29,6 +29,22 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Aucune donnée' });
 
+  // CDC §2.2 invariant : Y ≤ X obligatoire — bloquer AVANT l'UPDATE si violation détectée
+  if (client_rebate_percent !== undefined) {
+    const newY = parseFloat(client_rebate_percent);
+    const conflicting = (await db.query(
+      `SELECT id, name, rebate_percent FROM merchants WHERE is_active = TRUE AND rebate_percent < $1`,
+      [newY]
+    )).rows;
+    if (conflicting.length > 0) {
+      return res.status(409).json({
+        error: 'Y_EXCEEDS_X',
+        message: `Impossible : le taux Y% (${newY}%) dépasse le taux X% de ${conflicting.length} marchand(s), entraînant une commission Z% négative (violation CDC §2.2).`,
+        affectedMerchants: conflicting.map(m => ({ id: m.id, name: m.name, rebatePercent: m.rebate_percent })),
+      });
+    }
+  }
+
   updates.updated_at = new Date().toISOString();
   const keys = Object.keys(updates);
   const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -36,26 +52,7 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
 
   const updated = (await db.query('SELECT * FROM loyalty_config WHERE status = $1', [status])).rows[0];
 
-  // Vérification anomalie Y > X : alerter si le taux Y% dépasse le X% minimal des marchands actifs 
-  const warnings = [];
-  if (client_rebate_percent !== undefined) {
-    const newY = parseFloat(client_rebate_percent);
-    const merchantsWithLowX = (await db.query(
-      `SELECT id, name, rebate_percent FROM merchants
-       WHERE is_active = TRUE AND rebate_percent < $1`,
-      [newY]
-    )).rows;
-
-    if (merchantsWithLowX.length > 0) {
-      warnings.push({
-        type: 'Y_EXCEEDS_X',
-        message: `ALERTE : Le taux Y% (${newY}%) dépasse le taux X% de ${merchantsWithLowX.length} marchand(s). Cela entraînerait une commission Z négative pour ces marchands.`,
-        affectedMerchants: merchantsWithLowX.map(m => ({ id: m.id, name: m.name, rebatePercent: m.rebate_percent })),
-      });
-    }
-  }
-
-  res.json({ config: updated, warnings });
+  res.json({ config: updated });
 });
 
 // POST /api/v1/loyalty/batch (admin) — alias legacy

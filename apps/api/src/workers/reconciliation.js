@@ -15,35 +15,25 @@ const RECONCILIATION_THRESHOLD = 0.0001; // 0.01%
 async function runReconciliation() {
   const report = { date: new Date().toISOString(), checks: [], alerts: [] };
 
-  // 1. Vérifier total distributions vs transactions completed
-  const txRes = await pool.query(`
-    SELECT COALESCE(SUM(gross_amount), 0) AS total_tx,
-           COUNT(*) AS count_tx
-    FROM transactions WHERE status = 'completed'
+  // 1. Vérifier couverture distributions vs transactions completed
+  // (Chaque transaction complétée doit avoir au moins une distribution X/Y/Z)
+  // NOTE: La somme des splits distributions != gross_amount (c'est partial X + Y + Z),
+  // donc on vérifie la couverture (présence) plutôt qu'une égalité de sommes.
+  const coverageRes = await pool.query(`
+    SELECT COUNT(*) AS uncovered
+    FROM transactions t
+    WHERE t.status = 'completed'
+      AND NOT EXISTS (SELECT 1 FROM distributions d WHERE d.transaction_id = t.id)
   `);
-  const distRes = await pool.query(`
-    SELECT COALESCE(SUM(amount), 0) AS total_dist,
-           COUNT(*) AS count_dist
-    FROM distributions WHERE status = 'completed'
-  `);
-
-  const totalTx = parseFloat(txRes.rows[0].total_tx);
-  const totalDist = parseFloat(distRes.rows[0].total_dist);
+  const uncovered = parseInt(coverageRes.rows[0].uncovered);
 
   const distCheck = {
-    name: 'distributions_vs_transactions',
-    total_transactions: totalTx,
-    total_distributions: totalDist,
-    status: 'ok',
+    name: 'distribution_coverage',
+    uncovered_transactions: uncovered,
+    status: uncovered > 0 ? 'alert' : 'ok',
   };
-
-  if (totalTx > 0) {
-    const ratio = Math.abs(totalTx - totalDist) / totalTx;
-    if (ratio > RECONCILIATION_THRESHOLD) {
-      distCheck.status = 'alert';
-      distCheck.deviation = (ratio * 100).toFixed(4) + '%';
-      report.alerts.push(`Écart distributions/transactions: ${distCheck.deviation} (seuil: 0.01%)`);
-    }
+  if (uncovered > 0) {
+    report.alerts.push(`${uncovered} transaction(s) complétée(s) sans distribution associée`);
   }
   report.checks.push(distCheck);
 
@@ -80,14 +70,17 @@ async function runReconciliation() {
 
   // 4. Vérifier cohérence points statut — total_status_points_12m vs somme transactions 12 mois
   const pointsCheck = await pool.query(`
-    SELECT c.id, c.status_points_12m,
-           COALESCE((SELECT SUM(t.status_points_earned) FROM transactions t
-            WHERE t.client_id = c.id AND t.status = 'completed'
-            AND t.completed_at > NOW() - INTERVAL '12 months'), 0) AS calc_points
-    FROM clients c WHERE c.is_active = TRUE
-    HAVING ABS(c.status_points_12m - COALESCE((SELECT SUM(t.status_points_earned) FROM transactions t
-            WHERE t.client_id = c.id AND t.status = 'completed'
-            AND t.completed_at > NOW() - INTERVAL '12 months'), 0)) > 1
+    SELECT c.id, c.status_points_12m, sub.calc_points
+    FROM clients c
+    JOIN (
+      SELECT t.client_id,
+             COALESCE(SUM(t.status_points_earned), 0) AS calc_points
+      FROM transactions t
+      WHERE t.status = 'completed' AND t.completed_at > NOW() - INTERVAL '12 months'
+      GROUP BY t.client_id
+    ) sub ON sub.client_id = c.id
+    WHERE c.is_active = TRUE
+      AND ABS(c.status_points_12m - sub.calc_points) > 1
     LIMIT 50
   `);
   const pointsDriftCheck = {

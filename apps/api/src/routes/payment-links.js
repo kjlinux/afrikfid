@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const { randomBytes } = require('crypto');
 const db = require('../lib/db');
 const { requireApiKey, requireMerchant } = require('../middleware/auth');
 const { calculateDistribution } = require('../lib/loyalty-engine');
@@ -11,7 +12,7 @@ router.post('/', requireMerchant, async (req, res) => {
   const { amount, currency = 'XOF', description, expires_in_hours = 24, max_uses = 1 } = req.body;
 
   const id = uuidv4();
-  const code = `PL-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const code = `PL-${randomBytes(4).toString('hex').toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
   const expiresAt = new Date(Date.now() + expires_in_hours * 3600 * 1000).toISOString();
 
   await db.query(
@@ -129,10 +130,13 @@ router.post('/:code/pay', async (req, res) => {
   }
 
   if (link.daily_volume_limit) {
-    const today = new Date().toISOString().slice(0, 10);
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
     const dailyRes = await db.query(
-      `SELECT COALESCE(SUM(gross_amount), 0) as daily_total FROM transactions WHERE merchant_id = $1 AND DATE(initiated_at) = $2 AND status != 'failed'`,
-      [link.merchant_id, today]
+      `SELECT COALESCE(SUM(gross_amount), 0) as daily_total FROM transactions WHERE merchant_id = $1 AND initiated_at >= $2 AND initiated_at < $3 AND status != 'failed'`,
+      [link.merchant_id, todayStart.toISOString(), tomorrowStart.toISOString()]
     );
     const dailyTotal = parseFloat(dailyRes.rows[0].daily_total || 0);
     if (dailyTotal + parseFloat(amount) > parseFloat(link.daily_volume_limit)) {

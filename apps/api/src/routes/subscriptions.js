@@ -24,7 +24,12 @@ router.get('/', requireAdmin, async (req, res) => {
   params.push(parseInt(limit), (page - 1) * limit);
 
   const rows = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM subscriptions')).rows[0].c);
+  const countP = [];
+  let ci = 1;
+  let countSql = `SELECT COUNT(*) as c FROM subscriptions s JOIN merchants m ON s.merchant_id = m.id WHERE 1=1`;
+  if (status) { countSql += ` AND s.status = $${ci++}`; countP.push(status); }
+  if (pkg) { countSql += ` AND s.package = $${ci++}`; countP.push(pkg); }
+  const total = parseInt((await db.query(countSql, countP)).rows[0].c);
   res.json({ subscriptions: rows, total, page: parseInt(page), limit: parseInt(limit) });
 });
 

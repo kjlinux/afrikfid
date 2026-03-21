@@ -283,6 +283,19 @@ export default function AdminClients() {
                     </div>
                   ))}
                 </div>
+                {['ROYAL', 'ROYAL_ELITE'].includes(selected.loyaltyStatus) && (
+                  <div style={{ background: '#0f172a', borderRadius: 8, padding: 12, textAlign: 'center', marginBottom: 16 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#FFD700' }}>
+                      {clientDetail.client?.consecutiveRoyalYears ?? 0} an{(clientDetail.client?.consecutiveRoyalYears ?? 0) > 1 ? 's' : ''}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Années ROYAL consécutives</div>
+                    {(clientDetail.client?.consecutiveRoyalYears ?? 0) >= 2 && (
+                      <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 4 }}>
+                        {(clientDetail.client?.consecutiveRoyalYears ?? 0) >= 3 ? '💎 ROYAL ELITE éligible' : `${3 - (clientDetail.client?.consecutiveRoyalYears ?? 0)} an(s) restant(s) pour ROYAL ELITE`}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* RGPD actions */}
                 {!selected.anonymized_at ? (

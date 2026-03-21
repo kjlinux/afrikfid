@@ -36,6 +36,7 @@ const RefundSchema = z.object({
   amount: positiveAmount.optional(),
   reason: z.string().max(500).optional(),
   refund_type: z.enum(['full', 'partial']).default('full'),
+  idempotency_key: z.string().max(100).optional(),
 });
 
 // ─── Marchands ───────────────────────────────────────────────────────────────
@@ -148,6 +149,7 @@ const WalletPaySchema = z.object({
   currency: z.enum(CURRENCIES).default('XOF'),
   description: z.string().max(255).optional(),
   idempotency_key: z.string().max(100).optional(),
+  product_category: z.string().max(100).optional(),
 });
 
 module.exports = {

@@ -219,7 +219,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
 // ═══════════════════════ ABANDON PROTOCOL ═══════════════════════
 
 // GET /campaigns/abandon — protocole d'abandon (admin ou marchand propriétaire, GROWTH+)
-router.get('/abandon', requireAuth, async (req, res, next) => {
+router.get('/abandon', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const { status = 'active', page = 1, limit = 20 } = req.query;
     // Marchand ne voit que ses propres données ; admin peut filtrer par merchant_id
@@ -279,7 +279,7 @@ router.get('/abandon/stats', requireAdmin, async (req, res, next) => {
 // ═══════════════════════ CHURN ALERTS ═══════════════════════
 
 // GET /campaigns/churn-alerts — clients à risque (admin ou marchand propriétaire, GROWTH+)
-router.get('/churn-alerts', requireAuth, async (req, res, next) => {
+router.get('/churn-alerts', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const effectiveMerchantId = req.merchant ? req.merchant.id : req.query.merchant_id;

@@ -339,6 +339,24 @@ const MIGRATIONS = [
     `,
   },
   {
+    version: 8,
+    name: '008_transaction_retry_and_kyc_fields',
+    up: `
+      -- Retry opérateur avant expiration finale (CDC §4.1.4)
+      -- retry_until : horodatage jusqu'auquel le worker doit interroger l'opérateur
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS retry_until TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS last_operator_check TIMESTAMPTZ DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_tx_retry_until ON transactions(retry_until) WHERE status = 'pending';
+
+      -- KYC workflow marchand
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_rejection_reason TEXT DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_documents JSONB DEFAULT NULL;
+    `,
+  },
+  {
     version: 9,
     name: '009_wallet_caps_and_refund_details',
     up: `
@@ -359,24 +377,6 @@ const MIGRATIONS = [
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
       INSERT INTO wallet_config (id) VALUES ('global') ON CONFLICT DO NOTHING;
-    `,
-  },
-  {
-    version: 8,
-    name: '008_transaction_retry_and_kyc_fields',
-    up: `
-      -- Retry opérateur avant expiration finale (CDC §4.1.4)
-      -- retry_until : horodatage jusqu'auquel le worker doit interroger l'opérateur
-      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS retry_until TIMESTAMPTZ DEFAULT NULL;
-      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS last_operator_check TIMESTAMPTZ DEFAULT NULL;
-      CREATE INDEX IF NOT EXISTS idx_tx_retry_until ON transactions(retry_until) WHERE status = 'pending';
-
-      -- KYC workflow marchand 
-      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_submitted_at TIMESTAMPTZ DEFAULT NULL;
-      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_at TIMESTAMPTZ DEFAULT NULL;
-      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_reviewed_by TEXT DEFAULT NULL;
-      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_rejection_reason TEXT DEFAULT NULL;
-      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS kyc_documents JSONB DEFAULT NULL;
     `,
   },
   {
@@ -857,7 +857,7 @@ const MIGRATIONS = [
         new_status TEXT NOT NULL,
         reason TEXT,
         changed_by TEXT DEFAULT 'batch',
-        stats TEXT,
+        stats JSONB,
         changed_at TIMESTAMPTZ DEFAULT NOW()
       );
 
@@ -895,6 +895,40 @@ const MIGRATIONS = [
       -- Initialiser la deadline pour les clients existants (12 mois après status_since)
       UPDATE clients SET qualification_deadline = status_since + INTERVAL '12 months'
         WHERE qualification_deadline IS NULL AND status_since IS NOT NULL AND loyalty_status != 'OPEN';
+    `,
+  },
+  {
+    version: 25,
+    name: '025_disbursement_tracking_and_notification_dedup',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- Fix idempotency payments: statut 'processing' comme verrou atomique
+      -- Permet d'UPDATE status='processing' WHERE status='pending' pour éviter
+      -- les doubles traitements lors de webhooks simultanés (race condition)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Supprimer la contrainte CHECK existante sur status pour ajouter 'processing'
+      ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_status_check;
+      ALTER TABLE transactions ADD CONSTRAINT transactions_status_check
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'expired'));
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- Fix bug disbursement: marquer les transactions réglées (évite NOT IN NULL)
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Colonne pour marquer les transactions déjà incluses dans un disbursement
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS disbursed_at TIMESTAMPTZ;
+
+      -- Index partiel pour accélérer la recherche de transactions non réglées
+      CREATE INDEX IF NOT EXISTS idx_transactions_not_disbursed
+        ON transactions(merchant_id, status) WHERE disbursed_at IS NULL;
+
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- Fix bug status-notifications J+1: éviter les doublons de notifications
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Colonne pour tracker la notification J+1 déjà envoyée
+      ALTER TABLE loyalty_status_history ADD COLUMN IF NOT EXISTS notified_j1 TIMESTAMPTZ;
     `,
   },
 ];

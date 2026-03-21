@@ -138,6 +138,24 @@ async function evaluateClientStatus(clientId) {
 
   const currentStatus = client.loyalty_status;
 
+  // Lire la config fidélité pour le statut courant (inactivity_months)
+  const configRes = await db.query(
+    'SELECT inactivity_months FROM loyalty_config WHERE status = $1',
+    [currentStatus === 'ROYAL_ELITE' ? 'ROYAL' : currentStatus]
+  );
+  const inactivityMonths = configRes.rows[0]?.inactivity_months || 12;
+
+  // Vérifier l'inactivité : si aucun achat dans les inactivity_months, rétrograder
+  const inactivityCutoff = new Date();
+  inactivityCutoff.setMonth(inactivityCutoff.getMonth() - inactivityMonths);
+  const lastPurchaseRes = await db.query(
+    `SELECT MAX(initiated_at) as last_at FROM transactions
+     WHERE client_id = $1 AND status = 'completed'`,
+    [clientId]
+  );
+  const lastPurchaseAt = lastPurchaseRes.rows[0]?.last_at;
+  const isInactive = currentStatus !== 'OPEN' && (!lastPurchaseAt || new Date(lastPurchaseAt) < inactivityCutoff);
+
   // Recalculer status_points_12m : somme des points statut des 12 derniers mois
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
@@ -173,10 +191,11 @@ async function evaluateClientStatus(clientId) {
     meritedStatus = 'LIVE';
   }
 
-  let newStatus = meritedStatus;
+  // Si le client est inactif depuis inactivity_months, forcer la rétrogradation d'un niveau
+  let newStatus = isInactive ? STATUS_ORDER[Math.max(0, STATUS_ORDER.indexOf(currentStatus) - 1)] : meritedStatus;
 
-  // Promotion vers ROYAL ELITE
-  if (isRoyalEliteEligible && (meritedStatus === 'ROYAL' || currentStatus === 'ROYAL_ELITE')) {
+  // Promotion vers ROYAL ELITE (non applicable si inactif)
+  if (!isInactive && isRoyalEliteEligible && (meritedStatus === 'ROYAL' || currentStatus === 'ROYAL_ELITE')) {
     newStatus = 'ROYAL_ELITE';
   }
 
@@ -193,7 +212,7 @@ async function evaluateClientStatus(clientId) {
       if (royalSince) {
         const sixMonthsAfterLoss = new Date(royalSince);
         // On laisse 6 mois de grâce après la perte de qualification ROYAL_ELITE
-        sixMonthsAfterLoss.setMonth(sixMonthsAfterLoss.getMonth() + 42); // 3 ans + 6 mois
+        sixMonthsAfterLoss.setMonth(sixMonthsAfterLoss.getMonth() + 6);
         if (new Date() < sixMonthsAfterLoss) {
           newStatus = 'ROYAL_ELITE'; // Conservation pendant 6 mois
         } else {
@@ -253,7 +272,23 @@ async function applyStatusChange(clientId, newStatus, { reason = 'manual', chang
 
 // ─── Batch mensuel de réévaluation (CDC v3 §2.4.1) ─────────────────────────
 
+// Verrou applicatif pour éviter les doubles exécutions (race condition si cron + appel manuel)
+let batchRunning = false;
+
 async function runLoyaltyBatch() {
+  if (batchRunning) {
+    console.warn('[BATCH] Batch de fidélité déjà en cours — exécution ignorée');
+    return [];
+  }
+  batchRunning = true;
+  try {
+    return await _runLoyaltyBatch();
+  } finally {
+    batchRunning = false;
+  }
+}
+
+async function _runLoyaltyBatch() {
   const clientsRes = await db.query('SELECT id FROM clients WHERE is_active = TRUE');
   const results = [];
 
@@ -302,12 +337,15 @@ async function runLoyaltyBatch() {
     }
   }
 
-  // Incrémenter consecutive_royal_years pour les clients ROYAL depuis >= 1 an
+  // Incrémenter consecutive_royal_years pour les clients ROYAL dont le compteur est
+  // inférieur au nombre d'années complètes écoulées depuis royal_since.
+  // Ex : royal_since il y a 2 ans et 3 mois → FLOOR = 2 → si consecutive_royal_years < 2 on incrémente.
   await db.query(`
-    UPDATE clients SET consecutive_royal_years = consecutive_royal_years + 1
+    UPDATE clients
+    SET consecutive_royal_years = FLOOR(EXTRACT(EPOCH FROM NOW() - royal_since) / 31536000)::INTEGER
     WHERE loyalty_status IN ('ROYAL', 'ROYAL_ELITE')
       AND royal_since IS NOT NULL
-      AND royal_since <= NOW() - INTERVAL '1 year' * (consecutive_royal_years + 1)
+      AND FLOOR(EXTRACT(EPOCH FROM NOW() - royal_since) / 31536000) > consecutive_royal_years
   `);
 
   return results;

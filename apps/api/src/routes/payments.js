@@ -273,9 +273,9 @@ router.post('/card/notify', async (req, res) => {
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [cpm_trans_id])).rows[0];
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
+  if (!['pending', 'processing'].includes(tx.status)) return res.status(200).json({ message: 'Déjà traitée' });
 
-  const statusCheck = await checkPaymentStatus(cpm_trans_id);
+  const statusCheck = await cinetpay.checkPaymentStatus(cpm_trans_id);
 
   if (statusCheck.success && statusCheck.status === 'ACCEPTED') {
     await processCompletedPayment(tx);
@@ -298,7 +298,7 @@ router.post('/card/flutterwave/notify', async (req, res) => {
 
   const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [data.tx_ref])).rows[0];
   if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (tx.status !== 'pending') return res.status(200).json({ message: 'Déjà traitée' });
+  if (!['pending', 'processing'].includes(tx.status)) return res.status(200).json({ message: 'Déjà traitée' });
 
   const statusCheck = await flutterwave.checkPaymentStatus(data.tx_ref);
 
@@ -470,10 +470,9 @@ router.post('/mm/orange/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('[orange/notify] ORANGE_WEBHOOK_SECRET absent en production — callback rejeté');
-        return res.status(403).json({ error: 'Configuration webhook manquante' });
-      }
+      console.error('[orange/notify] ORANGE_WEBHOOK_SECRET absent en production — callback rejeté');
+      return;
+    } else {
       console.warn('[orange/notify] ORANGE_WEBHOOK_SECRET non configuré — validation désactivée (hors production)');
     }
 
@@ -516,10 +515,9 @@ router.post('/mm/airtel/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('[airtel/notify] AIRTEL_WEBHOOK_SECRET absent en production — callback rejeté');
-        return res.status(403).json({ error: 'Configuration webhook manquante' });
-      }
+      console.error('[airtel/notify] AIRTEL_WEBHOOK_SECRET absent en production — callback rejeté');
+      return;
+    } else {
       console.warn('[airtel/notify] AIRTEL_WEBHOOK_SECRET non configuré — validation désactivée (hors production)');
     }
 
@@ -559,10 +557,9 @@ router.post('/mm/mtn/notify', async (req, res) => {
         return;
       }
     } else if (process.env.NODE_ENV === 'production') {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('[mtn/notify] MTN_CALLBACK_API_KEY absent en production — callback rejeté');
-        return res.status(403).json({ error: 'Configuration webhook manquante' });
-      }
+      console.error('[mtn/notify] MTN_CALLBACK_API_KEY absent en production — callback rejeté');
+      return;
+    } else {
       console.warn('[mtn/notify] MTN_CALLBACK_API_KEY non configuré — validation désactivée (hors production)');
     }
 
@@ -878,7 +875,7 @@ router.post('/:id/refund/request', requireClient, async (req, res) => {
 // POST /api/v1/payments/wallet/pay — Paiement avec solde cashback 
 // Authentification: JWT client (header Authorization: Bearer <token>)
 router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req, res) => {
-  const { merchant_id, amount, currency = 'XOF', description, idempotency_key } = req.body;
+  const { merchant_id, amount, currency = 'XOF', description, idempotency_key, product_category } = req.body;
   const client = req.client;
 
   // Idempotence
@@ -894,6 +891,12 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
   // Vérifier le solde wallet
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   if (!wallet) return res.status(400).json({ error: 'Portefeuille non trouvé' });
+  if (wallet.currency !== currency) {
+    return res.status(422).json({
+      error: 'CURRENCY_MISMATCH',
+      message: `Devise du portefeuille (${wallet.currency}) incompatible avec la devise demandée (${currency}).`,
+    });
+  }
   if (parseFloat(wallet.balance) < amount) {
     return res.status(422).json({
       error: 'INSUFFICIENT_WALLET_BALANCE',
@@ -908,7 +911,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
 
   // Calcul distribution X/Y/Z (paiement wallet = même mécanique, statut fidélité client)
   const clientCountryId = client.country_id || merchant.country_id || null;
-  const distribution = await calculateDistribution(amount, merchant.rebate_percent, client.loyalty_status, clientCountryId);
+  const distribution = await calculateDistribution(amount, merchant.rebate_percent, client.loyalty_status, clientCountryId, product_category || null, merchant.id);
 
   if (distribution.yExceedsX) {
     notifyFraudBlocked({
@@ -1038,6 +1041,18 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function processCompletedPayment(tx) {
+  // Protection idempotency : si la transaction est déjà complétée (race condition webhooks), on ignore
+  const current = (await db.query('SELECT status FROM transactions WHERE id = $1', [tx.id])).rows[0];
+  if (!current || current.status !== 'pending') return;
+
+  // Verrou atomique : UPDATE ne s'exécute que si le statut est encore 'pending'
+  // Si deux webhooks arrivent simultanément, un seul UPDATE réussira (PostgreSQL atomic)
+  const lockRes = await db.query(
+    "UPDATE transactions SET status = 'processing' WHERE id = $1 AND status = 'pending' RETURNING id",
+    [tx.id]
+  );
+  if (lockRes.rowCount === 0) return; // Un autre webhook a déjà pris le verrou
+
   const now = new Date().toISOString();
   const distId1 = uuidv4();
   const distId2 = uuidv4();

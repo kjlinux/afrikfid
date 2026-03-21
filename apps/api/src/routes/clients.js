@@ -36,8 +36,14 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
 
   const client = (await db.query('SELECT * FROM clients WHERE id = $1', [id])).rows[0];
   notifyClientWelcome({ client: { ...client, phone, email } });
-  // CDC v3 §5.4 — Trigger BIENVENUE automatique
-  triggerBienvenue(client).catch(() => {});
+  // CDC v3 §5.4 — Trigger BIENVENUE automatique (signature: merchantId, client avec phone déchiffré)
+  const merchantId = req.merchant ? req.merchant.id : null;
+  if (merchantId) {
+    let rawPhone = null, rawEmail = null;
+    try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { /* ignore */ }
+    try { rawEmail = client.email ? decrypt(client.email) : null; } catch { /* ignore */ }
+    triggerBienvenue(merchantId, { ...client, phone: rawPhone, email: rawEmail }).catch(() => {});
+  }
   res.status(201).json({ client: sanitizeClient(client) });
 });
 
@@ -354,9 +360,11 @@ router.get('/:id/export', requireAuth, async (req, res) => {
     loyaltyStatusHistory: loyaltyHistory,
   };
 
+  const exportActorType = req.admin ? 'admin' : 'client';
+  const exportActorId = req.admin ? req.admin.id : req.client.id;
   await db.query(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
-    VALUES ($1, 'admin', $2, 'gdpr_export', 'client', $3, $4)`,
-    [uuidv4(), req.admin.id, client.id, req.ip]);
+    VALUES ($1, $2, $3, 'gdpr_export', 'client', $4, $5)`,
+    [uuidv4(), exportActorType, exportActorId, client.id, req.ip]);
 
   res.json(exportData);
 });
@@ -407,9 +415,9 @@ router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
 
-  // Seul le client lui-même ou un admin peut dépenser — les marchands sont explicitement exclus
-  if (!req.admin && !req.client) return res.status(403).json({ error: 'Accès réservé au client ou à l\'administrateur' });
-  if (req.client && req.client.id !== client.id) return res.status(403).json({ error: 'Accès interdit' });
+  // CDC §2.3 : la dépense de points récompense est un acte du client uniquement
+  if (!req.client) return res.status(403).json({ error: 'Accès réservé au client' });
+  if (req.client.id !== client.id) return res.status(403).json({ error: 'Accès interdit' });
 
   const currentRewardPoints = parseInt(client.reward_points) || 0;
   if (currentRewardPoints < points) {

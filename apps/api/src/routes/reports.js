@@ -7,8 +7,10 @@ const { getAllRates, updateExchangeRate, toEUR } = require('../lib/currency');
 // GET /api/v1/reports/daily
 router.get('/daily', requireAdmin, async (req, res) => {
   const { date = new Date().toISOString().split('T')[0], merchant_id } = req.query;
-  const nextDay = new Date(date);
-  nextDay.setDate(nextDay.getDate() + 1);
+  // Utiliser des timestamps UTC explicites pour éviter les décalages timezone
+  const startDate = new Date(date + 'T00:00:00.000Z');
+  const endDate = new Date(date + 'T00:00:00.000Z');
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
 
   let sql = `
     SELECT
@@ -23,31 +25,37 @@ router.get('/daily', requireAdmin, async (req, res) => {
     FROM transactions
     WHERE initiated_at >= $1 AND initiated_at < $2
   `;
-  const params = [date, nextDay.toISOString().split('T')[0]];
+  const params = [startDate.toISOString(), endDate.toISOString()];
   let idx = 3;
 
   if (merchant_id) { sql += ` AND merchant_id = $${idx++}`; params.push(merchant_id); }
 
   const summary = (await db.query(sql, params)).rows[0];
 
-  const byMethod = (await db.query(`
+  const methodParams = [startDate.toISOString(), endDate.toISOString()];
+  let methodSql = `
     SELECT payment_method, payment_operator,
       COUNT(*) as count,
       COALESCE(SUM(CASE WHEN status = 'completed' THEN gross_amount ELSE 0 END), 0) as volume
     FROM transactions
     WHERE initiated_at >= $1 AND initiated_at < $2
-    GROUP BY payment_method, payment_operator
-  `, [date, nextDay.toISOString().split('T')[0]])).rows;
+  `;
+  if (merchant_id) { methodSql += ` AND merchant_id = $3`; methodParams.push(merchant_id); }
+  methodSql += ` GROUP BY payment_method, payment_operator`;
+  const byMethod = (await db.query(methodSql, methodParams)).rows;
 
-  const byLoyaltyStatus = (await db.query(`
+  const loyaltyParams = [startDate.toISOString(), endDate.toISOString()];
+  let loyaltySql = `
     SELECT client_loyalty_status,
       COUNT(*) as count,
       COALESCE(SUM(CASE WHEN status = 'completed' THEN gross_amount ELSE 0 END), 0) as volume,
       COALESCE(SUM(CASE WHEN status = 'completed' THEN client_rebate_amount ELSE 0 END), 0) as rebates
     FROM transactions
     WHERE initiated_at >= $1 AND initiated_at < $2
-    GROUP BY client_loyalty_status
-  `, [date, nextDay.toISOString().split('T')[0]])).rows;
+  `;
+  if (merchant_id) { loyaltySql += ` AND merchant_id = $3`; loyaltyParams.push(merchant_id); }
+  loyaltySql += ` GROUP BY client_loyalty_status`;
+  const byLoyaltyStatus = (await db.query(loyaltySql, loyaltyParams)).rows;
 
   res.json({ date, summary, byMethod, byLoyaltyStatus });
 });
@@ -157,7 +165,16 @@ router.get('/transactions', requireAdmin, async (req, res) => {
   params.push(parseInt(limit), (page - 1) * limit);
 
   const transactions = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM transactions')).rows[0].c);
+  // COUNT avec les mêmes filtres que la requête principale (sans LIMIT/OFFSET)
+  const countParams = params.slice(0, params.length - 2); // enlever limit et offset
+  let countSql = `SELECT COUNT(*) as c FROM transactions t JOIN merchants m ON t.merchant_id = m.id LEFT JOIN clients c ON t.client_id = c.id WHERE 1=1`;
+  let cidx = 1;
+  if (from) { countSql += ` AND t.initiated_at >= $${cidx++}`; }
+  if (to) { countSql += ` AND t.initiated_at <= $${cidx++}`; }
+  if (merchant_id) { countSql += ` AND t.merchant_id = $${cidx++}`; }
+  if (status) { countSql += ` AND t.status = $${cidx++}`; }
+  if (loyalty_status) { countSql += ` AND t.client_loyalty_status = $${cidx++}`; }
+  const total = parseInt((await db.query(countSql, countParams)).rows[0].c);
 
   res.json({ transactions, total, page: parseInt(page), limit: parseInt(limit) });
 });
@@ -239,14 +256,17 @@ router.get('/transactions/pdf', requireAdmin, async (req, res) => {
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="transactions-${new Date().toISOString().split('T')[0]}.pdf"`);
+  const reportPeriod = from && to ? `${from}_${to}` : new Date().toISOString().split('T')[0];
+  res.setHeader('Content-Disposition', `attachment; filename="transactions-${reportPeriod}.pdf"`);
   doc.pipe(res);
 
   // En-tête
   doc.fontSize(18).fillColor('#1a1a5e').text("Afrik'Fid — Rapport de Transactions", { align: 'center' });
   doc.moveDown(0.5);
-  doc.fontSize(10).fillColor('#666').text(`Généré le ${new Date().toLocaleString('fr-FR')} | ${transactions.length} transactions`, { align: 'center' });
-  if (from || to) doc.text(`Période : ${from || '...'} → ${to || '...'}`, { align: 'center' });
+  doc.fontSize(10).fillColor('#666').text(
+    `Généré le ${new Date().toLocaleString('fr-FR')} | Période : ${from || 'début'} → ${to || 'fin'} | ${transactions.length} transactions`,
+    { align: 'center' }
+  );
   doc.moveDown(1);
 
   // Tableau

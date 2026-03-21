@@ -100,8 +100,8 @@ async function sendEmail(to, subject, text, html) {
 
 // ─── Constantes fidélité ──────────────────────────────────────────────────────
 
-const LOYALTY_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' };
-const LOYALTY_EMOJI  = { OPEN: '⚪', LIVE: '⭐', GOLD: '🥇', ROYAL: '👑' };
+const LOYALTY_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#FFD700' };
+const LOYALTY_EMOJI  = { OPEN: '⚪', LIVE: '⭐', GOLD: '🥇', ROYAL: '👑', ROYAL_ELITE: '💎' };
 
 // ─── HTML Email Helpers ───────────────────────────────────────────────────────
 
@@ -1019,9 +1019,10 @@ function notifyLoyaltyUpgrade({ client, oldStatus, newStatus }) {
   if (!client?.phone && !client?.email) return;
 
   const benefitMap = {
-    LIVE:  'Vous bénéficiez désormais de 5% de cashback sur vos achats.',
-    GOLD:  'Vous bénéficiez désormais de 8% de cashback sur vos achats.',
-    ROYAL: 'Vous bénéficiez désormais de 12% de cashback sur vos achats. Félicitations !',
+    LIVE:        'Vous bénéficiez désormais de 5% de cashback sur vos achats.',
+    GOLD:        'Vous bénéficiez désormais de 8% de cashback sur vos achats.',
+    ROYAL:       'Vous bénéficiez désormais de 12% de cashback sur vos achats. Félicitations !',
+    ROYAL_ELITE: 'Bienvenue dans le cercle ROYAL ELITE 💎 ! Profitez de 12% de cashback, d\'avantages exclusifs et d\'un accès prioritaire aux offres marchands.',
   };
 
   const tplData = {

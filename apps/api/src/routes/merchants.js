@@ -71,16 +71,22 @@ router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) 
 
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [id])).rows[0];
 
-  // Notifier le marchand avec ses credentials (email + SMS si phone fourni)
-  notifyMerchantWelcome({
-    merchant: { ...merchant, phone: phone || null, sandbox_key_public: sandboxKeyPublic },
-    tempPassword, // null si l'admin a fourni un password
-    createdByAdmin: true,
-  });
+  // Notifier le marchand avec ses credentials — awaité pour détecter un échec d'envoi
+  let emailSent = true;
+  try {
+    await notifyMerchantWelcome({
+      merchant: { ...merchant, phone: phone || null, sandbox_key_public: sandboxKeyPublic },
+      tempPassword, // null si l'admin a fourni un password
+      createdByAdmin: true,
+    });
+  } catch {
+    emailSent = false;
+  }
 
   res.status(201).json({
     merchant: sanitizeMerchant(merchant, true),
-    ...(tempPassword && { tempPassword, note: 'Mot de passe temporaire généré — transmis au marchand par email/SMS' }),
+    ...(tempPassword && { tempPassword, note: 'Mot de passe temporaire généré — conserver cette valeur en cas d\'échec email' }),
+    ...(!emailSent && { emailWarning: "L'email de bienvenue n'a pas pu être envoyé. Communiquer le tempPassword manuellement au marchand." }),
   });
 });
 
@@ -521,8 +527,12 @@ function sanitizeMerchant(m, includeKeys = false) {
   if (includeKeys) {
     base.apiKeyPublic = m.api_key_public;
     base.sandboxKeyPublic = m.sandbox_key_public;
-    // Déchiffrer le RIB/IBAN pour l'affichage admin/marchand
-    base.bankAccount = decrypt(m.bank_account);
+    // Déchiffrer le RIB/IBAN pour l'affichage admin/marchand — try/catch si clé changée
+    try {
+      base.bankAccount = m.bank_account ? decrypt(m.bank_account) : null;
+    } catch {
+      base.bankAccount = null; // clé de chiffrement changée ou données corrompues
+    }
   }
   return base;
 }
@@ -694,6 +704,14 @@ router.put('/:id/category-rates/:category', requireAdmin, async (req, res, next)
 
     const merchant = (await db.query('SELECT id, rebate_percent FROM merchants WHERE id = $1', [id])).rows[0];
     if (!merchant) return res.status(404).json({ error: 'NOT_FOUND', message: 'Marchand introuvable' });
+
+    // CDC §2.2 : le taux catégorie ne peut pas dépasser le taux X% du marchand → Z% resterait positif
+    if (rate > parseFloat(merchant.rebate_percent)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: `Le taux catégorie (${rate}%) ne peut pas dépasser le taux X% du marchand (${merchant.rebate_percent}%) — CDC §2.2.`,
+      });
+    }
 
     const result = await db.query(
       `INSERT INTO merchant_category_rates (id, merchant_id, category, discount_rate, updated_at)

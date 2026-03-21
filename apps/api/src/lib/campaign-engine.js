@@ -161,6 +161,10 @@ async function executeCampaign(campaignId) {
   if (!campaign.rows[0]) throw new Error('Campagne introuvable');
   const c = campaign.rows[0];
 
+  if (['running', 'completed'].includes(c.status)) {
+    throw Object.assign(new Error(`Campagne déjà ${c.status}`), { code: 'CAMPAIGN_ALREADY_EXECUTED', status: 409 });
+  }
+
   await pool.query("UPDATE campaigns SET status = 'running', updated_at = NOW() WHERE id = $1", [campaignId]);
 
   const clients = await pool.query(
@@ -192,7 +196,9 @@ async function executeCampaign(campaignId) {
       }
       await pool.query("UPDATE campaign_actions SET status = 'sent', sent_at = NOW() WHERE id = $1", [actionId]);
       sent++;
-    } catch {
+    } catch (err) {
+      // CDC §5.6 : audit trail obligatoire pour toutes les communications marketing
+      console.error(`[CAMPAIGN] Échec envoi action ${actionId} (client ${client.id}):`, err.message);
       await pool.query("UPDATE campaign_actions SET status = 'failed' WHERE id = $1", [actionId]);
     }
   }
@@ -236,9 +242,10 @@ async function runAbandonProtocol() {
 
   // 1. Démarrer le protocole pour les nouveaux clients A_RISQUE sans tracking actif
   const newAtRisk = await pool.query(`
-    SELECT rs.client_id, rs.merchant_id, c.full_name, c.phone, c.email
+    SELECT rs.client_id, rs.merchant_id, c.full_name, c.phone, c.email, m.name AS merchant_name
     FROM rfm_scores rs
     JOIN clients c ON c.id = rs.client_id
+    JOIN merchants m ON m.id = rs.merchant_id
     LEFT JOIN abandon_tracking at ON at.client_id = rs.client_id AND at.merchant_id = rs.merchant_id AND at.status = 'active'
     WHERE rs.segment IN ('A_RISQUE', 'HIBERNANTS') AND c.is_active = true AND at.id IS NULL
   `);
@@ -259,7 +266,7 @@ async function runAbandonProtocol() {
     if (step.message) {
       const message = step.message
         .replace('{client_name}', row.full_name || '')
-        .replace('{merchant_name}', '');
+        .replace('{merchant_name}', row.merchant_name || '');
       if (row.phone) {
         try { await sendSMS(row.phone, message); } catch { /* ignore */ }
       }
@@ -277,7 +284,10 @@ async function runAbandonProtocol() {
   `);
 
   for (const tracking of dueTrackings.rows) {
-    const nextStepIdx = tracking.current_step; // 0-indexed for ABANDON_PROTOCOL_STEPS array
+    // current_step est 1-based (1..5). On utilise current_step comme index pour accéder
+    // à l'étape SUIVANTE dans le tableau (index 0-based). Ex: current_step=1 → ABANDON_PROTOCOL_STEPS[1] = étape 2.
+    // Quand current_step=5 (étape finale atteinte), l'index 5 est hors tableau → on ignore.
+    const nextStepIdx = tracking.current_step;
     if (nextStepIdx >= ABANDON_PROTOCOL_STEPS.length) continue;
 
     const nextStep = ABANDON_PROTOCOL_STEPS[nextStepIdx];
