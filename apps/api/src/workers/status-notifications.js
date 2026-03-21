@@ -68,9 +68,11 @@ async function runStatusNotifications() {
 
     for (const change of changes.rows) {
       // Calculer points manquants pour le nouveau statut
+      // new_status_points_12m n'est pas dans loyalty_status_history — lire sur le client
+      const clientRow = (await pool.query('SELECT status_points_12m FROM clients WHERE id = $1', [change.client_id])).rows[0];
       const changeConfig = configByStatus[change.new_status];
       const changeRequired = changeConfig ? parseInt(changeConfig.min_status_points) || 0 : 0;
-      const changePoints = parseInt(change.new_status_points_12m) || 0;
+      const changePoints = parseInt(clientRow?.status_points_12m) || 0;
       const changePointsNeeded = Math.max(0, changeRequired - changePoints);
 
       notifyRequalificationReminder({

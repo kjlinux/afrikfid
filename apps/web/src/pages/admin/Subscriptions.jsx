@@ -26,77 +26,68 @@ export default function AdminSubscriptions() {
 
   useEffect(() => { load() }, [page, filterPkg])
 
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155', textAlign: 'left' }
+  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+  const card = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px' }
+  const PKG_HEX = { STARTER_BOOST: '#64748b', STARTER_PLUS: '#3b82f6', GROWTH: '#10b981', PREMIUM: '#f59e0b' }
+
   if (loading) return <Spinner />
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Abonnements Marchands</h1>
-        <div className="flex gap-2">
-          <Select value={filterPkg} onChange={e => { setFilterPkg(e.target.value); setPage(1) }}>
-            <option value="">Tous les packages</option>
-            {PACKAGES.map(p => <option key={p} value={p}>{PKG_LABELS[p]}</option>)}
-          </Select>
-        </div>
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Abonnements Marchands</h1>
+        <Select value={filterPkg} onChange={e => { setFilterPkg(e.target.value); setPage(1) }}>
+          <option value="">Tous les packages</option>
+          {PACKAGES.map(p => <option key={p} value={p}>{PKG_LABELS[p]}</option>)}
+        </Select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {PACKAGES.map(pkg => {
           const count = subs.filter(s => s.package === pkg).length
+          const hex = PKG_HEX[pkg] || '#64748b'
           return (
-            <Card key={pkg}>
-              <div className="text-sm text-gray-500">{PKG_LABELS[pkg]}</div>
-              <div className="text-2xl font-bold">{count}</div>
-            </Card>
+            <div key={pkg} style={{ ...card }}>
+              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{PKG_LABELS[pkg]}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: hex }}>{count}</div>
+            </div>
           )
         })}
       </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marchand</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mensualité</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réduction recrutement</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prochaine facturation</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Marchand', 'Package', 'Mensualité', 'Réduction recrutement', 'Statut', 'Prochaine facturation'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
               {subs.map(s => (
                 <tr key={s.id}>
-                  <td className="px-4 py-3 text-sm font-medium">{s.merchant_name || s.merchant_email}</td>
-                  <td className="px-4 py-3"><Badge color={PKG_COLORS[s.package]}>{PKG_LABELS[s.package] || s.package}</Badge></td>
-                  <td className="px-4 py-3 text-sm">
+                  <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>{s.merchant_name || s.merchant_email}</td>
+                  <td style={td}><Badge color={PKG_COLORS[s.package]}>{PKG_LABELS[s.package] || s.package}</Badge></td>
+                  <td style={td}>
                     {s.effective_monthly_fee !== s.base_monthly_fee ? (
                       <span>
-                        <span className="line-through text-gray-400">{Number(s.base_monthly_fee).toLocaleString()} FCFA</span>{' '}
-                        <span className="font-semibold text-green-600">{Number(s.effective_monthly_fee).toLocaleString()} FCFA</span>
+                        <span style={{ textDecoration: 'line-through', color: '#475569' }}>{Number(s.base_monthly_fee).toLocaleString()} FCFA</span>{' '}
+                        <span style={{ fontWeight: 700, color: '#10b981' }}>{Number(s.effective_monthly_fee).toLocaleString()} FCFA</span>
                       </span>
-                    ) : (
-                      <span>{Number(s.base_monthly_fee).toLocaleString()} FCFA</span>
-                    )}
+                    ) : <span>{Number(s.base_monthly_fee).toLocaleString()} FCFA</span>}
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    {s.recruitment_discount_percent > 0 ? (
-                      <Badge color="green">-{s.recruitment_discount_percent}% ({s.recruited_clients_count} clients)</Badge>
-                    ) : <span className="text-gray-400">-</span>}
+                  <td style={td}>
+                    {s.recruitment_discount_percent > 0
+                      ? <Badge color="green">-{s.recruitment_discount_percent}% ({s.recruited_clients_count} clients)</Badge>
+                      : <span style={{ color: '#475569' }}>—</span>}
                   </td>
-                  <td className="px-4 py-3"><Badge color={s.status === 'active' ? 'green' : 'red'}>{s.status}</Badge></td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{s.next_billing_at ? new Date(s.next_billing_at).toLocaleDateString() : '-'}</td>
+                  <td style={td}><Badge color={s.status === 'active' ? 'green' : 'red'}>{s.status}</Badge></td>
+                  <td style={td}>{s.next_billing_at ? new Date(s.next_billing_at).toLocaleDateString('fr-FR') : '—'}</td>
                 </tr>
               ))}
-              {subs.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Aucun abonnement</td></tr>
-              )}
+              {subs.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', padding: 32 }}>Aucun abonnement</td></tr>}
             </tbody>
           </table>
         </div>
         {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
-      </Card>
+      </div>
     </div>
   )
 }

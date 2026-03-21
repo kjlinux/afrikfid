@@ -25,7 +25,12 @@ router.get('/', requireAdmin, async (req, res) => {
   params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
   const events = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM webhook_events')).rows[0].c);
+  const countP = params.slice(0, params.length - 2);
+  let ci = 1;
+  let countSql = `SELECT COUNT(*) as c FROM webhook_events we WHERE 1=1`;
+  if (merchant_id) countSql += ` AND we.merchant_id = $${ci++}`;
+  if (status) countSql += ` AND we.status = $${ci++}`;
+  const total = parseInt((await db.query(countSql, countP)).rows[0].c);
 
   res.json({ events, total, page: parseInt(page), limit: parseInt(limit) });
 });

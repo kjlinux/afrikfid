@@ -16,7 +16,7 @@ function getClient() {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY non configurée');
     }
-    client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
   return client;
 }
@@ -30,7 +30,7 @@ async function getMerchantContext(merchantId) {
       SELECT segment, COUNT(*) as count
       FROM rfm_scores
       WHERE merchant_id = $1
-        AND scored_at >= NOW() - INTERVAL '30 days'
+        AND calculated_at >= NOW() - INTERVAL '30 days'
       GROUP BY segment
       ORDER BY count DESC
     `, [merchantId]),
@@ -40,17 +40,17 @@ async function getMerchantContext(merchantId) {
         SUM(gross_amount) as ca_total,
         AVG(gross_amount) as panier_moyen,
         COUNT(DISTINCT client_id) as clients_actifs,
-        SUM(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN gross_amount ELSE 0 END) as ca_30j,
-        SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN gross_amount ELSE 0 END) as ca_7j
+        SUM(CASE WHEN initiated_at >= NOW() - INTERVAL '30 days' THEN gross_amount ELSE 0 END) as ca_30j,
+        SUM(CASE WHEN initiated_at >= NOW() - INTERVAL '7 days' THEN gross_amount ELSE 0 END) as ca_7j
       FROM transactions
       WHERE merchant_id = $1 AND status = 'completed'
     `, [merchantId]),
     db.query(`
-      SELECT r.segment, r.rfm_score, r.r_score, r.f_score, r.m_score
+      SELECT r.segment, r.rfm_total, r.r_score, r.f_score, r.m_score
       FROM rfm_scores r
       WHERE r.merchant_id = $1
-        AND r.scored_at >= NOW() - INTERVAL '30 days'
-      ORDER BY r.rfm_score DESC
+        AND r.calculated_at >= NOW() - INTERVAL '30 days'
+      ORDER BY r.rfm_total DESC
       LIMIT 5
     `, [merchantId]),
   ]);

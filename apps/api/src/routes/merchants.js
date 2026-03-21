@@ -191,19 +191,14 @@ router.get('/:id/transactions', (req, res, next) => { if (req.params.id === 'me'
   res.json({ transactions, total });
 });
 
-// POST /api/v1/merchants/auth/login
-router.post('/auth/login', validate(MerchantLoginSchema), async (req, res) => {
-  const { email, password } = req.body;
-
-  const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);
-  const merchant = result.rows[0];
-  if (!merchant || !merchant.password_hash) return res.status(401).json({ error: 'Identifiants invalides' });
-
-  const valid = await bcrypt.compare(password, merchant.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
-
-  const tokens = generateTokens({ sub: merchant.id, role: 'merchant', email: merchant.email });
-  res.json({ ...tokens, merchant: sanitizeMerchant(merchant, true) });
+// POST /api/v1/merchants/auth/login — déprécié, redirige vers la route canonique sécurisée
+// La route canonique avec 2FA, lockout Redis et rate limiting est : POST /api/v1/auth/merchant/login
+router.post('/auth/login', (req, res) => {
+  res.status(301).json({
+    error: 'MOVED',
+    message: "Cette route est dépréciée. Utilisez POST /api/v1/auth/merchant/login (authentification sécurisée avec 2FA et protection anti-brute force).",
+    location: '/api/v1/auth/merchant/login',
+  });
 });
 
 // GET /api/v1/merchants/me/profile (marchand connecté)
@@ -600,7 +595,7 @@ router.patch('/me/refunds/:refundId', requireMerchant, async (req, res) => {
   }
 
   const refund = (await db.query(`
-    SELECT r.*, t.merchant_id, t.gross_amount, t.client_id, t.rebate_mode,
+    SELECT r.*, t.merchant_id, t.gross_amount, t.currency, t.client_id, t.rebate_mode,
            t.merchant_rebate_amount, t.client_rebate_amount, t.platform_commission_amount
     FROM refunds r JOIN transactions t ON r.transaction_id = t.id
     WHERE r.id = $1 AND t.merchant_id = $2 AND r.status = 'pending'
@@ -616,7 +611,7 @@ router.patch('/me/refunds/:refundId', requireMerchant, async (req, res) => {
         const { decrypt } = require('../lib/crypto');
         notifyRefundRejected({
           client: { ...clientRow, phone: decrypt(clientRow.phone), email: clientRow.email ? decrypt(clientRow.email) : null },
-          refund: { ...refund, amount: refund.gross_amount, currency: 'XOF' },
+          refund: { ...refund, amount: refund.gross_amount, currency: refund.currency || 'XOF' },
           merchantName: req.merchant.name,
         });
       }
@@ -662,7 +657,7 @@ router.patch('/me/refunds/:refundId', requireMerchant, async (req, res) => {
       const { decrypt } = require('../lib/crypto');
       notifyRefundApproved({
         client: { ...clientRow, phone: decrypt(clientRow.phone), email: clientRow.email ? decrypt(clientRow.email) : null },
-        refund: { ...refund, amount: grossAmount, currency: 'XOF' },
+        refund: { ...refund, amount: grossAmount, currency: refund.currency || 'XOF' },
         merchantName: req.merchant.name,
       });
     }

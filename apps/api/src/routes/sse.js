@@ -84,7 +84,7 @@ router.get('/admin', async (req, res) => {
     try {
       const since = new Date(Number(lastEventId));
       const { rows } = await db.query(
-        `SELECT id, status, amount, currency, operator, merchant_id, updated_at
+        `SELECT id, status, gross_amount, currency, payment_operator, merchant_id, updated_at
            FROM transactions
           WHERE updated_at > $1
           ORDER BY updated_at ASC
@@ -138,7 +138,7 @@ router.get('/merchant', async (req, res) => {
     try {
       const since = new Date(Number(lastEventId));
       const { rows } = await db.query(
-        `SELECT id, status, amount, currency, operator, updated_at
+        `SELECT id, status, gross_amount, currency, payment_operator, updated_at
            FROM transactions
           WHERE merchant_id = $1 AND updated_at > $2
           ORDER BY updated_at ASC
@@ -200,7 +200,7 @@ router.get('/transaction/:id', async (req, res) => {
   // Vérifier que la transaction existe
   let tx;
   try {
-    const { rows } = await db.query('SELECT id, status, amount, currency, operator FROM transactions WHERE id = $1', [id]);
+    const { rows } = await db.query('SELECT id, status, gross_amount, currency, payment_operator FROM transactions WHERE id = $1', [id]);
     tx = rows[0];
   } catch {
     return res.status(500).json({ error: 'Erreur base de données' });
@@ -211,7 +211,7 @@ router.get('/transaction/:id', async (req, res) => {
   setupSSEHeaders(res);
 
   // Envoyer l'état courant immédiatement
-  sendSSE(res, Date.now(), SSE_EVENTS.TRANSACTION_STATUS, { transactionId: id, status: tx.status, amount: tx.amount, currency: tx.currency, operator: tx.operator });
+  sendSSE(res, Date.now(), SSE_EVENTS.TRANSACTION_STATUS, { transactionId: id, status: tx.status, amount: tx.gross_amount, currency: tx.currency, operator: tx.payment_operator });
 
   // Si déjà terminée, fermer le flux
   if (['completed', 'failed', 'expired', 'refunded'].includes(tx.status)) {

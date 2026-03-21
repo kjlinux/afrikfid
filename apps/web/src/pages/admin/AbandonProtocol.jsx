@@ -34,77 +34,63 @@ export default function AdminAbandonProtocol() {
 
   useEffect(() => { load() }, [page])
 
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155', textAlign: 'left' }
+  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Protocole d'abandon</h1>
-        <button
-          onClick={load}
-          disabled={loading}
-          className={`text-sm text-blue-600 hover:underline ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
+    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Protocole d'abandon</h1>
+        <button onClick={load} disabled={loading}
+          style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, opacity: loading ? 0.5 : 1 }}>
           {loading ? 'Chargement...' : 'Actualiser'}
         </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
           {STEP_LABELS.map((label, i) => (
-            <Card key={i} className="p-4 text-center">
-              <div className="text-2xl font-bold text-gray-800">{stats[`step_${i + 1}`] || 0}</div>
-              <div className="text-xs text-gray-500 mt-1">{label}</div>
-            </Card>
+            <div key={i} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#f1f5f9' }}>{stats[`step_${i + 1}`] || 0}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{label}</div>
+            </div>
           ))}
         </div>
       )}
 
-      <Card>
-        <div className="p-4 font-semibold text-gray-700 border-b">Clients en protocole d'abandon</div>
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>
+          Clients en protocole d'abandon
+        </div>
         {loading ? (
-          <div className="flex justify-center py-12"><Spinner /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
         ) : data.length === 0 ? (
-          <div className="text-center text-gray-500 py-12">Aucun client en protocole d'abandon</div>
+          <div style={{ textAlign: 'center', color: '#64748b', padding: 40 }}>Aucun client en protocole d'abandon</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Client', 'Marchand', 'Étape', 'Statut', 'Prochaine action', 'Démarré le'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Client', 'Marchand', 'Étape', 'Statut', 'Prochaine action', 'Démarré le'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
                 {data.map(row => (
-                  <tr key={row.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.client_name || row.client_id}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.merchant_name || row.merchant_id}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                  <tr key={row.id}>
+                    <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>{row.client_name || row.client_id}</td>
+                    <td style={td}>{row.merchant_name || row.merchant_id}</td>
+                    <td style={td}>
+                      <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: 'rgba(249,115,22,0.15)', color: '#f97316' }}>
                         Étape {row.current_step}/5
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge color={STATUS_COLORS[row.status] || 'gray'}>{row.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {row.next_step_at ? new Date(row.next_step_at).toLocaleDateString('fr-FR') : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {new Date(row.created_at).toLocaleDateString('fr-FR')}
-                    </td>
+                    <td style={td}><Badge color={STATUS_COLORS[row.status] || 'gray'}>{row.status}</Badge></td>
+                    <td style={{ ...td, fontSize: 11 }}>{row.next_step_at ? new Date(row.next_step_at).toLocaleDateString('fr-FR') : '—'}</td>
+                    <td style={{ ...td, fontSize: 11 }}>{new Date(row.created_at).toLocaleDateString('fr-FR')}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {total > limit && (
-          <div className="p-4 border-t">
-            <Pagination page={page} total={total} limit={limit} onChange={setPage} />
-          </div>
-        )}
-      </Card>
+        {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
+      </div>
     </div>
   )
 }

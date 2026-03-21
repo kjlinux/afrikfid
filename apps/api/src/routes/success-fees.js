@@ -42,7 +42,11 @@ router.get('/', requireAdmin, async (req, res) => {
   params.push(parseInt(limit), (page - 1) * limit);
 
   const rows = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM success_fees')).rows[0].c);
+  const countP = params.slice(0, params.length - 2);
+  const countSql = status
+    ? `SELECT COUNT(*) as c FROM success_fees WHERE status = $1`
+    : `SELECT COUNT(*) as c FROM success_fees`;
+  const total = parseInt((await db.query(countSql, countP)).rows[0].c);
   res.json({ fees: rows, total, page: parseInt(page), limit: parseInt(limit) });
 });
 

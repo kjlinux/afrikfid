@@ -19,6 +19,7 @@ const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 const { processDisbursementsForMerchant } = require('../workers/disbursement');
 const { triggerPremierAchat } = require('../lib/campaign-engine');
 const { verifyHmac, verifySha256 } = require('../lib/webhook-verify');
+const { decrypt } = require('../lib/crypto');
 
 // Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
 function getCardProvider() {
@@ -47,7 +48,9 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   if (client_afrikfid_id) {
     client = (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [client_afrikfid_id])).rows[0];
   } else if (client_phone) {
-    client = (await db.query("SELECT * FROM clients WHERE phone = $1 AND is_active = TRUE", [client_phone])).rows[0];
+    const { hashField } = require('../lib/crypto');
+    const phoneHash = hashField(client_phone);
+    client = (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [phoneHash])).rows[0];
   }
 
   // Mode invité (CDC §4.1.4) : client non identifié
@@ -115,11 +118,13 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
 
   if (distribution.yExceedsX) {
     // Alerte admin pour anomalie de configuration (CDC §4.1.4)
+    let _clientPhone = 'inconnu';
+    if (client?.phone) { try { _clientPhone = decrypt(client.phone); } catch { /* ignore */ } }
     notifyFraudBlocked({
       amount,
       currency: merchant.currency || 'XOF',
       merchantName: merchant.name,
-      clientPhone: client ? client.phone : 'inconnu',
+      clientPhone: _clientPhone,
       reason: `Anomalie config: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
     }).catch(() => { });
@@ -170,10 +175,12 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     }
   } else if (payment_method === 'card') {
     const cardProvider = getCardProvider();
+    let _customerEmail;
+    if (client?.email) { try { _customerEmail = decrypt(client.email); } catch { /* ignore */ } }
     cardResult = await cardProvider.initiateCardPayment({
       transactionId: txId, reference, amount: distribution.grossAmount, currency,
       customerName: client ? client.full_name : undefined,
-      customerEmail: client ? client.email : undefined,
+      customerEmail: _customerEmail,
       customerPhone: client_phone || undefined, description,
     });
 
@@ -914,11 +921,13 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
   const distribution = await calculateDistribution(amount, merchant.rebate_percent, client.loyalty_status, clientCountryId, product_category || null, merchant.id);
 
   if (distribution.yExceedsX) {
+    let _walletClientPhone = 'inconnu';
+    if (client?.phone) { try { _walletClientPhone = decrypt(client.phone); } catch { /* ignore */ } }
     notifyFraudBlocked({
       amount,
       currency: merchant.currency || 'XOF',
       merchantName: merchant.name,
-      clientPhone: client.phone || 'inconnu',
+      clientPhone: _walletClientPhone,
       reason: `Anomalie config wallet: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
     }).catch(() => { });
@@ -980,9 +989,13 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
 
   // Si mode cashback: re-créditer Y% (récompense fidélité sur paiement wallet aussi)
   if (merchant.rebate_mode === 'cashback' && distribution.clientRebateAmount > 0) {
-    const walletCap = wallet.max_balance;
-    const rebateToCredit = walletCap
-      ? Math.min(distribution.clientRebateAmount, walletCap - newBalance)
+    // Plafond = max_balance propre au wallet, sinon plafond global (wallet_config) — cohérence avec processCompletedPayment
+    const walletConfigRes = await db.query("SELECT default_max_balance FROM wallet_config WHERE id = 'global'");
+    const globalCap = walletConfigRes.rows[0]?.default_max_balance != null
+      ? parseFloat(walletConfigRes.rows[0].default_max_balance) : null;
+    const walletCap = wallet.max_balance != null ? parseFloat(wallet.max_balance) : globalCap;
+    const rebateToCredit = walletCap != null
+      ? Math.max(0, Math.min(distribution.clientRebateAmount, walletCap - newBalance))
       : distribution.clientRebateAmount;
 
     if (rebateToCredit > 0) {
@@ -1132,7 +1145,7 @@ async function processCompletedPayment(tx) {
 
   // Journalisation audit_log pour conformité BCEAO/BEAC (CDC §4.1.3 étape 7)
   db.query(
-    `INSERT INTO audit_logs (id, action, entity_type, entity_id, actor_type, actor_id, metadata, created_at)
+    `INSERT INTO audit_logs (id, action, resource_type, resource_id, actor_type, actor_id, payload, created_at)
      VALUES ($1, 'payment.completed', 'transaction', $2, 'system', 'gateway', $3, NOW())`,
     [uuidv4(), tx.id, JSON.stringify({
       reference: tx.reference,

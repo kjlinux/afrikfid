@@ -8,6 +8,19 @@
 const db = require('./db');
 const FormData = require('form-data');
 const { enqueue } = require('./notification-queue');
+const { decrypt } = require('./crypto');
+
+// ─── Helper : déchiffre phone/email d'un objet client (stockés AES-256-GCM) ──
+// Si les valeurs sont déjà en clair (appelant les ayant déjà déchiffrées),
+// decrypt() échouera et on conserve la valeur originale.
+function decryptClient(client) {
+  if (!client) return client;
+  let phone = client.phone || null;
+  let email = client.email || null;
+  if (phone) { try { phone = decrypt(phone); } catch { /* valeur déjà en clair ou corrompue — on conserve */ } }
+  if (email) { try { email = decrypt(email); } catch { /* valeur déjà en clair ou corrompue — on conserve */ } }
+  return { ...client, phone, email };
+}
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -935,7 +948,8 @@ function logNotification(type, recipient, channel, status, errorMsg = null) {
 /**
  * Envoie une notification de confirmation de paiement au client (SMS + email si dispo).
  */
-function notifyPaymentConfirmed({ client, transaction, distribution }) {
+function notifyPaymentConfirmed({ client: _c, transaction, distribution }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const tplData = {
@@ -975,7 +989,8 @@ function notifyPaymentConfirmed({ client, transaction, distribution }) {
 /**
  * Notifie le client d'un cashback crédité.
  */
-function notifyCashbackCredit({ client, transaction, distribution }) {
+function notifyCashbackCredit({ client: _c, transaction, distribution }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
   if (!distribution?.client_rebate_amount || distribution.client_rebate_amount <= 0) return;
 
@@ -1015,7 +1030,8 @@ function notifyCashbackCredit({ client, transaction, distribution }) {
 /**
  * Notifie le client d'une montée en statut fidélité.
  */
-function notifyLoyaltyUpgrade({ client, oldStatus, newStatus }) {
+function notifyLoyaltyUpgrade({ client: _c, oldStatus, newStatus }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const benefitMap = {
@@ -1059,7 +1075,8 @@ function notifyLoyaltyUpgrade({ client, oldStatus, newStatus }) {
 /**
  * Notifie le client d'un échec de paiement.
  */
-function notifyPaymentFailed({ client, transaction, errorMessage }) {
+function notifyPaymentFailed({ client: _c, transaction, errorMessage }) {
+  const client = decryptClient(_c);
   if (!client?.phone) return;
 
   const tpl = templates.payment_failed({
@@ -1159,7 +1176,8 @@ async function notifyFraudBlocked({ amount, currency, merchantName, clientPhone,
  * Notifie le client, le marchand (webhook) et l'admin lorsque le plafond du portefeuille
  * cashback est atteint et qu'une partie du cashback n'a pas pu être créditée.
  */
-async function notifyWalletCapReached({ client, merchant, transaction, rawRebate, creditedRebate, cap, currency }) {
+async function notifyWalletCapReached({ client: _c, merchant, transaction, rawRebate, creditedRebate, cap, currency }) {
+  const client = decryptClient(_c);
   const lostRebate = rawRebate - creditedRebate;
   if (lostRebate <= 0) return;
 
@@ -1240,7 +1258,8 @@ async function notifyWalletCapReached({ client, merchant, transaction, rawRebate
 /**
  * Notifie le client d'une rétrogradation de statut fidélité.
  */
-function notifyLoyaltyDowngrade({ client, oldStatus, newStatus, inactivityMonths }) {
+function notifyLoyaltyDowngrade({ client: _c, oldStatus, newStatus, inactivityMonths }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const tplData = {
@@ -1296,7 +1315,8 @@ function notifyApiKeyRotated({ merchant, newApiKeyPublic }) {
 /**
  * Bienvenue client — envoyé à la création du compte.
  */
-function notifyClientWelcome({ client }) {
+function notifyClientWelcome({ client: _c }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const tpl = templates.client_welcome({
@@ -1368,7 +1388,8 @@ function notifyMerchantWelcome({ merchant, tempPassword = null, createdByAdmin =
 /**
  * Notifie le client de l'approbation de son remboursement.
  */
-function notifyRefundApproved({ client, refund, merchantName }) {
+function notifyRefundApproved({ client: _c, refund, merchantName }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const tpl = templates.refund_approved({
@@ -1406,7 +1427,8 @@ function notifyRefundApproved({ client, refund, merchantName }) {
 /**
  * Notifie le client du rejet de son remboursement.
  */
-function notifyRefundRejected({ client, refund, merchantName }) {
+function notifyRefundRejected({ client: _c, refund, merchantName }) {
+  const client = decryptClient(_c);
   if (!client?.phone && !client?.email) return;
 
   const tpl = templates.refund_rejected({
@@ -1503,7 +1525,8 @@ function notifyDisbursementFailed({ merchant, disbursement, errorMessage }) {
 /**
  * Notifie le client de l'expiration d'une transaction (SMS uniquement).
  */
-function notifyTransactionExpired({ client, transaction }) {
+function notifyTransactionExpired({ client: _c, transaction }) {
+  const client = decryptClient(_c);
   if (!client?.phone) return;
 
   const tpl = templates.transaction_expired({
@@ -1590,7 +1613,8 @@ function notifyAccountSuspended({ merchant, reason }) {
 /**
  * Notifie le marchand d'une nouvelle demande de remboursement client.
  */
-function notifyRefundRequested({ merchant, client, transaction, refundId, reason }) {
+function notifyRefundRequested({ merchant, client: _c, transaction, refundId, reason }) {
+  const client = decryptClient(_c);
   if (!merchant?.email && !merchant?.phone) return;
 
   const tpl = templates.refund_requested({
@@ -1629,7 +1653,8 @@ function notifyRefundRequested({ merchant, client, transaction, refundId, reason
 /**
  * Notifie l'admin de l'ouverture d'un nouveau litige.
  */
-function notifyDisputeOpened({ dispute, transaction, merchant, client, initiatedBy }) {
+function notifyDisputeOpened({ dispute, transaction, merchant, client: _c, initiatedBy }) {
+  const client = decryptClient(_c);
   const adminEmail = process.env.ADMIN_ALERT_EMAIL;
   if (!adminEmail) return;
 
@@ -1660,7 +1685,8 @@ function notifyDisputeOpened({ dispute, transaction, merchant, client, initiated
  * Notifications de requalification statut (CDC v3 §2.4.3)
  * Envoyées J-90, J-30, J-7 avant évaluation, J+1 après
  */
-function notifyRequalificationReminder({ client, daysRemaining, currentStatus, pointsNeeded }) {
+function notifyRequalificationReminder({ client: _c, daysRemaining, currentStatus, pointsNeeded }) {
+  const client = decryptClient(_c);
   setImmediate(async () => {
     try {
       const statusLabel = currentStatus || 'votre statut';

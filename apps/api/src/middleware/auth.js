@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../lib/db');
+const { JWT } = require('../config/constants');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afrikfid-secret-key';
 const redis = require('../lib/redis');
@@ -177,7 +178,7 @@ async function requireAuth(req, res, next) {
 function generateTokens(payload) {
   const jtiAccess = crypto.randomBytes(16).toString('hex');
   const jtiRefresh = crypto.randomBytes(16).toString('hex');
-  const accessToken = jwt.sign({ ...payload, jti: jtiAccess }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '2h' });
+  const accessToken = jwt.sign({ ...payload, jti: jtiAccess }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || JWT.ACCESS_EXPIRY });
   const refreshToken = jwt.sign({ ...payload, type: 'refresh', jti: jtiRefresh }, JWT_SECRET, { expiresIn: '7d' });
   return { accessToken, refreshToken };
 }

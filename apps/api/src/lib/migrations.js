@@ -931,6 +931,17 @@ const MIGRATIONS = [
       ALTER TABLE loyalty_status_history ADD COLUMN IF NOT EXISTS notified_j1 TIMESTAMPTZ;
     `,
   },
+  {
+    version: 26,
+    name: '026_client_2fa',
+    up: `
+      -- 2FA TOTP pour clients (CDC §5.4.2 — authentification forte multi-acteurs)
+      -- Présent pour admins (migration 010) et marchands (migration 020), manquant pour clients
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {
@@ -949,7 +960,9 @@ async function runMigrations() {
   `);
 
   const currentVersion = await getCurrentVersion();
-  const pending = MIGRATIONS.filter(m => m.version > currentVersion);
+  const pending = MIGRATIONS
+    .filter(m => m.version > currentVersion)
+    .sort((a, b) => a.version - b.version);
 
   if (pending.length === 0) {
     console.log(`[DB] Base de données à jour (version ${currentVersion})`);

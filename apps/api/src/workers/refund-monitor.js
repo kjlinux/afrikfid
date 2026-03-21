@@ -43,7 +43,7 @@ async function checkOverdueRefunds() {
   // Audit log
   for (const refund of overdueRefunds) {
     await db.query(
-      `INSERT INTO audit_logs (id, action, entity_type, entity_id, actor_type, actor_id, metadata, created_at)
+      `INSERT INTO audit_logs (id, action, resource_type, resource_id, actor_type, actor_id, payload, created_at)
        VALUES ($1, 'refund.overdue', 'refund', $2, 'system', 'refund-monitor', $3, NOW())`,
       [uuidv4(), refund.id, JSON.stringify({
         tx_reference: refund.tx_reference,

@@ -23,57 +23,46 @@ export default function AdminChurnAlerts() {
 
   useEffect(() => { load() }, [page])
 
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155', textAlign: 'left' }
+  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Alertes Churn</h1>
-        <button onClick={load} className="text-sm text-blue-600 hover:underline">Actualiser</button>
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Alertes Churn</h1>
+        <button onClick={load} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Actualiser</button>
       </div>
 
-      <Card>
-        <div className="p-4 font-semibold text-gray-700 border-b">
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>
           Clients à risque de churn (segments A_RISQUE & HIBERNANTS)
         </div>
         {loading ? (
-          <div className="flex justify-center py-12"><Spinner /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
         ) : data.length === 0 ? (
-          <div className="text-center text-gray-500 py-12">Aucune alerte de churn en ce moment</div>
+          <div style={{ textAlign: 'center', color: '#64748b', padding: 40 }}>Aucune alerte de churn en ce moment</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Client', 'Marchand', 'Segment RFM', 'Score R', 'Score F', 'Score M', 'Dernier achat'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Client', 'Marchand', 'Segment RFM', 'Score R', 'Score F', 'Score M', 'Dernier achat'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
                 {data.map((row, i) => (
-                  <tr key={row.id || i} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.client_name || row.full_name || row.client_id}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.merchant_name || row.merchant_id}</td>
-                    <td className="px-4 py-3">
-                      <Badge color={SEGMENT_COLORS[row.segment] || 'gray'}>{row.segment}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono">{row.r_score ?? '—'}</td>
-                    <td className="px-4 py-3 text-center font-mono">{row.f_score ?? '—'}</td>
-                    <td className="px-4 py-3 text-center font-mono">{row.m_score ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {row.last_purchase_at ? new Date(row.last_purchase_at).toLocaleDateString('fr-FR') : '—'}
-                    </td>
+                  <tr key={row.id || i}>
+                    <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>{row.client_name || row.full_name || row.client_id}</td>
+                    <td style={td}>{row.merchant_name || row.merchant_id}</td>
+                    <td style={td}><Badge color={SEGMENT_COLORS[row.segment] || 'gray'}>{row.segment}</Badge></td>
+                    <td style={{ ...td, textAlign: 'center', fontFamily: 'monospace' }}>{row.r_score ?? '—'}</td>
+                    <td style={{ ...td, textAlign: 'center', fontFamily: 'monospace' }}>{row.f_score ?? '—'}</td>
+                    <td style={{ ...td, textAlign: 'center', fontFamily: 'monospace' }}>{row.m_score ?? '—'}</td>
+                    <td style={{ ...td, fontSize: 11 }}>{row.last_purchase_at ? new Date(row.last_purchase_at).toLocaleDateString('fr-FR') : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {total > limit && (
-          <div className="p-4 border-t">
-            <Pagination page={page} total={total} limit={limit} onChange={setPage} />
-          </div>
-        )}
-      </Card>
+        {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
+      </div>
     </div>
   )
 }

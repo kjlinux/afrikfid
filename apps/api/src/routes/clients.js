@@ -8,6 +8,7 @@ const { evaluateClientStatus, applyStatusChange } = require('../lib/loyalty-engi
 const { validate } = require('../middleware/validate');
 const { CreateClientSchema, UpdateClientProfileSchema, UpdateLoyaltyStatusSchema, LookupClientSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
+const { randomBytes } = require('crypto');
 const { notifyClientWelcome } = require('../lib/notifications');
 const { triggerBienvenue } = require('../lib/campaign-engine');
 
@@ -20,7 +21,7 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
   if (existing.rows[0]) return res.status(409).json({ error: 'Numéro de téléphone déjà enregistré' });
 
   const id = uuidv4();
-  const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
   const encPhone = encrypt(phone);
   const encEmail = email ? encrypt(email) : null;
@@ -70,7 +71,15 @@ router.get('/', requireAdmin, async (req, res) => {
   params.push(parseInt(limit), (page - 1) * limit);
 
   const clients = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM clients')).rows[0].c);
+  const countParams = params.slice(0, params.length - 2);
+  let countSql = `SELECT COUNT(*) as c FROM clients c WHERE 1=1`;
+  let ci = 1;
+  if (status) { countSql += ` AND c.loyalty_status = $${ci++}`; }
+  if (q) {
+    const qHash = hashField(q);
+    countSql += ` AND (c.full_name ILIKE $${ci++} OR c.phone_hash = $${ci++} OR c.email_hash = $${ci++} OR c.afrikfid_id ILIKE $${ci++})`;
+  }
+  const total = parseInt((await db.query(countSql, countParams)).rows[0].c);
 
   res.json({ clients: clients.map(sanitizeClient), total, page: parseInt(page), limit: parseInt(limit) });
 });
@@ -322,8 +331,8 @@ router.get('/:id/export', requireAuth, async (req, res) => {
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   const movements = (await db.query('SELECT * FROM wallet_movements WHERE wallet_id = $1 ORDER BY created_at DESC', [wallet?.id || ''])).rows;
   const transactions = (await db.query(
-    `SELECT id, reference, gross_amount, net_amount, merchant_rebate_percent, client_rebate_percent,
-            client_discount, platform_commission, currency, status, payment_method, initiated_at, completed_at
+    `SELECT id, reference, gross_amount, net_client_amount, merchant_rebate_percent, client_rebate_percent,
+            client_rebate_amount, platform_commission_amount, currency, status, payment_method, initiated_at, completed_at
      FROM transactions WHERE client_id = $1 ORDER BY initiated_at DESC`,
     [client.id]
   )).rows;
@@ -453,7 +462,7 @@ router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
 
   // Log audit
   await db.query(
-    `INSERT INTO audit_logs (id, actor_type, actor_id, action, entity_type, entity_id, metadata, created_at)
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, payload, created_at)
      VALUES ($1, 'client', $2, 'reward_points_spent', 'client', $2, $3, NOW())`,
     [uuidv4(), client.id, JSON.stringify({ points, amountFCFA, merchant_id, merchant_name: merchant.name })]
   );

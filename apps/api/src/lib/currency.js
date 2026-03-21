@@ -127,30 +127,20 @@ async function refreshExchangeRates() {
   let updated = 0;
 
   if (source === 'openexchangerates') {
-    // Base USD → calculer EUR/XOF/XAF/KES croisés
-    const usdToEUR = 1 / fetchedRates['EUR'] || 0.92;
-    const usdToXOF = fetchedRates['XOF'] || 655.957;
-    const usdToXAF = fetchedRates['XAF'] || 655.957;
-    const usdToKES = fetchedRates['KES'] || 145.0;
+    // Base USD : fetchedRates[X] = nombre d'unités de X pour 1 USD
+    // XOF→EUR = fetchedRates['EUR'] / fetchedRates['XOF']
+    const eurPerUsd = fetchedRates['EUR'] || 0.92;
+    const xofPerUsd = fetchedRates['XOF'] || 655.957;
+    const xafPerUsd = fetchedRates['XAF'] || 655.957;
+    const kesPerUsd = fetchedRates['KES'] || 145.0;
 
-    const crossRates = [
-      { from: 'XOF', to: 'EUR', rate: usdToEUR / usdToXOF * usdToXOF / usdToXOF * usdToEUR },
-      { from: 'XAF', to: 'EUR', rate: usdToEUR / usdToXAF * usdToXAF / usdToXAF * usdToEUR },
-      { from: 'KES', to: 'EUR', rate: usdToEUR / usdToKES * usdToKES / usdToKES * usdToEUR },
-      { from: 'EUR', to: 'XOF', rate: usdToXOF / (usdToEUR * usdToXOF) * usdToXOF },
-      { from: 'EUR', to: 'XAF', rate: usdToXAF / (usdToEUR * usdToXAF) * usdToXAF },
-      { from: 'EUR', to: 'KES', rate: usdToKES / (usdToEUR * usdToKES) * usdToKES },
-    ];
-
-    // Calcul simplifié correct
-    const xofToEur = (1 / usdToXOF) * (1 / usdToEUR) * 1;
     const simplePairs = [
-      { from: 'XOF', to: 'EUR', rate: usdToEUR / usdToXOF },
-      { from: 'XAF', to: 'EUR', rate: usdToEUR / usdToXAF },
-      { from: 'KES', to: 'EUR', rate: usdToEUR / usdToKES },
-      { from: 'EUR', to: 'XOF', rate: usdToXOF / usdToEUR },
-      { from: 'EUR', to: 'XAF', rate: usdToXAF / usdToEUR },
-      { from: 'EUR', to: 'KES', rate: usdToKES / usdToEUR },
+      { from: 'XOF', to: 'EUR', rate: eurPerUsd / xofPerUsd },
+      { from: 'XAF', to: 'EUR', rate: eurPerUsd / xafPerUsd },
+      { from: 'KES', to: 'EUR', rate: eurPerUsd / kesPerUsd },
+      { from: 'EUR', to: 'XOF', rate: xofPerUsd / eurPerUsd },
+      { from: 'EUR', to: 'XAF', rate: xafPerUsd / eurPerUsd },
+      { from: 'EUR', to: 'KES', rate: kesPerUsd / eurPerUsd },
     ];
 
     for (const p of simplePairs) {

@@ -14,6 +14,10 @@ const router = Router();
 router.get('/merchant/:merchantId', requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const { merchantId } = req.params;
+    // Isolation : un marchand ne peut consulter que ses propres scores RFM
+    if (req.merchant && req.merchant.id !== merchantId) {
+      return res.status(403).json({ error: 'Accès interdit aux scores RFM d\'un autre marchand' });
+    }
     const { segment, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
@@ -51,6 +55,9 @@ router.get('/merchant/:merchantId', requirePackage('GROWTH'), async (req, res, n
 // POST /rfm/merchant/:merchantId/calculate — recalcul RFM manuel (GROWTH+ requis)
 router.post('/merchant/:merchantId/calculate', requirePackage('GROWTH'), async (req, res, next) => {
   try {
+    if (req.merchant && req.merchant.id !== req.params.merchantId) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
     const count = await calculateMerchantRFM(req.params.merchantId);
     res.json({ message: `${count} clients scorés`, count });
   } catch (err) { next(err); }

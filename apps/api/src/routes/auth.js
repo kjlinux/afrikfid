@@ -502,8 +502,9 @@ router.post('/client/login', loginLimiter, async (req, res) => {
 router.post('/client/2fa/setup', require('../middleware/auth').requireClient, async (req, res) => {
   const client = req.client;
   if (client.totp_enabled) return res.status(400).json({ error: '2FA déjà activé' });
-  const secret = generateTotpSecret();
-  const qrCode = await generateQrCode(client.afrikfid_id || client.id, secret, "Afrik'Fid Client");
+  const identifier = client.afrikfid_id || client.id;
+  const { secret, otpauth_url } = generateTotpSecret(identifier);
+  const qrCode = await generateQrCode(otpauth_url);
   await db.query('UPDATE clients SET totp_secret = $1 WHERE id = $2', [secret, client.id]);
   res.json({ secret, qrCode, message: 'Scannez le QR code puis confirmez avec POST /auth/client/2fa/verify' });
 });

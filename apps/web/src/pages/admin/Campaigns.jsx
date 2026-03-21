@@ -71,114 +71,92 @@ export default function AdminCampaigns() {
     } catch { /* ignore */ }
   }
 
+  const th = { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155' }
+  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+  const tdBold = { ...td, color: '#f1f5f9', fontWeight: 600 }
+
   if (loading) return <Spinner />
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Campagnes & Triggers</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setTab('campaigns'); setPage(1) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'campaigns' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >Campagnes</button>
-          <button
-            onClick={() => { setTab('triggers'); setPage(1) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'triggers' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >Triggers</button>
-          <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Campagnes & Triggers</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['campaigns', 'triggers'].map(t => (
+            <button key={t} onClick={() => { setTab(t); setPage(1) }}
+              style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? '#6366f1' : '#1e293b', color: tab === t ? '#fff' : '#94a3b8' }}>
+              {t === 'campaigns' ? 'Campagnes' : 'Triggers'}
+            </button>
+          ))}
+          <button onClick={() => setShowModal(true)}
+            style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + {tab === 'campaigns' ? 'Campagne' : 'Trigger'}
           </button>
         </div>
       </div>
 
       {tab === 'campaigns' && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marchand</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Segment</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Canal</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cibles</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Envoyes</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Nom', 'Marchand', 'Segment', 'Canal', 'Cibles', 'Envoyés', 'Statut', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
                 {campaigns.map(c => (
                   <tr key={c.id}>
-                    <td className="px-4 py-3 text-sm font-medium">{c.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{c.merchant_name}</td>
-                    <td className="px-4 py-3"><Badge color="blue">{c.target_segment}</Badge></td>
-                    <td className="px-4 py-3 text-sm">{c.channel}</td>
-                    <td className="px-4 py-3 text-sm text-center">{c.total_targeted}</td>
-                    <td className="px-4 py-3 text-sm text-center">{c.total_sent}</td>
-                    <td className="px-4 py-3"><Badge color={STATUS_COLORS[c.status]}>{c.status}</Badge></td>
-                    <td className="px-4 py-3 text-sm">
+                    <td style={tdBold}>{c.name}</td>
+                    <td style={td}>{c.merchant_name}</td>
+                    <td style={td}><Badge color="blue">{c.target_segment}</Badge></td>
+                    <td style={td}>{c.channel}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{c.total_targeted}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{c.total_sent}</td>
+                    <td style={td}><Badge color={STATUS_COLORS[c.status]}>{c.status}</Badge></td>
+                    <td style={td}>
                       {(c.status === 'draft' || c.status === 'scheduled') && (
-                        <button onClick={() => executeCampaign(c.id)} className="text-green-600 hover:underline text-xs">Lancer</button>
+                        <button onClick={() => executeCampaign(c.id)} style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Lancer</button>
                       )}
                     </td>
                   </tr>
                 ))}
-                {campaigns.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Aucune campagne</td></tr>
-                )}
+                {campaigns.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', padding: 32 }}>Aucune campagne</td></tr>}
               </tbody>
             </table>
           </div>
           {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
-        </Card>
+        </div>
       )}
 
       {tab === 'triggers' && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marchand</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Segment cible</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Canal</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cooldown</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actif</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Type', 'Marchand', 'Segment cible', 'Canal', 'Cooldown', 'Actif', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
                 {triggers.map(t => (
                   <tr key={t.id}>
-                    <td className="px-4 py-3 text-sm font-medium">{t.trigger_type}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{t.merchant_name}</td>
-                    <td className="px-4 py-3 text-sm">{t.target_segment || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{t.channel}</td>
-                    <td className="px-4 py-3 text-sm">{t.cooldown_hours}h</td>
-                    <td className="px-4 py-3"><Badge color={t.is_active ? 'green' : 'red'}>{t.is_active ? 'Oui' : 'Non'}</Badge></td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => toggleTrigger(t.id, t.is_active)} className="text-blue-600 hover:underline text-xs">
-                        {t.is_active ? 'Desactiver' : 'Activer'}
+                    <td style={tdBold}>{t.trigger_type}</td>
+                    <td style={td}>{t.merchant_name}</td>
+                    <td style={td}>{t.target_segment || '—'}</td>
+                    <td style={td}>{t.channel}</td>
+                    <td style={td}>{t.cooldown_hours}h</td>
+                    <td style={td}><Badge color={t.is_active ? 'green' : 'red'}>{t.is_active ? 'Oui' : 'Non'}</Badge></td>
+                    <td style={td}>
+                      <button onClick={() => toggleTrigger(t.id, t.is_active)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        {t.is_active ? 'Désactiver' : 'Activer'}
                       </button>
                     </td>
                   </tr>
                 ))}
-                {triggers.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Aucun trigger</td></tr>
-                )}
+                {triggers.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', padding: 32 }}>Aucun trigger</td></tr>}
               </tbody>
             </table>
           </div>
           {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
-        </Card>
+        </div>
       )}
 
       {showModal && (
         <Modal onClose={() => setShowModal(false)} title={tab === 'campaigns' ? 'Nouvelle campagne' : 'Nouveau trigger'}>
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Select value={form.merchant_id} onChange={e => setForm({ ...form, merchant_id: e.target.value })}>
               <option value="">Marchand</option>
               {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -208,15 +186,13 @@ export default function AdminCampaigns() {
               <option value="email">Email</option>
             </Select>
             <textarea
-              className="w-full border rounded-lg p-3 text-sm"
               rows={3}
               placeholder="Message template ({client_name}, {merchant_name})"
               value={form.message_template}
               onChange={e => setForm({ ...form, message_template: e.target.value })}
+              style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
-            <Button onClick={tab === 'campaigns' ? createCampaign : createTrigger}>
-              Creer
-            </Button>
+            <Button onClick={tab === 'campaigns' ? createCampaign : createTrigger}>Créer</Button>
           </div>
         </Modal>
       )}

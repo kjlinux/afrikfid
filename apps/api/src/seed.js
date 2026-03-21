@@ -229,14 +229,11 @@ async function seed() {
   // ─── Fraud Rules ───────────────────────────────────────────────────────────
   try {
     const fraudRulesData = [
-      { name: 'Montant maximum par transaction',     rule_type: 'max_amount',     value: '500000', is_active: true },
-      { name: 'Vélocité 3h (max 5 transactions)',    rule_type: 'velocity_3h',    value: '5',      is_active: true },
-      { name: 'Vélocité 24h (max 15 transactions)',  rule_type: 'velocity_24h',   value: '15',     is_active: true },
-      { name: 'Blacklist numéros bloqués',           rule_type: 'phone_blacklist',value: 'active', is_active: true },
-      { name: 'Risque pays élevé (NE, TD)',          rule_type: 'country_risk',   value: 'NE,TD',  is_active: true },
-      { name: 'Détection anomalie (Z-score > 3σ)',   rule_type: 'anomaly_zscore', value: '3',      is_active: false },
-      { name: 'Multi-opérateur simultané (max 2)',   rule_type: 'multi_operator', value: '2',      is_active: true },
-      { name: 'Nouveau client gros montant (100k)',  rule_type: 'new_client_cap', value: '100000', is_active: true },
+      { name: 'Montant maximum par transaction',      rule_type: 'max_amount_per_tx',   value: '500000',  is_active: true },
+      { name: 'Transactions max par heure',           rule_type: 'max_tx_per_hour',     value: '10',      is_active: true },
+      { name: 'Transactions max par jour',            rule_type: 'max_tx_per_day',      value: '30',      is_active: true },
+      { name: 'Volume max par jour',                  rule_type: 'max_amount_per_day',  value: '10000000',is_active: true },
+      { name: 'Tentatives échouées max (24h)',        rule_type: 'max_failed_attempts', value: '5',       is_active: true },
     ];
     for (const r of fraudRulesData) {
       await db.query(

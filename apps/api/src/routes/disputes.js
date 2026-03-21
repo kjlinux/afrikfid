@@ -210,7 +210,10 @@ router.get('/client/mine', requireClient, async (req, res) => {
   sql += ` ORDER BY d.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (page - 1) * limit);
   const disputes = (await db.query(sql, params)).rows;
-  const total = parseInt((await db.query('SELECT COUNT(*) as c FROM disputes WHERE client_id = $1', [req.client.id])).rows[0].c);
+  const countP = [req.client.id];
+  let countSql = `SELECT COUNT(*) as c FROM disputes WHERE client_id = $1`;
+  if (status) { countSql += ` AND status = $2`; countP.push(status); }
+  const total = parseInt((await db.query(countSql, countP)).rows[0].c);
   res.json({ disputes, total });
 });
 

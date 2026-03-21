@@ -4,6 +4,7 @@ const { pool } = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const { TRIGGER_TYPES, ABANDON_PROTOCOL_STEPS } = require('../config/constants');
 const { sendSMS, sendEmail } = require('./notifications');
+const { decrypt } = require('./crypto');
 
 /**
  * Vérifie le cooldown d'un trigger pour un client
@@ -25,10 +26,16 @@ async function fireTrigger(trigger, client) {
   const canFire = await canFireTrigger(trigger.id, client.id, trigger.cooldown_hours || 24);
   if (!canFire) return null;
 
+  // Déchiffrer phone/email (stockés chiffrés AES-256-GCM en base)
+  let rawPhone = null;
+  let rawEmail = null;
+  try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { rawPhone = null; }
+  try { rawEmail = client.email ? decrypt(client.email) : null; } catch { rawEmail = null; }
+
   const message = (trigger.message_template || '')
     .replace('{client_name}', client.full_name || '')
     .replace('{merchant_name}', trigger.merchant_name || '')
-    .replace('{phone}', client.phone || '');
+    .replace('{phone}', rawPhone || '');
 
   const logId = uuidv4();
   await pool.query(
@@ -38,10 +45,10 @@ async function fireTrigger(trigger, client) {
   );
 
   try {
-    if (trigger.channel === 'email' && client.email) {
-      await sendEmail(client.email, `Afrik'Fid — ${trigger.trigger_type}`, message);
-    } else if (client.phone) {
-      await sendSMS(client.phone, message);
+    if (trigger.channel === 'email' && rawEmail) {
+      await sendEmail(rawEmail, `Afrik'Fid — ${trigger.trigger_type}`, message);
+    } else if (rawPhone) {
+      await sendSMS(rawPhone, message);
     }
     await pool.query("UPDATE trigger_logs SET status = 'sent', sent_at = NOW() WHERE id = $1", [logId]);
     return logId;
@@ -188,11 +195,16 @@ async function executeCampaign(campaignId) {
       [actionId, campaignId, client.id]
     );
 
+    let rawPhone = null;
+    let rawEmail = null;
+    try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { rawPhone = null; }
+    try { rawEmail = client.email ? decrypt(client.email) : null; } catch { rawEmail = null; }
+
     try {
-      if (c.channel === 'email' && client.email) {
-        await sendEmail(client.email, `${c.name}`, message);
-      } else if (client.phone) {
-        await sendSMS(client.phone, message);
+      if (c.channel === 'email' && rawEmail) {
+        await sendEmail(rawEmail, `${c.name}`, message);
+      } else if (rawPhone) {
+        await sendSMS(rawPhone, message);
       }
       await pool.query("UPDATE campaign_actions SET status = 'sent', sent_at = NOW() WHERE id = $1", [actionId]);
       sent++;
@@ -267,8 +279,10 @@ async function runAbandonProtocol() {
       const message = step.message
         .replace('{client_name}', row.full_name || '')
         .replace('{merchant_name}', row.merchant_name || '');
-      if (row.phone) {
-        try { await sendSMS(row.phone, message); } catch { /* ignore */ }
+      let rawPhone = null;
+      try { rawPhone = row.phone ? decrypt(row.phone) : null; } catch { /* chiffrement corrompu */ }
+      if (rawPhone) {
+        try { await sendSMS(rawPhone, message); } catch { /* ignore */ }
       }
     }
     actionsCount++;
@@ -320,8 +334,10 @@ async function runAbandonProtocol() {
         const message = nextStep.message
           .replace('{client_name}', tracking.full_name || '')
           .replace('{merchant_name}', tracking.merchant_name || '');
-        if (tracking.phone) {
-          try { await sendSMS(tracking.phone, message); } catch { /* ignore */ }
+        let rawPhone = null;
+        try { rawPhone = tracking.phone ? decrypt(tracking.phone) : null; } catch { /* chiffrement corrompu */ }
+        if (rawPhone) {
+          try { await sendSMS(rawPhone, message); } catch { /* ignore */ }
         }
       }
     }

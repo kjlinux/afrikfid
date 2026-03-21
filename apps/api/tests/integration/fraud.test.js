@@ -23,7 +23,10 @@ async function clearData() {
 
 async function getAdminToken() {
   const hash = await bcrypt.hash('admin123', 8);
-  db.prepare("INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ('adm-fraud', 'admin@fraud.ci', ?, 'super_admin', 'Admin Test')").run(hash);
+  await db.query(
+    "INSERT INTO admins (id, email, password_hash, role, full_name) VALUES ('adm-fraud', 'admin@fraud.ci', $1, 'super_admin', 'Admin Test') ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+    [hash]
+  );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@fraud.ci', password: 'admin123' });
   return res.body.accessToken;
 }
@@ -32,7 +35,7 @@ describe('Fraude — Règles anti-fraude', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
   });
 
@@ -123,7 +126,7 @@ describe('Fraude — Blacklist téléphones', () => {
   let adminToken;
 
   beforeEach(async () => {
-    clearData();
+    await clearData();
     adminToken = await getAdminToken();
   });
 

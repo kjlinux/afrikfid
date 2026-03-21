@@ -46,11 +46,15 @@ export default function AdminRFM() {
     }).finally(() => setLoading(false))
   }
 
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155' }
+  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+  const card = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Segmentation RFM</h1>
-        <div className="flex gap-2">
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Segmentation RFM</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
           <Select value={selectedMerchant} onChange={e => { setSelectedMerchant(e.target.value); setPage(1) }}>
             <option value="">Choisir un marchand</option>
             {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -60,7 +64,7 @@ export default function AdminRFM() {
             {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
           {selectedMerchant && (
-            <button onClick={recalculate} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+            <button onClick={recalculate} style={{ padding: '8px 14px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Recalculer
             </button>
           )}
@@ -68,77 +72,69 @@ export default function AdminRFM() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <div className="text-sm text-gray-500">Clients scores</div>
-            <div className="text-2xl font-bold">{stats.total_clients}</div>
-          </Card>
-          <Card>
-            <div className="text-sm text-gray-500">Marchands</div>
-            <div className="text-2xl font-bold">{stats.total_merchants}</div>
-          </Card>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+          {[{ label: 'Clients scorés', value: stats.total_clients }, { label: 'Marchands', value: stats.total_merchants }].map(k => (
+            <div key={k.label} style={card}>
+              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{k.value}</div>
+            </div>
+          ))}
           {(stats.segments || []).slice(0, 2).map(s => (
-            <Card key={s.segment}>
-              <div className="text-sm text-gray-500">{s.segment}</div>
-              <div className="text-2xl font-bold"><Badge color={SEG_COLORS[s.segment]}>{s.count}</Badge></div>
-            </Card>
+            <div key={s.segment} style={card}>
+              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{s.segment}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{s.count}</div>
+            </div>
           ))}
         </div>
       )}
 
-      {stats && stats.segments && (
-        <Card className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Répartition globale</h2>
-          <div className="flex flex-wrap gap-3">
+      {stats?.segments && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Répartition globale</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {stats.segments.map(s => (
-              <div key={s.segment} className="flex items-center gap-2">
+              <div key={s.segment} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Badge color={SEG_COLORS[s.segment]}>{s.segment}</Badge>
-                <span className="text-sm font-medium">{s.count}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{s.count}</span>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {loading && <Spinner />}
 
       {selectedMerchant && !loading && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">R</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">F</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">M</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Segment</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Achats</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Client', 'R', 'F', 'M', 'Total', 'Segment', 'Achats', 'Montant'].map((h, i) => (
+                  <th key={h} style={{ ...th, textAlign: i > 0 ? 'center' : 'left' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
                 {scores.map(s => (
                   <tr key={s.id}>
-                    <td className="px-4 py-3 text-sm font-medium">{s.full_name}<br/><span className="text-xs text-gray-400">{s.afrikfid_id}</span></td>
-                    <td className="px-4 py-3 text-center text-sm font-bold">{s.r_score}</td>
-                    <td className="px-4 py-3 text-center text-sm font-bold">{s.f_score}</td>
-                    <td className="px-4 py-3 text-center text-sm font-bold">{s.m_score}</td>
-                    <td className="px-4 py-3 text-center text-sm font-bold text-indigo-600">{s.rfm_total}</td>
-                    <td className="px-4 py-3"><Badge color={SEG_COLORS[s.segment]}>{s.segment}</Badge></td>
-                    <td className="px-4 py-3 text-sm text-right">{s.purchase_count}</td>
-                    <td className="px-4 py-3 text-sm text-right">{Number(s.total_amount).toLocaleString()} FCFA</td>
+                    <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>
+                      {s.full_name}<br/>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>{s.afrikfid_id}</span>
+                    </td>
+                    <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.r_score}</td>
+                    <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.f_score}</td>
+                    <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.m_score}</td>
+                    <td style={{ ...td, textAlign: 'center', fontWeight: 800, color: '#6366f1' }}>{s.rfm_total}</td>
+                    <td style={td}><Badge color={SEG_COLORS[s.segment]}>{s.segment}</Badge></td>
+                    <td style={{ ...td, textAlign: 'right' }}>{s.purchase_count}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{Number(s.total_amount).toLocaleString()} FCFA</td>
                   </tr>
                 ))}
-                {scores.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Aucun score RFM</td></tr>
-                )}
+                {scores.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', padding: 32 }}>Aucun score RFM</td></tr>}
               </tbody>
             </table>
           </div>
           {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
-        </Card>
+        </div>
       )}
     </div>
   )

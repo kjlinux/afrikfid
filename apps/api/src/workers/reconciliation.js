@@ -55,7 +55,7 @@ async function runReconciliation() {
   // 3. Vérifier transactions pending > 24h (possiblement orphelines)
   const orphanTx = await pool.query(`
     SELECT COUNT(*) AS c FROM transactions
-    WHERE status = 'pending' AND created_at < NOW() - INTERVAL '24 hours'
+    WHERE status = 'pending' AND initiated_at < NOW() - INTERVAL '24 hours'
   `);
   const orphanCount = parseInt(orphanTx.rows[0].c);
   const orphanCheck = {
@@ -107,7 +107,7 @@ async function runReconciliation() {
   // Persister le rapport
   try {
     await pool.query(
-      `INSERT INTO audit_logs (id, action, actor_type, actor_id, details, created_at)
+      `INSERT INTO audit_logs (id, action, actor_type, actor_id, payload, created_at)
        VALUES ($1, 'RECONCILIATION', 'system', 'reconciliation-worker', $2, NOW())`,
       [require('uuid').v4(), JSON.stringify(report)]
     );
