@@ -61,7 +61,7 @@ export default function AdminChurnAlerts() {
             </table>
           </div>
         )}
-        {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
+        {total > limit && <Pagination page={page} total={total} limit={limit} onPage={setPage} />}
       </div>
     </div>
   )

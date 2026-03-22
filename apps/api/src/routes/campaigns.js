@@ -7,6 +7,12 @@ const { executeCampaign } = require('../lib/campaign-engine');
 const { RFM_SEGMENTS, TRIGGER_TYPES } = require('../config/constants');
 const { requirePackage } = require('../middleware/require-package');
 const { requireAdmin, requireAuth, requireMerchant } = require('../middleware/auth');
+const { decrypt } = require('../lib/crypto');
+
+function safeDecrypt(val) {
+  if (!val) return null;
+  try { return decrypt(val); } catch { return null; }
+}
 
 const router = Router();
 
@@ -139,7 +145,10 @@ router.get('/triggers/:id/logs', requireAuth, async (req, res, next) => {
        WHERE tl.trigger_id = $1 ORDER BY tl.created_at DESC LIMIT $2 OFFSET $3`,
       [req.params.id, limit, offset]
     );
-    res.json({ logs: rows.rows, total: Number(countRes.rows[0].total) });
+    res.json({
+      logs: rows.rows.map(r => ({ ...r, phone: safeDecrypt(r.phone) })),
+      total: Number(countRes.rows[0].total),
+    });
   } catch (err) { next(err); }
 });
 
@@ -251,7 +260,7 @@ router.get('/abandon', requireAuth, requirePackage('GROWTH'), async (req, res, n
     );
 
     res.json({
-      data: rows.rows,
+      data: rows.rows.map(r => ({ ...r, phone: safeDecrypt(r.phone) })),
       pagination: { page: +page, limit: +limit, total: +total.rows[0].c },
     });
   } catch (err) { next(err); }
@@ -310,7 +319,7 @@ router.get('/churn-alerts', requireAuth, requirePackage('GROWTH'), async (req, r
     );
 
     res.json({
-      data: rows.rows,
+      data: rows.rows.map(r => ({ ...r, phone: safeDecrypt(r.phone) })),
       pagination: { page: +page, limit: +limit, total: +total.rows[0].c },
     });
   } catch (err) { next(err); }

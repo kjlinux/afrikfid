@@ -233,7 +233,7 @@ export default function AdminRefunds() {
         )}
         {total > LIMIT && (
           <div style={{ marginTop: 16 }}>
-            <Pagination page={page} totalPages={Math.ceil(total / LIMIT)} onPageChange={setPage} />
+            <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
           </div>
         )}
       </Card>

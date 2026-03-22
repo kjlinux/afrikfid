@@ -7,6 +7,12 @@ const { calculateMerchantRFM, getMerchantRFMStats } = require('../lib/rfm-engine
 const { RFM_SEGMENTS, MERCHANT_SECTORS } = require('../config/constants');
 const { requirePackage } = require('../middleware/require-package');
 const { requireAdmin, requireAuth } = require('../middleware/auth');
+const { decrypt } = require('../lib/crypto');
+
+function safeDecrypt(val) {
+  if (!val) return null;
+  try { return decrypt(val); } catch { return null; }
+}
 
 const router = Router();
 
@@ -43,7 +49,7 @@ router.get('/merchant/:merchantId', requirePackage('GROWTH'), async (req, res, n
     const stats = await getMerchantRFMStats(merchantId);
 
     res.json({
-      scores: scores.rows,
+      scores: scores.rows.map(r => ({ ...r, phone: safeDecrypt(r.phone) })),
       total: Number(countRes.rows[0].total),
       stats,
       page: Number(page),

@@ -26,8 +26,8 @@ export default function AdminAbandonProtocol() {
       api.get('/campaigns/abandon', { params: { page, limit } }),
       api.get('/campaigns/abandon/stats').catch(() => ({ data: null })),
     ]).then(([res, statsRes]) => {
-      setData(res.data.trackings || [])
-      setTotal(res.data.total || 0)
+      setData(res.data.data || res.data.trackings || [])
+      setTotal(res.data.pagination?.total || res.data.total || 0)
       setStats(statsRes.data)
     }).finally(() => setLoading(false))
   }
@@ -89,7 +89,7 @@ export default function AdminAbandonProtocol() {
             </table>
           </div>
         )}
-        {total > limit && <Pagination page={page} total={total} limit={limit} onChange={setPage} />}
+        {total > limit && <Pagination page={page} total={total} limit={limit} onPage={setPage} />}
       </div>
     </div>
   )
