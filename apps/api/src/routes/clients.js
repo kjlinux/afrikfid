@@ -50,16 +50,21 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
 
 // GET /api/v1/clients (admin)
 router.get('/', requireAdmin, async (req, res) => {
-  const { status, page = 1, limit = 20, q } = req.query;
+  const { status, rfm_segment, page = 1, limit = 20, q } = req.query;
   let sql = `
-    SELECT c.*, co.name as country_name, co.currency
-    FROM clients c LEFT JOIN countries co ON c.country_id = co.id
+    SELECT c.*, co.name as country_name, co.currency, rs.segment as rfm_segment
+    FROM clients c
+    LEFT JOIN countries co ON c.country_id = co.id
+    LEFT JOIN LATERAL (
+      SELECT segment FROM rfm_scores WHERE client_id = c.id ORDER BY calculated_at DESC LIMIT 1
+    ) rs ON TRUE
     WHERE 1=1
   `;
   const params = [];
   let idx = 1;
 
   if (status) { sql += ` AND c.loyalty_status = $${idx++}`; params.push(status); }
+  if (rfm_segment) { sql += ` AND rs.segment = $${idx++}`; params.push(rfm_segment); }
   if (q) {
     // phone et email sont chiffrés AES-256-GCM — recherche via leur hash HMAC-SHA256
     const qHash = hashField(q);
@@ -72,16 +77,17 @@ router.get('/', requireAdmin, async (req, res) => {
 
   const clients = (await db.query(sql, params)).rows;
   const countParams = params.slice(0, params.length - 2);
-  let countSql = `SELECT COUNT(*) as c FROM clients c WHERE 1=1`;
+  let countSql = `SELECT COUNT(*) as c FROM clients c LEFT JOIN LATERAL (SELECT segment FROM rfm_scores WHERE client_id = c.id ORDER BY calculated_at DESC LIMIT 1) rs ON TRUE WHERE 1=1`;
   let ci = 1;
   if (status) { countSql += ` AND c.loyalty_status = $${ci++}`; }
+  if (rfm_segment) { countSql += ` AND rs.segment = $${ci++}`; }
   if (q) {
     const qHash = hashField(q);
     countSql += ` AND (c.full_name ILIKE $${ci++} OR c.phone_hash = $${ci++} OR c.email_hash = $${ci++} OR c.afrikfid_id ILIKE $${ci++})`;
   }
   const total = parseInt((await db.query(countSql, countParams)).rows[0].c);
 
-  res.json({ clients: clients.map(sanitizeClient), total, page: parseInt(page), limit: parseInt(limit) });
+  res.json({ clients: clients.map(c => ({ ...sanitizeClient(c), rfmSegment: c.rfm_segment || null })), total, page: parseInt(page), limit: parseInt(limit) });
 });
 
 // Helper : vérifie que le demandeur est autorisé à accéder aux données d'un client donné.
@@ -158,11 +164,39 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     try { emailDecrypted = decrypt(client.email); } catch { /* ignore */ }
   }
 
+  // RFM + triggers + abandon (admin ou client lui-même)
+  const isOwnerOrAdmin = req.admin || (req.client && req.client.id === client.id);
+  let rfmSegment = null, triggerHistory = [], abandonInfo = null;
+  if (isOwnerOrAdmin) {
+    const rfmRes = (await db.query(
+      'SELECT segment, r_score, f_score, m_score, calculated_at FROM rfm_scores WHERE client_id = $1 ORDER BY calculated_at DESC LIMIT 1',
+      [client.id]
+    )).rows[0] || null;
+    rfmSegment = rfmRes;
+
+    triggerHistory = (await db.query(
+      `SELECT tl.trigger_type, tl.channel, tl.status, tl.sent_at, m.name as merchant_name
+       FROM trigger_logs tl LEFT JOIN merchants m ON m.id = tl.merchant_id
+       WHERE tl.client_id = $1 ORDER BY tl.created_at DESC LIMIT 10`,
+      [client.id]
+    )).rows;
+
+    abandonInfo = (await db.query(
+      `SELECT at2.*, m.name as merchant_name FROM abandon_tracking at2
+       LEFT JOIN merchants m ON m.id = at2.merchant_id
+       WHERE at2.client_id = $1 AND at2.status = 'active' LIMIT 1`,
+      [client.id]
+    )).rows[0] || null;
+  }
+
   res.json({
     client: { ...sanitizeClient(client), email: emailDecrypted },
     wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
     stats: txStats,
     nextStatusEligibility,
+    rfmSegment,
+    triggerHistory,
+    abandonInfo,
   });
 });
 

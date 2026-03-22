@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import api from '../../api.js'
 
-const BADGE = { OPEN: { color: '#6B7280', bg: 'rgba(107,114,128,0.15)' }, LIVE: { color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' }, GOLD: { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' }, ROYAL: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' } }
-const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const BADGE = { OPEN: { color: '#6B7280', bg: 'rgba(107,114,128,0.15)' }, LIVE: { color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' }, GOLD: { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' }, ROYAL: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' }, ROYAL_ELITE: { color: '#ec4899', bg: 'rgba(236,72,153,0.15)' } }
+const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
 export default function AdminClients() {
@@ -12,6 +14,7 @@ export default function AdminClients() {
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [rfmFilter, setRfmFilter] = useState('')
   const [selected, setSelected] = useState(null)
   const [clientDetail, setClientDetail] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -31,6 +34,7 @@ export default function AdminClients() {
     const params = new URLSearchParams({ page, limit: 15 })
     if (q) params.set('q', q)
     if (statusFilter) params.set('status', statusFilter)
+    if (rfmFilter) params.set('rfm_segment', rfmFilter)
     api.get(`/clients?${params}`).then(r => {
       setClients(r.data.clients)
       setTotal(r.data.total)
@@ -38,7 +42,7 @@ export default function AdminClients() {
     })
   }
 
-  useEffect(() => { load() }, [page, q, statusFilter])
+  useEffect(() => { load() }, [page, q, statusFilter, rfmFilter])
 
   const openDetail = async client => {
     setSelected(client)
@@ -121,6 +125,17 @@ export default function AdminClients() {
           <option value="LIVE">Live</option>
           <option value="GOLD">Gold</option>
           <option value="ROYAL">Royal</option>
+          <option value="ROYAL_ELITE">Royal Élite</option>
+        </select>
+        <select value={rfmFilter} onChange={e => { setRfmFilter(e.target.value); setPage(1) }}
+          style={{ padding: '10px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 14 }}>
+          <option value="">Tous segments RFM</option>
+          <option value="CHAMPIONS">Champions</option>
+          <option value="FIDELES">Fidèles</option>
+          <option value="PROMETTEURS">Prometteurs</option>
+          <option value="A_RISQUE">À Risque</option>
+          <option value="HIBERNANTS">Hibernants</option>
+          <option value="PERDUS">Perdus</option>
         </select>
       </div>
 
@@ -138,7 +153,7 @@ export default function AdminClients() {
           </colgroup>
           <thead>
             <tr style={{ background: '#0f172a' }}>
-              {['ID Afrik\'Fid', 'Nom', 'Téléphone', 'Statut', 'Achats', 'Volume', 'Wallet', 'Actions'].map(h => (
+              {['ID Afrik\'Fid', 'Nom', 'Téléphone', 'Statut', 'Segment RFM', 'Achats', 'Volume', 'Wallet', 'Actions'].map(h => (
                 <th key={h} style={{ padding: '11px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden' }}>{h}</th>
               ))}
             </tr>
@@ -158,6 +173,13 @@ export default function AdminClients() {
                     <span style={{ background: badge.bg, color: badge.color, padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
                       {c.loyaltyStatus}
                     </span>
+                  </td>
+                  <td style={{ ...tdBase }}>
+                    {c.rfmSegment ? (
+                      <span style={{ background: `${RFM_COLORS[c.rfmSegment] || '#6B7280'}22`, color: RFM_COLORS[c.rfmSegment] || '#6B7280', padding: '3px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700 }}>
+                        {RFM_LABELS[c.rfmSegment] || c.rfmSegment}
+                      </span>
+                    ) : <span style={{ color: '#334155', fontSize: 11 }}>—</span>}
                   </td>
                   <td style={{ ...tdBase, fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>{c.totalPurchases}</td>
                   <td style={{ ...tdBase, fontSize: 13, color: '#f59e0b', fontWeight: 600 }}>{fmt(c.totalAmount)}</td>
@@ -294,6 +316,45 @@ export default function AdminClients() {
                         {(clientDetail.client?.consecutiveRoyalYears ?? 0) >= 3 ? '💎 ROYAL ELITE éligible' : `${3 - (clientDetail.client?.consecutiveRoyalYears ?? 0)} an(s) restant(s) pour ROYAL ELITE`}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Segment RFM (CDC §5.3) */}
+                {clientDetail.rfmSegment && (
+                  <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Segment RFM</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ background: `${RFM_COLORS[clientDetail.rfmSegment.segment] || '#6B7280'}22`, color: RFM_COLORS[clientDetail.rfmSegment.segment] || '#6B7280', padding: '5px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700 }}>
+                        {RFM_LABELS[clientDetail.rfmSegment.segment] || clientDetail.rfmSegment.segment}
+                      </span>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        R:{clientDetail.rfmSegment.r_score} F:{clientDetail.rfmSegment.f_score} M:{clientDetail.rfmSegment.m_score}
+                      </div>
+                    </div>
+                    {clientDetail.abandonInfo && (
+                      <div style={{ marginTop: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: '#ef4444' }}>
+                        Protocole abandon — étape {clientDetail.abandonInfo.current_step}/5 chez {clientDetail.abandonInfo.merchant_name}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Historique triggers (CDC §5.4) */}
+                {clientDetail.triggerHistory?.length > 0 && (
+                  <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Derniers triggers automatiques</div>
+                    {clientDetail.triggerHistory.map((t, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: 11 }}>
+                        <div>
+                          <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{t.trigger_type}</span>
+                          {t.merchant_name && <span style={{ color: '#64748b', marginLeft: 6 }}>({t.merchant_name})</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ color: t.status === 'sent' ? '#10b981' : '#ef4444', fontSize: 10 }}>{t.status}</span>
+                          <span style={{ color: '#475569', fontSize: 10 }}>{t.sent_at ? new Date(t.sent_at).toLocaleDateString('fr-FR') : '—'}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 

@@ -108,32 +108,35 @@ router.get('/overview', requireAdmin, async (req, res) => {
   const conversionStats = (await db.query(`
     SELECT
       COUNT(*) as total_clients,
-      COUNT(CASE WHEN loyalty_status = 'OPEN'  THEN 1 END) as open_count,
-      COUNT(CASE WHEN loyalty_status = 'LIVE'  THEN 1 END) as live_count,
-      COUNT(CASE WHEN loyalty_status = 'GOLD'  THEN 1 END) as gold_count,
-      COUNT(CASE WHEN loyalty_status = 'ROYAL' THEN 1 END) as royal_count,
+      COUNT(CASE WHEN loyalty_status = 'OPEN'         THEN 1 END) as open_count,
+      COUNT(CASE WHEN loyalty_status = 'LIVE'         THEN 1 END) as live_count,
+      COUNT(CASE WHEN loyalty_status = 'GOLD'         THEN 1 END) as gold_count,
+      COUNT(CASE WHEN loyalty_status = 'ROYAL'        THEN 1 END) as royal_count,
+      COUNT(CASE WHEN loyalty_status = 'ROYAL_ELITE'  THEN 1 END) as royal_elite_count,
       COUNT(CASE WHEN loyalty_status != 'OPEN' THEN 1 END) as converted_count
     FROM clients WHERE is_active = TRUE
   `)).rows[0];
 
+  const royalTotal = parseInt(conversionStats.royal_count) + parseInt(conversionStats.royal_elite_count);
   const conversionRates = {
     openToAny: conversionStats.total_clients > 0
       ? Math.round((conversionStats.converted_count / conversionStats.total_clients) * 100 * 100) / 100
       : 0,
     openToLive: conversionStats.total_clients > 0
-      ? Math.round(((parseInt(conversionStats.live_count) + parseInt(conversionStats.gold_count) + parseInt(conversionStats.royal_count)) / conversionStats.total_clients) * 100 * 100) / 100
+      ? Math.round(((parseInt(conversionStats.live_count) + parseInt(conversionStats.gold_count) + royalTotal) / conversionStats.total_clients) * 100 * 100) / 100
       : 0,
     openToGold: conversionStats.total_clients > 0
-      ? Math.round(((parseInt(conversionStats.gold_count) + parseInt(conversionStats.royal_count)) / conversionStats.total_clients) * 100 * 100) / 100
+      ? Math.round(((parseInt(conversionStats.gold_count) + royalTotal) / conversionStats.total_clients) * 100 * 100) / 100
       : 0,
     openToRoyal: conversionStats.total_clients > 0
-      ? Math.round((conversionStats.royal_count / conversionStats.total_clients) * 100 * 100) / 100
+      ? Math.round((royalTotal / conversionStats.total_clients) * 100 * 100) / 100
       : 0,
     counts: {
       open: parseInt(conversionStats.open_count),
       live: parseInt(conversionStats.live_count),
       gold: parseInt(conversionStats.gold_count),
       royal: parseInt(conversionStats.royal_count),
+      royal_elite: parseInt(conversionStats.royal_elite_count),
       total: parseInt(conversionStats.total_clients),
     },
   };
@@ -189,10 +192,14 @@ router.get('/transactions', requireAdmin, async (req, res) => {
   const { from, to, merchant_id, status, loyalty_status, page = 1, limit = 100 } = req.query;
 
   let sql = `
-    SELECT t.*, m.name as merchant_name, c.full_name as client_name, c.afrikfid_id
+    SELECT t.*, m.name as merchant_name, c.full_name as client_name, c.afrikfid_id,
+      rs.segment as client_rfm_segment
     FROM transactions t
     JOIN merchants m ON t.merchant_id = m.id
     LEFT JOIN clients c ON t.client_id = c.id
+    LEFT JOIN LATERAL (
+      SELECT segment FROM rfm_scores WHERE client_id = c.id ORDER BY calculated_at DESC LIMIT 1
+    ) rs ON TRUE
     WHERE 1=1
   `;
   const params = [];
@@ -778,6 +785,241 @@ router.get('/contact-priority', requireAdmin, async (req, res, next) => {
         hibernants: rfmRows.filter(r => r.segment === 'HIBERNANTS').length,
       },
     });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/success-fees — Agrégats success fees (CDC §3.5)
+router.get('/success-fees', requireAdmin, async (req, res, next) => {
+  try {
+    const { period = '30d', merchant_id } = req.query;
+    const days = parseInt(period) || 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const fromStr = from.toISOString().split('T')[0];
+
+    let params = [fromStr];
+    let idx = 2;
+    let merchantFilter = '';
+    if (merchant_id) { merchantFilter = ` AND sf.merchant_id = $${idx++}`; params.push(merchant_id); }
+
+    const kpis = (await db.query(`
+      SELECT
+        COUNT(*) as total_records,
+        COALESCE(SUM(CASE WHEN sf.status = 'paid' THEN sf.fee_amount ELSE 0 END), 0) as total_collected,
+        COALESCE(SUM(CASE WHEN sf.status = 'calculated' THEN sf.fee_amount ELSE 0 END), 0) as total_pending,
+        COALESCE(SUM(CASE WHEN sf.status = 'invoiced' THEN sf.fee_amount ELSE 0 END), 0) as total_invoiced,
+        COALESCE(SUM(sf.fee_amount), 0) as total_calculated,
+        COALESCE(AVG(sf.fee_percent), 0) as avg_fee_percent,
+        COALESCE(SUM(sf.growth_amount), 0) as total_growth_basis
+      FROM success_fees sf
+      WHERE sf.period_start >= $1${merchantFilter}
+    `, params)).rows[0];
+
+    const topMerchants = (await db.query(`
+      SELECT sf.merchant_id, m.name as merchant_name,
+        COALESCE(SUM(sf.fee_amount), 0) as total_fees,
+        COALESCE(SUM(CASE WHEN sf.status = 'paid' THEN sf.fee_amount ELSE 0 END), 0) as paid_fees,
+        COUNT(*) as periods_count,
+        COALESCE(AVG(sf.fee_percent), 0) as avg_fee_percent
+      FROM success_fees sf
+      JOIN merchants m ON m.id = sf.merchant_id
+      WHERE sf.period_start >= $1${merchantFilter}
+      GROUP BY sf.merchant_id, m.name
+      ORDER BY total_fees DESC
+      LIMIT 10
+    `, params)).rows;
+
+    const byStatus = (await db.query(`
+      SELECT sf.status, COUNT(*) as count, COALESCE(SUM(sf.fee_amount), 0) as total
+      FROM success_fees sf
+      WHERE sf.period_start >= $1${merchantFilter}
+      GROUP BY sf.status
+    `, params)).rows;
+
+    const recent = (await db.query(`
+      SELECT sf.*, m.name as merchant_name
+      FROM success_fees sf
+      JOIN merchants m ON m.id = sf.merchant_id
+      WHERE sf.period_start >= $1${merchantFilter}
+      ORDER BY sf.created_at DESC
+      LIMIT 20
+    `, params)).rows;
+
+    res.json({ kpis, topMerchants, byStatus, recent, period: `${days}d` });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/subscriptions — Métriques abonnements (CDC §2.5)
+router.get('/subscriptions', requireAdmin, async (req, res, next) => {
+  try {
+    const { period = '30d' } = req.query;
+    const days = parseInt(period) || 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const fromStr = from.toISOString().split('T')[0];
+
+    const kpis = (await db.query(`
+      SELECT
+        COUNT(*) as total_active,
+        COALESCE(SUM(effective_monthly_fee), 0) as mrr,
+        COALESCE(AVG(recruitment_discount_percent), 0) as avg_discount,
+        COUNT(CASE WHEN package = 'STARTER_BOOST' THEN 1 END) as starter_boost_count,
+        COUNT(CASE WHEN package = 'STARTER_PLUS' THEN 1 END) as starter_plus_count,
+        COUNT(CASE WHEN package = 'GROWTH' THEN 1 END) as growth_count,
+        COUNT(CASE WHEN package = 'PREMIUM' THEN 1 END) as premium_count
+      FROM subscriptions WHERE status = 'active'
+    `)).rows[0];
+
+    const payments = (await db.query(`
+      SELECT
+        COUNT(*) as total_payments,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN effective_amount ELSE 0 END), 0) as collected,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN effective_amount ELSE 0 END), 0) as pending,
+        COALESCE(SUM(CASE WHEN status = 'failed' THEN effective_amount ELSE 0 END), 0) as failed_amount,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count,
+        COALESCE(SUM(base_amount - effective_amount), 0) as total_discounts_given
+      FROM subscription_payments
+      WHERE period_start >= $1
+    `, [fromStr])).rows[0];
+
+    const byPackage = (await db.query(`
+      SELECT s.package,
+        COUNT(DISTINCT s.id) as active_count,
+        COALESCE(SUM(s.effective_monthly_fee), 0) as mrr,
+        COALESCE(AVG(s.recruitment_discount_percent), 0) as avg_discount
+      FROM subscriptions s WHERE s.status = 'active'
+      GROUP BY s.package
+      ORDER BY mrr DESC
+    `)).rows;
+
+    const recentPayments = (await db.query(`
+      SELECT sp.*, m.name as merchant_name, s.package
+      FROM subscription_payments sp
+      JOIN merchants m ON m.id = sp.merchant_id
+      JOIN subscriptions s ON s.id = sp.subscription_id
+      WHERE sp.period_start >= $1
+      ORDER BY sp.created_at DESC
+      LIMIT 20
+    `, [fromStr])).rows;
+
+    res.json({ kpis, payments, byPackage, recentPayments, period: `${days}d` });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/triggers — Performance des triggers automatiques (CDC §5.4)
+router.get('/triggers', requireAdmin, async (req, res, next) => {
+  try {
+    const { period = '30d', merchant_id } = req.query;
+    const days = parseInt(period) || 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const fromStr = from.toISOString();
+
+    let params = [fromStr];
+    let idx = 2;
+    let merchantFilter = '';
+    if (merchant_id) { merchantFilter = ` AND tl.merchant_id = $${idx++}`; params.push(merchant_id); }
+
+    const byType = (await db.query(`
+      SELECT tl.trigger_type,
+        COUNT(*) as total_sent,
+        COUNT(CASE WHEN tl.status = 'sent' THEN 1 END) as delivered,
+        COUNT(CASE WHEN tl.status = 'failed' THEN 1 END) as failed
+      FROM trigger_logs tl
+      WHERE tl.created_at >= $1${merchantFilter}
+      GROUP BY tl.trigger_type
+      ORDER BY total_sent DESC
+    `, params)).rows;
+
+    const kpis = (await db.query(`
+      SELECT
+        COUNT(*) as total_triggers,
+        COUNT(CASE WHEN tl.status = 'sent' THEN 1 END) as delivered,
+        COUNT(CASE WHEN tl.status = 'failed' THEN 1 END) as failed,
+        COUNT(DISTINCT tl.client_id) as unique_clients_targeted
+      FROM trigger_logs tl
+      WHERE tl.created_at >= $1${merchantFilter}
+    `, params)).rows[0];
+
+    const abandonStats = (await db.query(`
+      SELECT
+        COUNT(*) as total_active,
+        COUNT(CASE WHEN status = 'reactivated' THEN 1 END) as reactivated,
+        COUNT(CASE WHEN status = 'lost' THEN 1 END) as lost,
+        COUNT(CASE WHEN current_step = 1 THEN 1 END) as step_1,
+        COUNT(CASE WHEN current_step = 2 THEN 1 END) as step_2,
+        COUNT(CASE WHEN current_step = 3 THEN 1 END) as step_3,
+        COUNT(CASE WHEN current_step = 4 THEN 1 END) as step_4,
+        COUNT(CASE WHEN current_step = 5 THEN 1 END) as step_5
+      FROM abandon_tracking
+      ${merchant_id ? 'WHERE merchant_id = $1' : ''}
+    `, merchant_id ? [merchant_id] : [])).rows[0];
+
+    const reactivationRate = abandonStats.total_active > 0
+      ? Math.round(parseInt(abandonStats.reactivated) / parseInt(abandonStats.total_active) * 100 * 10) / 10
+      : 0;
+
+    res.json({ kpis, byType, abandonStats: { ...abandonStats, reactivationRate }, period: `${days}d` });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/recruitment-bonuses — Bonus recrutement Starter Boost par marchand (CDC §2.6)
+router.get('/recruitment-bonuses', requireAdmin, async (req, res, next) => {
+  try {
+    const { period = '30d', merchant_id } = req.query;
+    const days = parseInt(period) || 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const fromStr = from.toISOString().split('T')[0];
+
+    let params = [fromStr];
+    let idx = 2;
+    let merchantFilter = '';
+    if (merchant_id) { merchantFilter = ` AND sp.merchant_id = $${idx++}`; params.push(merchant_id); }
+
+    const byMerchant = (await db.query(`
+      SELECT
+        sp.merchant_id, m.name as merchant_name, s.package,
+        sp.recruited_clients_count,
+        sp.discount_percent,
+        sp.base_amount,
+        sp.effective_amount,
+        sp.base_amount - sp.effective_amount as discount_amount,
+        sp.period_start, sp.status
+      FROM subscription_payments sp
+      JOIN merchants m ON m.id = sp.merchant_id
+      JOIN subscriptions s ON s.id = sp.subscription_id
+      WHERE sp.period_start >= $1
+        AND s.package = 'STARTER_BOOST'${merchantFilter}
+      ORDER BY sp.recruited_clients_count DESC, sp.period_start DESC
+    `, params)).rows;
+
+    const kpis = (await db.query(`
+      SELECT
+        COUNT(DISTINCT sp.merchant_id) as merchants_with_bonus,
+        COALESCE(SUM(sp.base_amount - sp.effective_amount), 0) as total_discounts,
+        COALESCE(AVG(sp.discount_percent), 0) as avg_discount_pct,
+        COALESCE(SUM(sp.recruited_clients_count), 0) as total_clients_recruited,
+        COALESCE(AVG(sp.recruited_clients_count), 0) as avg_recruited_per_merchant
+      FROM subscription_payments sp
+      JOIN subscriptions s ON s.id = sp.subscription_id
+      WHERE sp.period_start >= $1
+        AND s.package = 'STARTER_BOOST'
+        AND sp.discount_percent > 0${merchantFilter.replace(/\$2/, '$' + (params.length + 1))}
+    `, params)).rows[0];
+
+    const distribution = [
+      { range: '0-9 clients', min: 0, max: 9, discount: 0 },
+      { range: '10-24 clients', min: 10, max: 24, discount: 10 },
+      { range: '25-49 clients', min: 25, max: 49, discount: 20 },
+      { range: '50-99 clients', min: 50, max: 99, discount: 35 },
+      { range: '100+ clients', min: 100, max: null, discount: 50 },
+    ].map(tier => ({
+      ...tier,
+      count: byMerchant.filter(m => m.recruited_clients_count >= tier.min && (tier.max === null || m.recruited_clients_count <= tier.max)).length,
+    }));
+
+    res.json({ kpis, byMerchant, distribution, period: `${days}d` });
   } catch (err) { next(err); }
 });
 

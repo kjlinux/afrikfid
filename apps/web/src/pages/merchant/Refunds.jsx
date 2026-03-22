@@ -13,7 +13,7 @@ const STATUS_STYLE = {
 }
 
 const TYPE_LABEL = { full: 'Total', partial: 'Partiel' }
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
 
 export default function MerchantRefunds() {
   const [refunds, setRefunds] = useState([])

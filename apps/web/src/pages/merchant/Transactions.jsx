@@ -4,7 +4,9 @@ import { ArrowUturnLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: '⚠ À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
 
 export default function MerchantTransactions() {
   const [transactions, setTransactions] = useState([])
@@ -95,6 +97,9 @@ export default function MerchantTransactions() {
                     <div style={{ fontSize: 13, color: '#f1f5f9' }}>{tx.client_name || 'Invité'}</div>
                     {tx.client_loyalty_status && (
                       <div style={{ fontSize: 11, color: LOYALTY_COLOR[tx.client_loyalty_status] || '#64748b', marginTop: 2 }}>{tx.client_loyalty_status}</div>
+                    )}
+                    {tx.client_rfm_segment && (
+                      <div style={{ fontSize: 10, color: RFM_COLORS[tx.client_rfm_segment] || '#6B7280', marginTop: 2, fontWeight: 600 }}>{RFM_SHORT[tx.client_rfm_segment] || tx.client_rfm_segment}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px' }}>

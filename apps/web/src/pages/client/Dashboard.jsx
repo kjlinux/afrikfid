@@ -5,12 +5,13 @@ import api from '../../api.js'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STATUS_META = {
-  OPEN:  { color: '#6B7280', bg: '#6B728015', icon: '○', label: 'Démarrage', pct: 0 },
-  LIVE:  { color: '#3B82F6', bg: '#3B82F615', icon: '★', label: 'Actif',     pct: 5 },
-  GOLD:  { color: '#F59E0B', bg: '#F59E0B15', icon: '◎', label: 'Premium',   pct: 8 },
-  ROYAL: { color: '#8B5CF6', bg: '#8B5CF615', icon: '♛', label: 'Élite',     pct: 12 },
+  OPEN:        { color: '#6B7280', bg: '#6B728015', icon: '○', label: 'Démarrage',     pct: 0 },
+  LIVE:        { color: '#3B82F6', bg: '#3B82F615', icon: '★', label: 'Actif',         pct: 5 },
+  GOLD:        { color: '#F59E0B', bg: '#F59E0B15', icon: '◎', label: 'Premium',       pct: 8 },
+  ROYAL:       { color: '#8B5CF6', bg: '#8B5CF615', icon: '♛', label: 'Élite',         pct: 12 },
+  ROYAL_ELITE: { color: '#ec4899', bg: '#ec489915', icon: '♔', label: 'Élite Suprême', pct: 12 },
 }
-const STATUS_ORDER = ['OPEN', 'LIVE', 'GOLD', 'ROYAL']
+const STATUS_ORDER = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE']
 
 const fmt = (n, currency = 'XOF') =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n || 0)
@@ -338,6 +339,9 @@ export default function ClientDashboard() {
           </div>
         )}
 
+        {/* Mon segment RFM + offres personnalisées (CDC §5.3, §5.4) */}
+        <ClientRfmSection rfmSegment={profile.rfmSegment} triggerHistory={profile.triggerHistory} />
+
         {/* Dernières transactions */}
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 14, overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -512,6 +516,62 @@ export default function ClientDashboard() {
       )}
 
       </div>
+    </div>
+  )
+}
+
+// ─── Section segment RFM client (CDC §5.3) ────────────────────────────────────
+const RFM_META = {
+  CHAMPIONS:   { color: '#10b981', icon: '🏆', label: 'Champion',     desc: 'Vous faites partie de nos meilleurs clients ! Continuez comme ça.' },
+  FIDELES:     { color: '#3b82f6', icon: '⭐', label: 'Fidèle',        desc: 'Vous achetez régulièrement chez nos marchands partenaires.' },
+  PROMETTEURS: { color: '#8b5cf6', icon: '🚀', label: 'Prometteur',   desc: 'Vous avez un panier élevé. Achetez plus souvent pour monter en grade !' },
+  A_RISQUE:    { color: '#ef4444', icon: '⚠',  label: 'À Surveiller', desc: 'Vous étiez actif mais on ne vous a pas vu récemment. Des offres vous attendent !' },
+  HIBERNANTS:  { color: '#f59e0b', icon: '💤', label: 'Hibernant',    desc: 'Cela fait un moment. Revenez profiter de vos avantages fidélité !' },
+  PERDUS:      { color: '#6B7280', icon: '🔔', label: 'Inactif',      desc: 'Votre compte est inactif. Revenez découvrir nos nouvelles offres !' },
+}
+
+function ClientRfmSection({ rfmSegment, triggerHistory }) {
+  if (!rfmSegment && (!triggerHistory || triggerHistory.length === 0)) return null
+
+  const meta = rfmSegment ? (RFM_META[rfmSegment.segment] || null) : null
+
+  // Offres actives : triggers WIN_BACK ou ALERTE_R récents (< 30 jours)
+  const activeOffers = (triggerHistory || []).filter(t =>
+    ['WIN_BACK', 'ALERTE_R', 'A_RISQUE'].includes(t.trigger_type) &&
+    t.status === 'sent' &&
+    t.sent_at && new Date(t.sent_at) > new Date(Date.now() - 30 * 86400000)
+  )
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {meta && (
+        <div style={{ background: `${meta.color}11`, border: `1px solid ${meta.color}33`, borderRadius: 14, padding: '16px 20px', marginBottom: activeOffers.length ? 12 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>{meta.icon}</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: meta.color }}>Mon profil fidélité · {meta.label}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>{meta.desc}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeOffers.length > 0 && (
+        <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 14, padding: '14px 20px' }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#f59e0b', marginBottom: 10 }}>Offres personnalisées pour vous</div>
+          {activeOffers.map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i < activeOffers.length - 1 ? '1px solid rgba(245,158,11,0.1)' : 'none' }}>
+              <span style={{ fontSize: 18 }}>🎁</span>
+              <div>
+                <div style={{ fontSize: 12, color: '#f1f5f9', fontWeight: 600 }}>
+                  {t.trigger_type === 'WIN_BACK' ? 'Offre de retour exclusive — profitez de réductions spéciales' : 'Nous vous avons réservé une offre spéciale'}
+                </div>
+                {t.merchant_name && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>chez {t.merchant_name}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

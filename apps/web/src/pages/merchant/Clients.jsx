@@ -3,7 +3,30 @@ import api from '../../api.js'
 import { fmt, Card, Spinner, LoyaltyBadge, Pagination, exportCsv } from '../../components/ui.jsx'
 import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
 
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
+const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
+
+function RfmBadge({ segment }) {
+  if (!segment) return null
+  const color = RFM_COLORS[segment] || '#6B7280'
+  return (
+    <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
+      {RFM_LABELS[segment] || segment}
+    </span>
+  )
+}
+
+function AbandonBadge({ step, status }) {
+  if (!step || status !== 'active') return null
+  const color = step >= 4 ? '#ef4444' : '#f59e0b'
+  return (
+    <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
+      Abandon S{step}
+    </span>
+  )
+}
 
 export default function MerchantClients() {
   const [clients, setClients] = useState([])
@@ -12,6 +35,7 @@ export default function MerchantClients() {
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
+  const [merchantPkg, setMerchantPkg] = useState(null)
 
   const LIMIT = 20
 
@@ -27,6 +51,12 @@ export default function MerchantClients() {
   }, [page, filter])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    api.get('/merchants/me/profile').then(r => setMerchantPkg(r.data.merchant?.package || null)).catch(() => {})
+  }, [])
+
+  const isGrowthPlus = PKG_ORDER.indexOf(merchantPkg) >= PKG_ORDER.indexOf('GROWTH')
 
   const handleExport = () => {
     exportCsv(clients, [
@@ -96,7 +126,11 @@ export default function MerchantClients() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #334155' }}>
-                {['Client', 'Statut fidélité', 'Transactions', 'Volume total', 'Remises reçues', 'Dernière visite'].map(h => (
+                {['Client', 'Statut fidélité',
+                  ...(isGrowthPlus ? ['Segment RFM'] : []),
+                  'Transactions', 'Volume total', 'Remises reçues', 'Dernière visite',
+                  ...(isGrowthPlus ? ['Abandon'] : []),
+                ].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: 11 }}>{h}</th>
                 ))}
               </tr>
@@ -111,12 +145,22 @@ export default function MerchantClients() {
                   <td style={{ padding: '12px 12px' }}>
                     <LoyaltyBadge status={c.loyaltyStatus} />
                   </td>
+                  {isGrowthPlus && (
+                    <td style={{ padding: '12px 12px' }}>
+                      <RfmBadge segment={c.rfmSegment} />
+                    </td>
+                  )}
                   <td style={{ padding: '12px 12px', color: '#f1f5f9', fontWeight: 600 }}>{c.txCount}</td>
                   <td style={{ padding: '12px 12px', color: '#10b981', fontWeight: 600 }}>{fmt(c.totalVolume)} XOF</td>
                   <td style={{ padding: '12px 12px', color: '#3b82f6' }}>{fmt(c.totalRebates)} XOF</td>
                   <td style={{ padding: '12px 12px', color: '#64748b', fontSize: 12 }}>
                     {c.lastTx ? new Date(c.lastTx).toLocaleDateString('fr-FR') : '—'}
                   </td>
+                  {isGrowthPlus && (
+                    <td style={{ padding: '12px 12px' }}>
+                      <AbandonBadge step={c.abandonStep} status={c.abandonStatus} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

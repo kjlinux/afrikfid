@@ -217,9 +217,13 @@ router.get('/me/transactions', requireMerchant, async (req, res) => {
   const { page = 1, limit = 20, status, sandbox } = req.query;
   const isSandboxView = sandbox === 'true';
   let sql = `
-    SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as client_current_status
+    SELECT t.*, c.full_name as client_name, c.afrikfid_id, c.loyalty_status as client_current_status,
+      rs.segment as client_rfm_segment
     FROM transactions t
     LEFT JOIN clients c ON t.client_id = c.id
+    LEFT JOIN LATERAL (
+      SELECT segment FROM rfm_scores WHERE client_id = c.id AND merchant_id = $1 ORDER BY calculated_at DESC LIMIT 1
+    ) rs ON TRUE
     WHERE t.merchant_id = $1 AND t.is_sandbox = $2
   `;
   const params = [req.merchant.id, isSandboxView];
@@ -269,9 +273,14 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
       COUNT(t.id) as "txCount",
       COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.gross_amount ELSE 0 END), 0) as "totalVolume",
       COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.client_rebate_amount ELSE 0 END), 0) as "totalRebates",
-      MAX(t.initiated_at) as "lastTx"
+      MAX(t.initiated_at) as "lastTx",
+      rs.segment as "rfmSegment",
+      at2.current_step as "abandonStep",
+      at2.status as "abandonStatus"
     FROM clients c
     JOIN transactions t ON t.client_id = c.id AND t.merchant_id = $1 AND t.is_sandbox = FALSE
+    LEFT JOIN rfm_scores rs ON rs.client_id = c.id AND rs.merchant_id = $1
+    LEFT JOIN abandon_tracking at2 ON at2.client_id = c.id AND at2.merchant_id = $1
     WHERE c.is_active = TRUE
   `;
   const params = [mid];
@@ -279,7 +288,7 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
 
   if (loyalty_status) { sql += ` AND c.loyalty_status = $${idx++}`; params.push(loyalty_status); }
 
-  sql += ` GROUP BY c.id, c.afrikfid_id, c.full_name, c.loyalty_status ORDER BY "totalVolume" DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  sql += ` GROUP BY c.id, c.afrikfid_id, c.full_name, c.loyalty_status, rs.segment, at2.current_step, at2.status ORDER BY "totalVolume" DESC LIMIT $${idx++} OFFSET $${idx++}`;
   params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
   const clients = (await db.query(sql, params)).rows;
@@ -731,6 +740,75 @@ router.delete('/:id/category-rates/:category', requireAdmin, async (req, res, ne
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Taux catégorie introuvable' });
     }
     res.json({ message: 'Taux catégorie supprimé' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/merchants/me/subscription — Abonnement + bonus recrutement (CDC §2.5, §2.6)
+router.get('/me/subscription', requireMerchant, async (req, res, next) => {
+  try {
+    const mid = req.merchant.id;
+    const sub = (await db.query(`
+      SELECT s.*,
+        (SELECT COUNT(*) FROM subscription_payments WHERE subscription_id = s.id AND status = 'completed') as payments_done,
+        (SELECT COALESCE(SUM(effective_amount), 0) FROM subscription_payments WHERE subscription_id = s.id AND status = 'completed') as total_paid
+      FROM subscriptions s WHERE s.merchant_id = $1 AND s.status = 'active' LIMIT 1
+    `, [mid])).rows[0] || null;
+
+    const recentPayments = (await db.query(`
+      SELECT * FROM subscription_payments WHERE merchant_id = $1 ORDER BY created_at DESC LIMIT 6
+    `, [mid])).rows;
+
+    res.json({ subscription: sub, recentPayments });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/merchants/me/success-fees — Success fees du marchand (CDC §3.5)
+router.get('/me/success-fees', requireMerchant, async (req, res, next) => {
+  try {
+    const mid = req.merchant.id;
+    const fees = (await db.query(`
+      SELECT * FROM success_fees WHERE merchant_id = $1 ORDER BY period_start DESC LIMIT 12
+    `, [mid])).rows;
+
+    const kpis = (await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN fee_amount ELSE 0 END), 0) as total_paid,
+        COALESCE(SUM(CASE WHEN status = 'calculated' THEN fee_amount ELSE 0 END), 0) as pending,
+        COALESCE(SUM(growth_amount), 0) as total_growth
+      FROM success_fees WHERE merchant_id = $1
+    `, [mid])).rows[0];
+
+    res.json({ fees, kpis });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/merchants/me/rfm-summary — Résumé RFM et triggers (GROWTH+ — CDC §5.1, §5.4)
+router.get('/me/rfm-summary', requireMerchant, requirePackage('GROWTH'), async (req, res, next) => {
+  try {
+    const mid = req.merchant.id;
+
+    const segments = (await db.query(`
+      SELECT segment,
+        COUNT(*) as count,
+        ROUND(COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (), 0), 1) as pct
+      FROM rfm_scores WHERE merchant_id = $1
+      GROUP BY segment ORDER BY count DESC
+    `, [mid])).rows;
+
+    const triggerStats = (await db.query(`
+      SELECT trigger_type, COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as delivered
+      FROM trigger_logs WHERE merchant_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY trigger_type ORDER BY total DESC
+    `, [mid])).rows;
+
+    const abandonStats = (await db.query(`
+      SELECT current_step, status, COUNT(*) as count
+      FROM abandon_tracking WHERE merchant_id = $1
+      GROUP BY current_step, status
+    `, [mid])).rows;
+
+    res.json({ segments, triggerStats, abandonStats });
   } catch (err) { next(err); }
 });
 

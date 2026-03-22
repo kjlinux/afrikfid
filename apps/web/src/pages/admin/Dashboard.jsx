@@ -18,7 +18,7 @@ import {
   GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
-const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const STATUS_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null)
@@ -242,6 +242,9 @@ export default function AdminDashboard() {
         </Card>
       )}
 
+      {/* Success Fees + Abonnements + Triggers (CDC §3.5, §2.5, §5.4) */}
+      <OperationalMetrics period={period} />
+
       {/* Top Marchands */}
       <Card title="Top Marchands" style={{ marginBottom: 20 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -283,6 +286,128 @@ export default function AdminDashboard() {
           </a>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ─── Métriques opérationnelles : Success Fees, Abonnements, Triggers ──────────
+function OperationalMetrics({ period }) {
+  const [sf, setSf] = useState(null)
+  const [subs, setSubs] = useState(null)
+  const [triggers, setTriggers] = useState(null)
+
+  useEffect(() => {
+    api.get(`/reports/success-fees?period=${period}d`).then(r => setSf(r.data)).catch(() => {})
+    api.get(`/reports/subscriptions?period=${period}d`).then(r => setSubs(r.data)).catch(() => {})
+    api.get(`/reports/triggers?period=${period}d`).then(r => setTriggers(r.data)).catch(() => {})
+  }, [period])
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+
+      {/* Success Fees (CDC §3.5) */}
+      <Card title="Success Fees (CDC §3.5)">
+        {sf ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Collecté</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{fmt(sf.kpis?.total_collected || 0)}</div>
+                <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>XOF</div>
+              </div>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>En attente</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f59e0b' }}>{fmt(sf.kpis?.total_pending || 0)}</div>
+                <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>XOF</div>
+              </div>
+            </div>
+            {sf.topMerchants?.slice(0, 3).map(m => (
+              <div key={m.merchant_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1e293b', fontSize: 12 }}>
+                <span style={{ color: '#94a3b8' }}>{m.merchant_name}</span>
+                <span style={{ color: '#10b981', fontWeight: 600 }}>{fmt(m.total_fees)}</span>
+              </div>
+            ))}
+            {(!sf.topMerchants?.length) && <p style={{ fontSize: 12, color: '#475569', textAlign: 'center', marginTop: 8 }}>Aucun success fee sur la période</p>}
+          </div>
+        ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Chargement...</div>}
+      </Card>
+
+      {/* Abonnements MRR (CDC §2.5) */}
+      <Card title="Abonnements — MRR (CDC §2.5)">
+        {subs ? (
+          <div>
+            <div style={{ background: '#0f172a', borderRadius: 8, padding: '12px 14px', marginBottom: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>MRR Total</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{fmt(subs.kpis?.mrr || 0)}</div>
+              <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{subs.kpis?.total_active || 0} abonnements actifs</div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {[
+                { label: 'Starter Boost', key: 'starter_boost_count', color: '#6B7280' },
+                { label: 'Starter Plus', key: 'starter_plus_count', color: '#3B82F6' },
+                { label: 'Growth', key: 'growth_count', color: '#8B5CF6' },
+                { label: 'Premium', key: 'premium_count', color: '#F59E0B' },
+              ].map(pkg => (
+                <div key={pkg.key} style={{ flex: 1, background: '#1e293b', borderRadius: 6, padding: '6px 8px', textAlign: 'center', border: `1px solid ${pkg.color}33` }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: pkg.color }}>{subs.kpis?.[pkg.key] || 0}</div>
+                  <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase' }}>{pkg.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', padding: '4px 0' }}>
+              <span>Collecté ({period}j)</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>{fmt(subs.payments?.collected || 0)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', padding: '4px 0' }}>
+              <span>Remises recrutement ({period}j)</span>
+              <span style={{ color: '#f59e0b', fontWeight: 600 }}>-{fmt(subs.payments?.total_discounts_given || 0)}</span>
+            </div>
+          </div>
+        ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Chargement...</div>}
+      </Card>
+
+      {/* Triggers & Abandon (CDC §5.4, §5.5) */}
+      <Card title="Triggers & Abandon (CDC §5.4–5.5)">
+        {triggers ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#8b5cf6' }}>{triggers.kpis?.total_triggers || 0}</div>
+                <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>Déclenchements</div>
+              </div>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#3b82f6' }}>{triggers.kpis?.unique_clients_targeted || 0}</div>
+                <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>Clients ciblés</div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              {triggers.byType?.slice(0, 4).map(t => (
+                <div key={t.trigger_type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: 11 }}>
+                  <span style={{ color: '#94a3b8' }}>{t.trigger_type}</span>
+                  <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{t.total_sent}</span>
+                </div>
+              ))}
+            </div>
+            {triggers.abandonStats && (
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Protocole abandon</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[1,2,3,4,5].map(step => (
+                    <div key={step} style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: step <= 3 ? '#f59e0b' : '#ef4444' }}>{triggers.abandonStats[`step_${step}`] || 0}</div>
+                      <div style={{ fontSize: 9, color: '#475569' }}>S{step}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
+                  <span>Réactivés</span>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>{triggers.abandonStats.reactivated || 0} ({triggers.abandonStats.reactivationRate || 0}%)</span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Chargement...</div>}
+      </Card>
     </div>
   )
 }

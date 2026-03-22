@@ -16,7 +16,7 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
 
 // Ordre et labels des packages (CDC v3 §6.1)
 const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
@@ -292,6 +292,9 @@ export default function MerchantDashboard() {
         </Card>
       )}
 
+      {/* Bonus recrutement + Success Fee + RFM/Triggers */}
+      <MerchantIntelligenceSection pkg={profile.package} period={period} />
+
       {/* Liens rapides */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 20 }}>
         <a href="/merchant/links" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', textDecoration: 'none', display: 'block' }}>
@@ -308,6 +311,142 @@ export default function MerchantDashboard() {
 
       {/* Panneau d'accès aux fonctionnalités selon package (CDC v3 §6.1) */}
       {profile.package && <FeatureAccessPanel pkg={profile.package} />}
+    </div>
+  )
+}
+
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
+
+// ─── Section Intelligence Marchand : Bonus, Success Fee, RFM ─────────────────
+function MerchantIntelligenceSection({ pkg, period }) {
+  const [subData, setSubData] = useState(null)
+  const [sfData, setSfData] = useState(null)
+  const [rfmData, setRfmData] = useState(null)
+  const pkgIdx = PKG_ORDER.indexOf(pkg)
+  const isGrowthPlus = pkgIdx >= PKG_ORDER.indexOf('GROWTH')
+
+  useEffect(() => {
+    api.get('/merchants/me/subscription').then(r => setSubData(r.data)).catch(() => {})
+    api.get('/merchants/me/success-fees').then(r => setSfData(r.data)).catch(() => {})
+    if (isGrowthPlus) {
+      api.get('/merchants/me/rfm-summary').then(r => setRfmData(r.data)).catch(() => {})
+    }
+  }, [isGrowthPlus])
+
+  const sub = subData?.subscription
+  const STARTER_TIERS = [
+    { min: 0,   max: 9,   discount: 0,  label: '0–9' },
+    { min: 10,  max: 24,  discount: 10, label: '10–24' },
+    { min: 25,  max: 49,  discount: 20, label: '25–49' },
+    { min: 50,  max: 99,  discount: 35, label: '50–99' },
+    { min: 100, max: null, discount: 50, label: '100+' },
+  ]
+
+  return (
+    <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: isGrowthPlus ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
+
+      {/* Abonnement + Bonus recrutement (CDC §2.6) */}
+      <Card title={`Abonnement — ${PKG_LABEL[pkg] || pkg}`}>
+        {sub ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#3b82f6' }}>{fmt(sub.effective_monthly_fee)}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>mensualité effective</div>
+              </div>
+              {parseFloat(sub.recruitment_discount_percent) > 0 && (
+                <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>-{sub.recruitment_discount_percent}%</div>
+                  <div style={{ fontSize: 10, color: '#64748b' }}>réduction</div>
+                </div>
+              )}
+            </div>
+            {pkg === 'STARTER_BOOST' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>CLIENTS RECRUTÉS CE MOIS</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b' }}>{sub.recruited_clients_count || 0}</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8', alignSelf: 'flex-end' }}>clients</span>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {STARTER_TIERS.map((tier, i) => {
+                    const active = sub.recruited_clients_count >= tier.min && (tier.max === null || sub.recruited_clients_count <= tier.max)
+                    return (
+                      <div key={i} style={{ flex: 1, textAlign: 'center', background: active ? 'rgba(16,185,129,0.15)' : '#0f172a', borderRadius: 4, padding: '4px 2px', border: active ? '1px solid rgba(16,185,129,0.4)' : '1px solid #1e293b' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: active ? '#10b981' : '#475569' }}>-{tier.discount}%</div>
+                        <div style={{ fontSize: 8, color: '#475569' }}>{tier.label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', padding: '4px 0', borderTop: '1px solid #1e293b' }}>
+              <span>Prochain prélèvement</span>
+              <span style={{ color: '#94a3b8' }}>{sub.next_billing_at ? new Date(sub.next_billing_at).toLocaleDateString('fr-FR') : '—'}</span>
+            </div>
+          </div>
+        ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Aucun abonnement actif</div>}
+      </Card>
+
+      {/* Success Fee (CDC §3.5) */}
+      <Card title="Success Fee (CDC §3.5)">
+        {sfData ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{fmt(sfData.kpis?.pending || 0)}</div>
+                <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>En attente</div>
+              </div>
+              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>{fmt(sfData.kpis?.total_paid || 0)}</div>
+                <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>Payé</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+              Le success fee est prélevé uniquement sur la croissance réelle de votre CA (CDC §3.5).
+            </div>
+            {sfData.fees?.slice(0, 3).map(f => (
+              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: 12 }}>
+                <span style={{ color: '#64748b' }}>{f.period_start?.slice(0, 7)}</span>
+                <span style={{ color: f.status === 'paid' ? '#10b981' : '#f59e0b', fontWeight: 600 }}>{fmt(f.fee_amount)}</span>
+              </div>
+            ))}
+            {!sfData.fees?.length && <p style={{ fontSize: 11, color: '#475569', textAlign: 'center', marginTop: 8 }}>Aucun success fee calculé</p>}
+          </div>
+        ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Chargement...</div>}
+      </Card>
+
+      {/* Segmentation RFM — GROWTH+ uniquement (CDC §5.1–5.3) */}
+      {isGrowthPlus && (
+        <Card title="Segmentation RFM clients (CDC §5.3)">
+          {rfmData ? (
+            <div>
+              {rfmData.segments?.map(seg => (
+                <div key={seg.segment} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: RFM_COLORS[seg.segment] || '#6B7280', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{RFM_LABELS[seg.segment] || seg.segment}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{seg.count}</span>
+                  <span style={{ fontSize: 11, color: '#475569', width: 34, textAlign: 'right' }}>{seg.pct}%</span>
+                  <div style={{ width: 60, height: 4, borderRadius: 2, background: '#1e293b', overflow: 'hidden' }}>
+                    <div style={{ width: `${seg.pct}%`, height: '100%', background: RFM_COLORS[seg.segment] || '#6B7280' }} />
+                  </div>
+                </div>
+              ))}
+              {rfmData.abandonStats?.some(a => a.status === 'active') && (
+                <div style={{ marginTop: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginBottom: 4 }}>Protocole abandon actif</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    {rfmData.abandonStats?.filter(a => a.status === 'active').reduce((s, a) => s + parseInt(a.count), 0)} clients en cours de réactivation
+                  </div>
+                </div>
+              )}
+              {!rfmData.segments?.length && <p style={{ fontSize: 11, color: '#475569', textAlign: 'center' }}>Aucun score RFM disponible. Le batch s'exécute à 06h00.</p>}
+            </div>
+          ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Chargement...</div>}
+        </Card>
+      )}
     </div>
   )
 }
