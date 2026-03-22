@@ -104,6 +104,45 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   res.json({ subscription: updated });
 });
 
+// GET /api/v1/subscriptions/payments — historique des prélèvements (admin) ou propres (marchand)
+router.get('/payments', requireAuth, async (req, res) => {
+  const { merchant_id, page = 1, limit = 20 } = req.query;
+  const params = [];
+  let idx = 1;
+
+  let sql = `
+    SELECT sp.*, m.name as merchant_name, s.package
+    FROM subscription_payments sp
+    JOIN subscriptions s ON s.id = sp.subscription_id
+    JOIN merchants m ON m.id = sp.merchant_id
+    WHERE 1=1
+  `;
+
+  if (req.merchant) {
+    // Marchand : ne voit que ses propres prélèvements
+    sql += ` AND sp.merchant_id = $${idx++}`;
+    params.push(req.merchant.id);
+  } else if (req.admin && merchant_id) {
+    sql += ` AND sp.merchant_id = $${idx++}`;
+    params.push(merchant_id);
+  } else if (!req.admin) {
+    return res.status(403).json({ error: 'Accès interdit' });
+  }
+
+  sql += ` ORDER BY sp.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(parseInt(limit), (page - 1) * limit);
+
+  const rows = (await db.query(sql, params)).rows;
+  const countParams = params.slice(0, params.length - 2);
+  let countSql = `SELECT COUNT(*) as c FROM subscription_payments sp WHERE 1=1`;
+  let ci = 1;
+  if (req.merchant) { countSql += ` AND sp.merchant_id = $${ci++}`; }
+  else if (req.admin && merchant_id) { countSql += ` AND sp.merchant_id = $${ci++}`; }
+  const total = parseInt((await db.query(countSql, countParams)).rows[0].c);
+
+  res.json({ payments: rows, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
 // GET /api/v1/subscriptions/merchant/:merchantId/boost — bonus recrutement Starter Boost (CDC v3 §2.6)
 router.get('/merchant/:merchantId/boost', requireAuth, async (req, res) => {
   const { merchantId } = req.params;

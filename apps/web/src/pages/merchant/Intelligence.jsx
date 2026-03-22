@@ -4,6 +4,129 @@ import { useAuth } from '../../App.jsx'
 import { Badge, Spinner } from '../../components/ui.jsx'
 
 const SEG_COLOR = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#f59e0b', A_RISQUE: '#f97316', HIBERNANTS: '#6b7280', PERDUS: '#ef4444' }
+
+// CDC §5.6 — Actions recommandées par segment
+const SEG_ACTIONS = {
+  CHAMPIONS: {
+    label: 'Champions',
+    priority: 'VIP',
+    priorityColor: '#10b981',
+    actions: [
+      'Inviter au programme ambassadeur (parrainage VIP)',
+      'Accès prioritaire aux nouveautés et événements privés',
+      'Programme de fidélité exclusif avec avantages personnalisés',
+    ],
+    objectif: 'Maintenir R≥4, F≥4 — Transformer en ambassadeurs de la marque',
+  },
+  FIDELES: {
+    label: 'Fidèles',
+    priority: 'HAUTE',
+    priorityColor: '#3b82f6',
+    actions: [
+      'Cross-sell et upsell sur le panier actuel',
+      'Challenges fréquence : "Achetez X fois ce mois pour débloquer Y"',
+      'Offres de parrainage pour recruter de nouveaux clients',
+    ],
+    objectif: 'Augmenter M vers ≥4 — Pousser vers le segment Champions',
+  },
+  PROMETTEURS: {
+    label: 'Prometteurs',
+    priority: 'HAUTE',
+    priorityColor: '#f59e0b',
+    actions: [
+      'Offres "revenez vite" : points bonus si retour < 15 jours',
+      'Stimuler la fréquence avec des promotions flash',
+      'Rappels personnalisés sur les produits consultés',
+    ],
+    objectif: 'Augmenter F vers ≥4 — Transformer en Fidèles',
+  },
+  A_RISQUE: {
+    label: 'À Risque',
+    priority: 'URGENTE',
+    priorityColor: '#f97316',
+    actions: [
+      'ACTION URGENTE : offre forte ciblée (réduction -20% ou points x3)',
+      'Contact direct par SMS ou appel personnalisé',
+      'Alerte équipe commerciale pour suivi individuel',
+    ],
+    objectif: 'Remonter R vers ≥4 — Sauver ces clients VIP avant qu\'ils ne partent',
+  },
+  HIBERNANTS: {
+    label: 'Hibernants',
+    priority: 'MOYENNE',
+    priorityColor: '#6b7280',
+    actions: [
+      'Campagne de réactivation : rappel des avantages non utilisés',
+      'Email/SMS : "Vos points expirent bientôt, profitez-en !"',
+      'Offre de bienvenue retour avec remise -15%',
+    ],
+    objectif: 'Générer 1 achat dans les 30 prochains jours',
+  },
+  PERDUS: {
+    label: 'Perdus',
+    priority: 'FAIBLE',
+    priorityColor: '#ef4444',
+    actions: [
+      'Win-back 1x/trimestre max avec offre choc (-30%)',
+      'Enquête de satisfaction : "Pourquoi nous avez-vous quitté ?"',
+      'Archiver si aucune réponse après 3 tentatives',
+    ],
+    objectif: 'Réactiver 5-10% de ce segment — Archiver le reste',
+  },
+}
+
+function SegmentActionsPanel({ rfmDetails }) {
+  const [open, setOpen] = React.useState(null)
+  const segments = (rfmDetails || []).filter(d => d.count > 0)
+  if (segments.length === 0) return null
+
+  return (
+    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Actions Recommandées par Segment</div>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>CDC §5.6 — Playbook opérationnel pour chaque segment RFM</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {segments.sort((a, b) => {
+          const prio = { URGENTE: 0, VIP: 0, HAUTE: 1, MOYENNE: 2, FAIBLE: 3 }
+          return (prio[SEG_ACTIONS[a.segment]?.priority] ?? 4) - (prio[SEG_ACTIONS[b.segment]?.priority] ?? 4)
+        }).map(d => {
+          const info = SEG_ACTIONS[d.segment]
+          if (!info) return null
+          const isOpen = open === d.segment
+          return (
+            <div key={d.segment} style={{ background: '#0f172a', border: `1px solid ${info.priorityColor}33`, borderRadius: 10 }}>
+              <button
+                onClick={() => setOpen(isOpen ? null : d.segment)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', gap: 12 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: SEG_COLOR[d.segment] + '22', color: SEG_COLOR[d.segment] }}>{info.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{d.count} client{d.count > 1 ? 's' : ''}</span>
+                  <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: info.priorityColor + '22', color: info.priorityColor, border: `1px solid ${info.priorityColor}44` }}>{info.priority}</span>
+                </div>
+                <span style={{ color: '#64748b', fontSize: 16 }}>{isOpen ? '▲' : '▼'}</span>
+              </button>
+              {isOpen && (
+                <div style={{ padding: '0 16px 16px' }}>
+                  <div style={{ marginBottom: 10 }}>
+                    {info.actions.map((action, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < info.actions.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                        <span style={{ color: info.priorityColor, fontSize: 14, flexShrink: 0 }}>→</span>
+                        <span style={{ fontSize: 12, color: '#cbd5e1' }}>{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '8px 12px', background: info.priorityColor + '11', border: `1px solid ${info.priorityColor}33`, borderRadius: 8, fontSize: 11, color: info.priorityColor }}>
+                    🎯 {info.objectif}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth', PREMIUM: 'Premium' }
 const PKG_COLOR = { STARTER_BOOST: '#64748b', STARTER_PLUS: '#3b82f6', GROWTH: '#8b5cf6', PREMIUM: '#f59e0b' }
 const PRIO_COLOR = { haute: '#ef4444', moyenne: '#f59e0b', faible: '#6b7280' }
@@ -178,6 +301,8 @@ export default function MerchantIntelligence() {
               </table>
             </div>
           </div>
+
+          <SegmentActionsPanel rfmDetails={data.rfm_details} />
 
           {data.recent_campaigns && data.recent_campaigns.length > 0 && (
             <div style={card}>

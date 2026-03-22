@@ -138,7 +138,50 @@ router.get('/overview', requireAdmin, async (req, res) => {
     },
   };
 
-  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, period: `${days}d` });
+  // KPIs RFM globaux (CDC v3 §6.2) — % Champions, % À Risque, taux réactivation win-back
+  const rfmKpis = (await db.query(`
+    SELECT
+      COUNT(*) as total_scored,
+      COUNT(CASE WHEN segment = 'CHAMPIONS'   THEN 1 END) as champions,
+      COUNT(CASE WHEN segment = 'FIDELES'     THEN 1 END) as fideles,
+      COUNT(CASE WHEN segment = 'PROMETTEURS' THEN 1 END) as prometteurs,
+      COUNT(CASE WHEN segment = 'A_RISQUE'    THEN 1 END) as a_risque,
+      COUNT(CASE WHEN segment = 'HIBERNANTS'  THEN 1 END) as hibernants,
+      COUNT(CASE WHEN segment = 'PERDUS'      THEN 1 END) as perdus
+    FROM rfm_scores
+  `)).rows[0];
+
+  const totalScored = parseInt(rfmKpis.total_scored) || 0;
+  const rfmSummary = {
+    totalScored,
+    champions:   { count: parseInt(rfmKpis.champions),   pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.champions)   / totalScored * 100 * 10) / 10 : 0 },
+    fideles:     { count: parseInt(rfmKpis.fideles),     pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.fideles)     / totalScored * 100 * 10) / 10 : 0 },
+    prometteurs: { count: parseInt(rfmKpis.prometteurs), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.prometteurs) / totalScored * 100 * 10) / 10 : 0 },
+    aRisque:     { count: parseInt(rfmKpis.a_risque),    pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.a_risque)    / totalScored * 100 * 10) / 10 : 0 },
+    hibernants:  { count: parseInt(rfmKpis.hibernants),  pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.hibernants)  / totalScored * 100 * 10) / 10 : 0 },
+    perdus:      { count: parseInt(rfmKpis.perdus),      pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.perdus)      / totalScored * 100 * 10) / 10 : 0 },
+  };
+
+  // Taux de réactivation win-back : clients passés de PERDUS/HIBERNANTS → autre segment dans les 30 derniers jours
+  const winBackRes = (await db.query(`
+    SELECT COUNT(DISTINCT at2.client_id) as reactivated
+    FROM abandon_tracking at2
+    WHERE at2.status = 'reactivated'
+      AND at2.reactivated_at >= NOW() - INTERVAL '30 days'
+  `)).rows[0];
+  const winBackRate = totalScored > 0
+    ? Math.round((parseInt(winBackRes.reactivated) || 0) / totalScored * 100 * 10) / 10
+    : 0;
+
+  rfmSummary.winBackRate = winBackRate;
+  rfmSummary.winBackCount = parseInt(winBackRes.reactivated) || 0;
+
+  // Churn mensuel estimé : clients A_RISQUE + PERDUS / total scorés
+  rfmSummary.churnRisk = totalScored > 0
+    ? Math.round((rfmSummary.aRisque.count + rfmSummary.perdus.count) / totalScored * 100 * 10) / 10
+    : 0;
+
+  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary, period: `${days}d` });
 });
 
 // GET /api/v1/reports/transactions
@@ -643,6 +686,97 @@ router.get('/loyalty-funnel', requireAdmin, async (req, res, next) => {
       period_days: periodDays,
       from,
       generated_at: new Date().toISOString(),
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/contact-priority — CDC §6.4 10h00
+// Liste des clients à contacter en priorité aujourd'hui (A RISQUE + abandon proche + échéance statut imminente)
+router.get('/contact-priority', requireAdmin, async (req, res, next) => {
+  try {
+    const { merchant_id, limit = 50 } = req.query;
+    const lim = Math.min(parseInt(limit) || 50, 200);
+
+    // 1. Clients À RISQUE selon RFM (priorité URGENTE selon CDC §5.3)
+    let rfmSql = `
+      SELECT rs.client_id, rs.segment, rs.r_score, rs.f_score, rs.m_score, rs.calculated_at,
+             c.full_name, c.loyalty_status, c.phone, c.email,
+             m.id as merchant_id, m.name as merchant_name
+      FROM rfm_scores rs
+      JOIN clients c ON c.id = rs.client_id
+      LEFT JOIN merchants m ON m.id = rs.merchant_id
+      WHERE rs.segment IN ('A_RISQUE', 'HIBERNANTS')
+        AND c.is_active = TRUE AND c.anonymized_at IS NULL
+    `;
+    const rfmParams = [];
+    let idx = 1;
+    if (merchant_id) { rfmSql += ` AND rs.merchant_id = $${idx++}`; rfmParams.push(merchant_id); }
+    rfmSql += ` ORDER BY rs.segment ASC, rs.r_score ASC LIMIT $${idx}`;
+    rfmParams.push(Math.floor(lim * 0.5)); // 50% de slots pour A_RISQUE/HIBERNANTS
+    const rfmRows = (await db.query(rfmSql, rfmParams)).rows;
+
+    // 2. Clients avec échéance statut dans les 7 prochains jours (J-7)
+    let deadlineSql = `
+      SELECT c.id as client_id, 'REQUALIFICATION' as segment,
+             c.full_name, c.loyalty_status, c.phone, c.email,
+             c.qualification_deadline, c.status_points_12m,
+             NULL as merchant_id, NULL as merchant_name
+      FROM clients c
+      WHERE c.is_active = TRUE AND c.anonymized_at IS NULL
+        AND c.loyalty_status != 'OPEN'
+        AND c.qualification_deadline IS NOT NULL
+        AND c.qualification_deadline BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+    `;
+    const deadlineRows = (await db.query(deadlineSql)).rows;
+
+    // 3. Clients en abandon step 1-3 (protocole d'abandon CDC §5.5)
+    let abandonSql = `
+      SELECT at2.client_id, 'ABANDON_PROTOCOLE' as segment,
+             c.full_name, c.loyalty_status, c.phone, c.email,
+             at2.current_step, at2.next_action_at,
+             m.id as merchant_id, m.name as merchant_name
+      FROM abandon_tracking at2
+      JOIN clients c ON c.id = at2.client_id
+      LEFT JOIN merchants m ON m.id = at2.merchant_id
+      WHERE at2.status IN ('step_1', 'step_2', 'step_3')
+        AND at2.next_action_at <= NOW() + INTERVAL '24 hours'
+        AND c.is_active = TRUE AND c.anonymized_at IS NULL
+    `;
+    const abandonParams2 = [];
+    let aidx = 1;
+    if (merchant_id) { abandonSql += ` AND at2.merchant_id = $${aidx++}`; abandonParams2.push(merchant_id); }
+    abandonSql += ` ORDER BY at2.next_action_at ASC LIMIT $${aidx}`;
+    abandonParams2.push(Math.floor(lim * 0.3));
+    const abandonRows = (await db.query(abandonSql, abandonParams2)).rows;
+
+    // Fusion et déduplication par client_id
+    const seen = new Set();
+    const contacts = [];
+
+    const addRows = (rows, priority) => {
+      rows.forEach(row => {
+        if (!seen.has(row.client_id)) {
+          seen.add(row.client_id);
+          contacts.push({ ...row, contact_priority: priority });
+        }
+      });
+    };
+
+    addRows(rfmRows.filter(r => r.segment === 'A_RISQUE'), 'URGENTE');
+    addRows(deadlineRows, 'HAUTE');
+    addRows(abandonRows, 'HAUTE');
+    addRows(rfmRows.filter(r => r.segment === 'HIBERNANTS'), 'MOYENNE');
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      total: contacts.length,
+      contacts: contacts.slice(0, lim),
+      summary: {
+        a_risque: rfmRows.filter(r => r.segment === 'A_RISQUE').length,
+        requalification_urgente: deadlineRows.length,
+        abandon_protocole: abandonRows.length,
+        hibernants: rfmRows.filter(r => r.segment === 'HIBERNANTS').length,
+      },
     });
   } catch (err) { next(err); }
 });

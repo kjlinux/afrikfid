@@ -30,7 +30,7 @@ export default function AdminDashboard() {
   const { toast } = useToast()
 
   // Récupérer le token depuis le localStorage (format stocké par auth)
-  const token = localStorage.getItem('accessToken')
+  const token = localStorage.getItem('afrikfid_token_admin')
 
   const load = useCallback(() => {
     return api.get(`/reports/overview?period=${period}d`).then(r => {
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
   if (loading && !data) return <Spinner />
   if (!data) return null
 
-  const { kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount } = data
+  const { kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary } = data
 
   const loyaltyPieData = loyaltyDistribution.map(d => ({
     name: d.loyalty_status, value: d.count, color: STATUS_COLORS[d.loyalty_status] || '#6B7280'
@@ -180,6 +180,67 @@ export default function AdminDashboard() {
           </div>
         </Card>
       </div>
+
+      {/* Funnel fidélité Open → Royal (CDC §6.2) */}
+      {conversionRates && (
+        <Card title="Funnel de fidélité — Open → Royal" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0, alignItems: 'stretch' }}>
+            {[
+              { label: 'OPEN',         count: conversionRates.counts?.open  || 0, color: '#6B7280', pct: 100 },
+              { label: 'LIVE',         count: conversionRates.counts?.live  || 0, color: '#3B82F6', pct: conversionRates.openToLive  || 0 },
+              { label: 'GOLD',         count: conversionRates.counts?.gold  || 0, color: '#F59E0B', pct: conversionRates.openToGold  || 0 },
+              { label: 'ROYAL',        count: conversionRates.counts?.royal || 0, color: '#8B5CF6', pct: conversionRates.openToRoyal || 0 },
+              { label: 'ROYAL ÉLITE',  count: conversionRates.counts?.royal_elite || 0, color: '#ec4899', pct: conversionRates.counts?.total > 0 ? Math.round((conversionRates.counts.royal_elite || 0) / conversionRates.counts.total * 100 * 10) / 10 : 0 },
+            ].map((step, i) => (
+              <div key={step.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 8px', borderRight: i < 4 ? '1px solid #1e293b' : 'none' }}>
+                <div style={{ fontSize: 11, color: step.color, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>{step.label}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#f1f5f9' }}>{step.count.toLocaleString('fr-FR')}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{step.pct}% du total</div>
+                <div style={{ marginTop: 10, width: '60%', height: 4, borderRadius: 2, background: '#0f172a', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(step.pct, 100)}%`, height: '100%', background: step.color, borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* KPIs RFM globaux (CDC §6.2) */}
+      {rfmSummary && rfmSummary.totalScored > 0 && (
+        <Card title={`Intelligence RFM — ${rfmSummary.totalScored} clients scorés`} style={{ marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+            {[
+              { label: '% Champions',   value: `${rfmSummary.champions.pct}%`,   sub: `${rfmSummary.champions.count} clients`,   color: '#10b981' },
+              { label: '% À Risque',    value: `${rfmSummary.aRisque.pct}%`,     sub: `${rfmSummary.aRisque.count} clients`,     color: '#ef4444' },
+              { label: 'Taux win-back', value: `${rfmSummary.winBackRate}%`,      sub: `${rfmSummary.winBackCount} réactivations`, color: '#3b82f6' },
+              { label: 'Risque churn',  value: `${rfmSummary.churnRisk}%`,        sub: 'À Risque + Perdus',                       color: '#f59e0b' },
+            ].map(kpi => (
+              <div key={kpi.label} style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', border: `1px solid ${kpi.color}22` }}>
+                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{kpi.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: kpi.color }}>{kpi.value}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{kpi.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { key: 'Champions',   d: rfmSummary.champions,   color: '#10b981' },
+              { key: 'Fidèles',     d: rfmSummary.fideles,     color: '#3b82f6' },
+              { key: 'Prometteurs', d: rfmSummary.prometteurs, color: '#8b5cf6' },
+              { key: 'À Risque',    d: rfmSummary.aRisque,     color: '#ef4444' },
+              { key: 'Hibernants',  d: rfmSummary.hibernants,  color: '#f59e0b' },
+              { key: 'Perdus',      d: rfmSummary.perdus,      color: '#6B7280' },
+            ].map(seg => (
+              <div key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: '#1e293b', borderRadius: 8, padding: '6px 12px', border: `1px solid ${seg.color}33` }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: seg.color, flexShrink: 0 }} />
+                <span style={{ color: '#94a3b8' }}>{seg.key}</span>
+                <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{seg.d.count}</span>
+                <span style={{ color: '#475569', fontSize: 11 }}>({seg.d.pct}%)</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Top Marchands */}
       <Card title="Top Marchands" style={{ marginBottom: 20 }}>

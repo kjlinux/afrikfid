@@ -1,0 +1,567 @@
+Pages: 22
+=== PAGE 1 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+GROUPE SIXIEME SENS
+— AFRIK’FID —
+Smart Loyalty & Customer Intelligence
+CAHIER DES CHARGES GLOBAL
+Partie I — Passerelle de Paiement Multi-Pays
+Partie II — Dashboard Intelligence & Analytics
+Version 3.0 — Mars 2026
+Document confidentiel
+Information Détail
+Client Groupe Sixième Sens / Afrik’Fid
+Rédacteur Direction des Projets Numériques
+Version 3.0 — Globale (Passerelle + Dashboard)
+Documents intégrés Guide Statuts, Cadre RFM, Guide Commercial Packages, Guide
+Starter Boost
+Classification Confidentiel
+Groupe Sixième Sens — Confidentiel — Page 1
+=== PAGE 2 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+Table des Matières
+Table des Matières .................................................................................................................... 2
+1. Introduction et Contexte Global ............................................................................................. 4
+1.1 Présentation du Projet ..................................................................................................... 4
+1.2 Les Deux Piliers d’Afrik’Fid .............................................................................................. 4
+1.3 Périmètre Géographique .................................................................................................. 4
+1.4 Offres Commerciales à Supporter ................................................................................... 4
+2. Modèle Économique et Règles Métier Fondamentales ........................................................ 6
+2.1 Mécanisme de Remise X / Y / Z ...................................................................................... 6
+2.2 Système de Statuts de Fidélité ........................................................................................ 6
+2.3 Séparation des Points ...................................................................................................... 6
+2.4 Règles de Gestion des Statuts ........................................................................................ 6
+2.4.1 Mécanisme de Qualification ...................................................................................... 6
+2.4.2 Mécanisme de Déclassement (Soft Landing) ........................................................... 7
+2.4.3 Notifications Automatiques de Statut ........................................................................ 7
+2.4.4 Cas Particuliers ......................................................................................................... 7
+2.5 Modèle de Revenus de la Plateforme ............................................................................. 7
+2.6 Mécanisme de Réduction par Recrutement (Starter Boost) ........................................... 8
+3. Spécifications Fonctionnelles — Passerelle de Paiement .................................................. 10
+3.1 Collecte des Fonds ........................................................................................................ 10
+3.1.1 Opérateurs Mobile Money ....................................................................................... 10
+3.1.2 Cartes de Paiement ................................................................................................. 10
+3.1.3 Flux de Paiement avec Application de la Remise .................................................. 10
+3.1.4 Gestion des Échecs ................................................................................................ 10
+3.2 Distribution des Fonds ................................................................................................... 11
+3.3 Gestion des Marchands ................................................................................................. 11
+3.4 Gestion des Clients Fidélité ........................................................................................... 11
+3.5 Prélèvement du Success Fee ........................................................................................ 11
+3.6 API Centrale ................................................................................................................... 11
+4. Spécifications Techniques — Passerelle ............................................................................ 13
+4.1 Architecture Micro-Services ........................................................................................... 13
+4.2 Stack Technologique...................................................................................................... 13
+4.3 Sécurité .......................................................................................................................... 13
+4.4 SLA et Performance ....................................................................................................... 13
+5. Spécifications Fonctionnelles — Dashboard Intelligence ................................................... 16
+5.1 Modèle RFM Intégré ...................................................................................................... 16
+5.2 Seuils RFM par Secteur (Configurables) ....................................................................... 16
+5.3 Les 6 Segments RFM Opérationnels ............................................................................ 16
+5.4 Triggers Automatiques ................................................................................................... 17
+Groupe Sixième Sens — Confidentiel — Page 2
+=== PAGE 3 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+5.5 Protocole d’Abandon (avant classement PERDU) ........................................................ 17
+5.6 Actions Recommandées par Segment .......................................................................... 18
+6. Fonctionnalités Dashboard par Package ............................................................................ 19
+6.1 Matrice des Fonctionnalités ........................................................................................... 19
+6.2 Dashboard Administrateur (Afrik’Fid) ............................................................................ 19
+6.3 Dashboard Marchand .................................................................................................... 20
+6.4 Workflow Opérationnel Quotidien Automatisé ............................................................... 20
+Groupe Sixième Sens — Confidentiel — Page 3
+=== PAGE 4 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+1. Introduction et Contexte Global
+1.1 Présentation du Projet
+Ce cahier des charges global définit les spécifications complètes pour le développement de
+l’écosystème technologique Afrik’Fid, organisé en deux parties indissociables : la Passerelle
+de Paiement (infrastructure transactionnelle) et le Dashboard Intelligence (pilotage, analytics
+et intelligence client). Ces deux composantes forment un système intégré où chaque
+transaction alimente le moteur d’intelligence, et où l’intelligence guide les actions
+commerciales.
+1.2 Les Deux Piliers d’Afrik’Fid
+Pilier 1 — ANIMATION : La passerelle de paiement et le programme de fidélité constituent
+le moteur visible du programme. Ils gèrent la collecte des fonds, l’application automatique de
+la remise selon le statut client (X/Y/Z), la distribution des commissions, et la progression dans
+les statuts (Open, Live, Gold, Royal).
+Pilier 2 — INTELLIGENCE CLIENT : Le dashboard transforme chaque transaction en donnée
+exploitable. Il centralise l’analyse RFM (Récence, Fréquence, Montant), la segmentation
+automatisée, les alertes churn prédictives, le calcul de la LTV par client et par statut, et les
+recommandations d’actions.
+1.3 Périmètre Géographique
+• Zone UEMOA (XOF) : Côte d’Ivoire, Niger, Burkina Faso, Sénégal, Mali, Togo,
+Bénin
+• Zone CEMAC (XAF) : Cameroun, Tchad, Guinée Équatoriale, Gabon, Congo
+• Afrique de l’Est : Kenya (KES) — marché pilote
+1.4 Offres Commerciales à Supporter
+La plateforme doit supporter l’ensemble des packages commerciaux Afrik’Fid, chacun activant
+un niveau de fonctionnalités différent dans le dashboard :
+Package Abonnement Cible Fonctionnalités Dashboard
+STARTER BOOST 300 000 XOF/an Petits commerces, Dashboard WhatsApp
+(25 000/mois) CA < 10M/mois simplifié, score fidélité
+mensuel, notifications push
+STARTER PLUS Sur devis Commerces Dashboard temps réel, taux
+structurés, PME retour, top clients, alertes
+churn, 1 rapport trimestriel
+GROWTH Sur devis PME établies, Segmentation RFM, scoring,
+INTELLIGENT multi-sites prédiction churn,
+recommandations IA,
+campagnes auto
+PREMIUM Sur devis Grandes Suite analytics complète, LTV,
+PERFORMANCE entreprises, élasticité-prix, cartographie,
+chaînes intégration ERP/CRM, API
+Groupe Sixième Sens — Confidentiel — Page 4
+=== PAGE 5 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+Nota : Le package souscrit par le marchand détermine les modules accessibles dans le
+dashboard via un système de contrôle d’accès par abonnement (RBAC + subscription tier).
+Groupe Sixième Sens — Confidentiel — Page 5
+=== PAGE 6 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+2. Modèle Économique et Règles Métier
+Fondamentales
+2.1 Mécanisme de Remise X / Y / Z
+Le modèle repose sur une remise négociée avec le marchand (X%), redistribuée entre le client
+(Y%) et Afrik’Fid (Z%) selon le statut de fidélité du client.
+RÈGLE FONDAMENTALE : X% (remise marchand) = Y% (remise client) +
+Z% (commission Afrik’Fid)
+2.2 Système de Statuts de Fidélité
+Le programme comprend quatre niveaux de statut, évalués sur une fenêtre de 12 mois
+glissants. Les points statut sont distincts des points récompense.
+Seuil (points
+Statut Avantage (Y%) Conversion Caractéristique
+statut)
+OPEN 0 – 999 Aucune remise 1 pt = 500 FCFA Niveau d’entrée
+d’achat
+LIVE 1 000+ +5% remise 1 pt = 500 FCFA Premier niveau
+d’achat actif
+GOLD 5 000+ +8% remise 1 pt = 500 FCFA Client fidèle
+d’achat confirmé
+ROYAL 15 000+ Premium (jusqu’à 1 pt = 500 FCFA Élite du
+12%) d’achat programme
+ROYAL 3 ans ROYAL Maximum Statut quasi-
+ÉLITE consécutifs OU 50 permanent
+000 pts historiques
+2.3 Séparation des Points
+Points statut : Servent exclusivement à la qualification aux niveaux. Conversion : 1 point =
+500 FCFA d’achat (paramétrable). La consommation de points récompense n’impacte jamais
+le statut.
+Points récompense : Utilisables pour obtenir des avantages et réductions. Conversion : 1
+point = 100 FCFA (paramétrable). Peuvent être dépensés librement sans affecter le statut.
+2.4 Règles de Gestion des Statuts
+2.4.1 Mécanisme de Qualification
+• Période de qualification : 12 mois glissants (rolling_12_months)
+• Fréquence de calcul : batch mensuel automatique (cron_monthly)
+• Seuls les points statut sont considérés pour la qualification
+Groupe Sixième Sens — Confidentiel — Page 6
+=== PAGE 7 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+• Date d’effet du changement : J+1 après le calcul batch
+• Conservation intégrale de l’historique des transitions (audit_log)
+2.4.2 Mécanisme de Déclassement (Soft Landing)
+En cas de non-requalification, le système applique un déclassement progressif. Un membre
+ne peut jamais perdre plus d’un niveau par période de calcul :
+Statut initial Statut après échec Règle
+ROYAL GOLD Jamais LIVE directement
+GOLD LIVE Jamais OPEN directement
+LIVE OPEN Déclassement normal
+ROYAL ÉLITE ROYAL Conservation 6 mois supplémentaires
+2.4.3 Notifications Automatiques de Statut
+Délai Message type Canal
+J-90 Rappel objectif de requalification Push + Email
+J-30 Alerte proximité échéance Push + SMS
+J-7 Dernière chance de requalification Push + SMS + Email
+J+1 Confirmation nouveau statut (montée ou Push + Email
+descente)
+2.4.4 Cas Particuliers
+• Fraude avérée : Retrait immédiat du statut sans préavis
+• Erreur technique : Rétablissement du statut avec effet rétroactif
+• Geste commercial : Validation obligatoire par le comité de gouvernance
+• Partenaire sortant : Maintien du statut acquis pendant 6 mois
+2.5 Modèle de Revenus de la Plateforme
+La plateforme génère des revenus via trois sources, toutes devant être gérées par la
+passerelle de paiement :
+Source Description Mécanisme
+Abonnement De 25 000 XOF (Starter Boost) à Prélèvement mensuel via la
+mensuel fixe sur-mesure (Premium) passerelle, réductible jusqu’à -50%
+selon clients recrutés
+Remise partenaire Remise accordée par le marchand Redistribuée : Y% au client (selon
+(12%) au programme statut) + Z% Afrik’Fid
+Success Fee (3- Commission sur la croissance réelle Prélevé uniquement sur les ventes
+5%) du CA au-delà du panier moyen de
+référence
+Groupe Sixième Sens — Confidentiel — Page 7
+=== PAGE 8 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+2.6 Mécanisme de Réduction par Recrutement (Starter Boost)
+Le package Starter Boost intègre un mécanisme incitatif : plus le marchand recrute de clients
+sur la plateforme, plus son abonnement diminue.
+Clients Réduction
+Mensualité effective Coût/jour
+recrutés/mois abonnement
+0 à 9 clients 0% 25 000 FCFA ~830 FCFA
+10 à 24 clients 10% 22 500 FCFA ~750 FCFA
+25 à 49 clients 20% 20 000 FCFA ~665 FCFA
+50 à 99 clients 35% 16 250 FCFA ~540 FCFA
+100+ clients 50% (plafond) 12 500 FCFA ~415 FCFA
+Groupe Sixième Sens — Confidentiel — Page 8
+=== PAGE 9 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+PARTIE I
+PASSERELLE DE PAIEMENT
+Collecte • Calcul X/Y/Z • Distribution • Réconciliation
+Groupe Sixième Sens — Confidentiel — Page 9
+=== PAGE 10 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+3. Spécifications Fonctionnelles — Passerelle de
+Paiement
+3.1 Collecte des Fonds
+3.1.1 Opérateurs Mobile Money
+Opérateur Pays Protocole Priorité
+Orange Money CI, SN, BF, ML, NE, API REST / Open API Élevée
+CM
+MTN Mobile CI, CM, BF, BJ, CG MTN MoMo API Élevée
+Money
+M-Pesa KE Daraja API Élevée
+(Safaricom)
+Wave SN, CI, ML, BF Wave Business API Moyenne
+Moov Money CI, BF, BJ, TG, NE API Moov Moyenne
+Airtel Money NE, TD, BF, KE Airtel Money API Moyenne
+3.1.2 Cartes de Paiement
+• Visa et MasterCard via agrégateur certifié PCI-DSS (CinetPay, Flutterwave)
+• Cartes GIM-UEMOA pour les transactions intra-UEMOA
+• Tokenisation (aucun PAN stocké), support 3D Secure v2
+3.1.3 Flux de Paiement avec Application de la Remise
+1. Le marchand initie un paiement via l’API (montant brut, identifiant client Afrik’Fid,
+référence)
+2. La passerelle identifie le client et récupère son statut (Open/Live/Gold/Royal) + taux
+Y%
+3. Le système récupère le taux X% du marchand et calcule Z% = X% − Y%
+4. Calcul des montants : marchand = montant × (1−X%), client = montant × Y%,
+Afrik’Fid = montant × Z%
+5. Le client choisit son moyen de paiement et valide (OTP, USSD, 3DS)
+6. Après confirmation, la passerelle distribue automatiquement les fonds
+7. Attribution des points statut au client (montant / 500 FCFA = nombre de points)
+8. Le marchand et le client reçoivent une notification de confirmation
+3.1.4 Gestion des Échecs
+• Timeout opérateur : 120s → vérification auto toutes les 30s pendant 10 min →
+expiration
+• Client non identifié : Transaction sans remise (mode invité) ou refus selon config
+marchand
+• Taux Y > X : Rejet immédiat avec alerte administrateur (anomalie de configuration)
+Groupe Sixième Sens — Confidentiel — Page 10
+=== PAGE 11 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+• Double paiement : Idempotence basée sur la référence marchand (24h)
+3.2 Distribution des Fonds
+Bénéficiaire Montant Timing
+Marchand Montant brut − X% Immédiat ou J+1
+(configurable)
+Client Y% du montant brut Immédiat (remise) ou crédité
+(remise/cashback) (cashback)
+Afrik’Fid (commission) Z% = X% − Y% Immédiat
+• Mode remise immédiate : montant déduit du prix au moment du paiement
+• Mode cashback différé : crédité sur le portefeuille Afrik’Fid du client
+• Réconciliation automatique quotidienne avec alerte si écart > 0,01%
+3.3 Gestion des Marchands
+• Enrôlement : collecte KYC, négociation taux X%, configuration mode remise,
+génération clés API
+• Configuration : taux X% (global ou par catégorie), mode remise, comptes réception,
+fréquence settlement
+• Gestion du package souscrit (Starter Boost / Starter Plus / Growth / Premium) et des
+modules accessibles
+• Suivi du bonus recrutement clients (Starter Boost) : comptage mensuel automatique
+et ajustement de la mensualité
+3.4 Gestion des Clients Fidélité
+• Profil : identifiant unique, statut actuel + historique, points statut, points récompense,
+portefeuille cashback
+• Portefeuille cashback : alimentation auto via Y%, utilisation chez tout marchand du
+réseau, historique détaillé
+• Batch mensuel de réévaluation des statuts avec application du Soft Landing
+3.5 Prélèvement du Success Fee
+La passerelle doit calculer et prélever automatiquement le success fee (3-5% selon le
+package) uniquement sur la croissance réelle du CA du marchand par rapport à son panier
+moyen de référence. Si zéro croissance, zéro success fee. Le panier moyen de référence est
+calculé sur les 3 premiers mois d’activité.
+3.6 API Centrale
+Groupe Sixième Sens — Confidentiel — Page 11
+=== PAGE 12 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+Endpoint Méthode Description
+/api/v1/payments/initiate POST Initier un paiement avec calcul automatique X/Y/Z
+/api/v1/payments/{id}/status GET Statut + détail répartition
+/api/v1/payments/{id}/refund POST Remboursement total ou partiel
+/api/v1/merchants CRUD Gestion marchands, taux X%, package
+/api/v1/clients/{id}/profile GET Profil + statut + points
+/api/v1/clients/{id}/wallet GET Solde cashback
+/api/v1/loyalty/config CRUD Configuration statuts et taux Y%
+/api/v1/loyalty/batch/evaluate POST Trigger manuel du batch de réévaluation
+/api/v1/subscriptions/{id} GET Abonnement marchand + bonus recrutement
+/api/v1/success- GET Détail du success fee calculé
+fees/{merchant_id}
+/api/v1/payment-links CRUD Liens de paiement à usage unique
+/api/v1/reports/daily GET Rapport quotidien
+Groupe Sixième Sens — Confidentiel — Page 12
+=== PAGE 13 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+4. Spécifications Techniques — Passerelle
+4.1 Architecture Micro-Services
+• API Gateway : Kong/NGINX — authentification HMAC, rate limiting, routage, TLS
+1.3
+• Payment Orchestrator : NestJS — orchestration Saga, idempotence UUID v4,
+circuit breaker
+• Loyalty Engine : FastAPI — statuts, taux Y%, batch réévaluation, portefeuille
+cashback
+• Discount Engine : Calcul déterministe X/Y/Z en centimes (integer arithmetic)
+• Country Adapters : Interface IPaymentAdapter par opérateur, ajout pays en 3-5
+jours
+• Distribution Service : Event-driven, mode instantané ou batch, réconciliation
+• Subscription Service : Gestion des abonnements, bonus recrutement, success fee
+• Notification Service : Webhooks signés HMAC, SMS, push, email, retry exponentiel
+• Reporting Service : CQRS sur read replica, Materialized Views, export
+CSV/Excel/PDF
+4.2 Stack Technologique
+Composant Technologie Justification
+Backend Node.js 20 (NestJS) + Python Async natif, TypeScript, performance
+(FastAPI)
+Frontend React.js 18 + TypeScript + Composants, typage, responsive
+Tailwind
+Base de données PostgreSQL 16+ (primary + ACID, JSON natif, fiabilité
+replica)
+Cache Redis 7+ Statuts clients TTL 5min, rate limiting
+Message broker RabbitMQ ou Kafka Découplage, fiabilité, replay
+Conteneurisation Docker + Kubernetes Scaling, résilience, multi-env
+Monitoring Grafana + Prometheus + ELK Métriques, logs, traces, alertes
++ Jaeger
+4.3 Sécurité
+• TLS 1.3, AES-256 au repos, PCI-DSS SAQ-A, tokenisation cartes
+• JWT (access 15min / refresh 7j), HMAC-SHA256 pour API marchands
+• Détection de fraude configurable, blocage auto après 5 échecs
+• Pentest avant production et annuellement, HashiCorp Vault pour les secrets
+4.4 SLA et Performance
+Groupe Sixième Sens — Confidentiel — Page 13
+=== PAGE 14 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+Indicateur Objectif
+Disponibilité 99,9%
+Temps réponse API (P95) < 2 secondes
+Transactions simultanées 500 minimum
+Délai distribution < 5 minutes
+RTO < 1 heure
+RPO < 15 minutes
+Groupe Sixième Sens — Confidentiel — Page 14
+=== PAGE 15 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+PARTIE II
+DASHBOARD INTELLIGENCE & ANALYTICS
+Segmentation RFM • Alertes Churn • LTV • Pilotage Performance
+Groupe Sixième Sens — Confidentiel — Page 15
+=== PAGE 16 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+5. Spécifications Fonctionnelles — Dashboard
+Intelligence
+5.1 Modèle RFM Intégré
+Le dashboard repose sur le modèle RFM (Récence, Fréquence, Montant) pour segmenter
+automatiquement la base client de chaque marchand. Chaque dimension est notée de 1 à 5
+:
+Dimension Question Score 5 (Top) Score 1 (Bas)
+Récence (R) Quand le dernier achat ? Achat très récent Inactif depuis
+longtemps
+Fréquence (F) Combien d’achats ? Très fréquent Rare
+Montant (M) Combien dépensé ? Panier élevé Panier faible
+5.2 Seuils RFM par Secteur (Configurables)
+Les seuils varient selon le secteur du marchand. Ils doivent être paramétrables lors de
+l’onboarding et ajustables dans le panel admin :
+Récent Fréquence
+Secteur Alerte si... Perdu si... Montant élevé
+si... bonne
+Stations < 7 jours 14-30 > 60 jours ≥ 4x/mois > 50K/mois
+service jours
+Épicerie < 7 jours 14-21 > 45 jours ≥ 8x/mois > 80K/mois
+jours
+Restaurant < 14 jours 30-45 > 90 jours ≥ 2x/mois > 30K/mois
+jours
+Beauté < 30 jours 45-60 > 120 ≥ 2x/mois > 40K/mois
+jours jours
+Mode < 45 jours 60-90 > 180 ≥ 1x/mois > 50K/trim
+jours jours
+Pharmacie < 30 jours 45-60 > 90 jours ≥ 2x/mois > 25K/mois
+jours
+Informatique < 90 jours 180 jours > 365 ≥ 1x/an > 100K/an
+jours
+5.3 Les 6 Segments RFM Opérationnels
+Le système classe automatiquement chaque client dans l’un des 6 segments suivants :
+Part
+Segment Critères RFM Description Priorité
+typique
+CHAMPIONS 5-10% R≥4, F≥4, Meilleurs clients, achats récents et VIP
+M≥4 fréquents
+Groupe Sixième Sens — Confidentiel — Page 16
+=== PAGE 17 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+FIDÈLES 15-20% R≥4, F≥4, Achètent souvent, panier moyen Haute
+M=2-3
+PROMETTEURS 10-15% R≥4, F=2-3, Gros achats mais peu fréquents Haute
+M≥4
+À RISQUE 10-15% R=2-3, F≥4, Étaient bons mais s’éloignent URGENTE
+M≥4
+HIBERNANTS 25-30% R=2-3, F=2-3 Clients dormants, activité en Moyenne
+baisse
+PERDUS 15-20% R≤2, F≤2, Inactifs depuis longtemps Faible
+M≤2
+5.4 Triggers Automatiques
+Le système déclenche automatiquement des actions selon les événements comportementaux
+détectés :
+Trigger Condition Action Objectif
+BIENVENUE Nouveau membre SMS bienvenue + offre Activer 1er achat
+inscrit découverte
+1ER ACHAT Premier achat Félicitations + points bonus Ancrer habitude
+effectué
+ABSENCE R passe de 5→4 Rappel doux : On vous Prévenir décrochage
+attend
+ALERTE R R passe de 4→3 Offre personnalisée + Réactiver
+points x2
+À RISQUE R=2-3 ET (F≥4 OU Alerte équipe + offre forte Sauver client VIP
+M≥4)
+WIN-BACK R=1 (client perdu) Campagne reconquête Dernière chance
+choc
+ANNIVERSAIRE Date anniversaire Message perso + cadeau Créer émotion
+PALIER Passage de statut Félicitations + avantages Renforcer engagement
+(Open→Live, etc.)
+5.5 Protocole d’Abandon (avant classement PERDU)
+Un client n’est JAMAIS classé perdu sans au moins 3 tentatives de réactivation espacées :
+1. Win-back 1 (seuil ALERTE) : Offre -15% ou points x2
+2. Win-back 2 (+14 jours) : « Vous nous manquez » + offre -20%
+3. Win-back 3 (+14 jours) : Dernière chance -30%
+4. Enquête (+7 jours) : « Pourquoi êtes-vous parti ? »
+5. Archivage (+30 jours) : Classement PERDU définitif
+Groupe Sixième Sens — Confidentiel — Page 17
+=== PAGE 18 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+5.6 Actions Recommandées par Segment
+Segment Actions clés Objectif
+CHAMPIONS Programme VIP, accès prioritaire, Maintenir R≥4, F≥4
+événements privés, programme ambassadeur
+FIDÈLES Cross-sell, upsell panier, challenges Augmenter M vers ≥4
+fréquence, parrainage
+PROMETTEURS Stimuler fréquence, offres « revenez vite », Augmenter F vers ≥4
+points bonus si retour <15j
+À RISQUE ACTION URGENTE : offre forte, points x3, Remonter R vers ≥4
+contact direct
+HIBERNANTS Campagne réactivation, rappel avantages non Générer 1 achat en 30j
+utilisés
+PERDUS Win-back 1x/trim max, offre choc, archiver si Réactiver 5-10%
+pas de réponse
+Groupe Sixième Sens — Confidentiel — Page 18
+=== PAGE 19 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+6. Fonctionnalités Dashboard par Package
+6.1 Matrice des Fonctionnalités
+Chaque package active un ensemble de modules dans le dashboard. Le système de contrôle
+d’accès doit verrouiller les modules non inclus et afficher un call-to-action d’upgrade :
+Starter
+Fonctionnalité Starter Plus Growth Premium
+Boost
+Dashboard fidélité temps WhatsApp ✓ ✓ ✓
+réel simplifié
+Score fidélité mensuel ✓ ✓ ✓ ✓
+Notifications push clients ✓ ✓ ✓ ✓
+Taux de retour clients ✗ ✓ ✓ ✓
+Top clients fidèles ✗ ✓ ✓ ✓
+Alertes churn basiques ✗ ✓ ✓ ✓
+Rapport trimestriel ✗ 1/an 2/an 4/an
+Segmentation RFM ✗ ✗ ✓ ✓
+automatique
+Scoring RFM par client ✗ ✗ ✓ ✓
+Prédiction churn IA ✗ ✗ ✓ ✓
+Recommandations IA ✗ ✗ ✓ ✓
+hebdo
+Campagnes automatisées ✗ ✗ ✓ ✓
+Suite analytics avancée ✗ ✗ ✗ ✓
+LTV par client et statut ✗ ✗ ✗ ✓
+Élasticité-prix, prévisions ✗ ✗ ✗ ✓
+Cartographie zones ✗ ✗ ✗ ✓
+chalandise
+Intégration ERP / CRM ✗ ✗ ✗ ✓
+API temps réel ✗ ✗ ✗ ✓
+6.2 Dashboard Administrateur (Afrik’Fid)
+• Vue globale multi-pays : volume et valeur des transactions, commissions Z%
+générées, abonnements actifs
+• Gestion des marchands : enrôlement, package, taux X%, activation/suspension
+• Configuration programme : taux Y% par statut, seuils de points, règles Soft Landing
+• Configuration RFM : seuils par secteur, triggers automatiques, templates de
+communication
+• Monitoring success fees : calcul, prélèvement, réconciliation
+Groupe Sixième Sens — Confidentiel — Page 19
+=== PAGE 20 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+• Suivi des bonus recrutement (Starter Boost) : clients recrutés par marchand,
+réductions appliquées
+• Distribution des clients par statut (funnel Open → Royal), taux de conversion
+• KPIs RFM globaux : % Champions, % À Risque, taux réactivation, taux win-back,
+churn mensuel
+• Journal d’audit complet, gestion des utilisateurs et rôles
+6.3 Dashboard Marchand
+• Vue personnalisée selon le package souscrit (modules verrouillés avec CTA
+upgrade)
+• Ventes et transactions : historique, filtres, export, détail de la répartition X/Y/Z
+• Clients fidélisés : nombre, répartition par statut, évolution
+• Score fidélité mensuel et taux de retour (Starter Plus+)
+• Segmentation RFM avec actions recommandées (Growth+)
+• Analytics avancés : LTV, élasticité, prévisions (Premium)
+• Gestion clés API, webhooks, documentation sandbox
+6.4 Workflow Opérationnel Quotidien Automatisé
+Heure Opération Détail
+06h00 Calcul scores RFM Batch nocturne sur l’ensemble de la base client
+07h00 Génération alertes Identification des clients à risque et des transitions
+08h00 Envoi notifications WhatsApp, push, SMS programmés par segment
+10h00 Dashboard équipe Liste des clients à contacter en priorité
+18h00 Bilan journalier Réactivations effectuées, résultats
+Continu Triggers temps réel 1er achat, passage de palier, anniversaire
+Groupe Sixième Sens — Confidentiel — Page 20
+=== PAGE 21 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+7. Planning, Budget et Modalités
+7.1 Planning de Réalisation
+Phase Description Durée
+Phase 1 : Cadrage Architecture, règles métier, maquettes, modélisation
+RFM
+Phase 2 : Core API, Loyalty Engine, Discount Engine X/Y/Z,
+Passerelle Distribution
+Phase 3 : 2 premiers pays (CI + Kenya), opérateurs mobile
+Intégrations money
+Phase 4 : Panel admin + marchand, config statuts, packages
+Dashboard Base
+Phase 5 : Module RFM, segmentation, triggers, alertes churn
+Dashboard
+Intelligence
+Phase 6 : Tests & Tests de charge, pentest, scénarios métier complets
+Sécurité
+Phase 7 : Production, formation, documentation
+Déploiement
+TOTAL
+7.4 Maintenance et Garantie
+6 mois de garantie. Niveaux de criticité : P1 Critique (4h), P2 Majeur (24h), P3 Mineur (5 jours),
+P4 Évolution (roadmap). L’ensemble des livrables (code source, BDD, documentation) est
+propriété exclusive du client.
+Conclusion
+Ce cahier des charges global définit l’intégralité de l’écosystème technologique Afrik’Fid : une
+passerelle de paiement qui automatise le modèle de remise X/Y/Z selon le statut de fidélité,
+et un dashboard intelligence qui transforme chaque transaction en donnée actionnable via le
+cadre RFM.
+L’architecture modulaire par packages (Starter Boost, Starter Plus, Growth Intelligent,
+Premium Performance) permet une montée en valeur progressive des marchands,
+conformément à la stratégie commerciale Afrik’Fid. Le système de gestion des statuts (Open
+→ Live → Gold → Royal → Royal Élite) avec son mécanisme de Soft Landing garantit une
+expérience client équitable et progressive.
+Toute question relative à ce cahier des charges peut être adressée à la Direction des Projets
+Numériques du Groupe Sixième Sens.
+Groupe Sixième Sens — Confidentiel — Page 21
+=== PAGE 22 ===
+Afrik’Fid — Cahier des Charges Global v3.0
+Pour le Client Pour le Prestataire
+Groupe Sixième Sens À compléter
+Date : _____18/03/2026__________ Date : _______________
+Signature : _______________
+Signature : _______________
+Groupe Sixième Sens — Confidentiel — Page 22

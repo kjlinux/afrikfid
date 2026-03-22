@@ -216,7 +216,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 16 }}>
           <KpiCard
             label="Solde portefeuille"
             value={fmt(wallet?.balance, wallet?.currency || 'XOF')}
@@ -241,6 +241,47 @@ export default function ClientDashboard() {
             sub={`Taux actuel : ${meta.pct}% (${status})`}
             color={meta.color}
           />
+        </div>
+
+        {/* CDC §2.3 — Points statut vs points récompense séparés */}
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 14, padding: '16px 20px', marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {/* Points statut */}
+          <div>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Points statut <span style={{ color: '#475569', fontWeight: 400, fontSize: 10, marginLeft: 6 }}>1 pt = 500 FCFA d'achat</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 26, fontWeight: 800, color: meta.color }}>
+                {(client?.statusPoints12m || 0).toLocaleString('fr-FR')}
+              </span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>pts (12 mois)</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+              Total cumulé : {(client?.lifetimeStatusPoints || 0).toLocaleString('fr-FR')} pts
+            </div>
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+              Ces points servent uniquement à la qualification de statut et ne peuvent pas être dépensés.
+            </div>
+          </div>
+
+          {/* Points récompense */}
+          <div style={{ borderLeft: '1px solid #334155', paddingLeft: 20 }}>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Points récompense <span style={{ color: '#475569', fontWeight: 400, fontSize: 10, marginLeft: 6 }}>1 pt = 100 FCFA</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 26, fontWeight: 800, color: '#10b981' }}>
+                {(client?.rewardPoints || 0).toLocaleString('fr-FR')}
+              </span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>pts disponibles</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#10b981', marginTop: 4, fontWeight: 600 }}>
+              ≈ {fmt((client?.rewardPoints || 0) * 100)} utilisables
+            </div>
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+              Utilisables chez tous les marchands du réseau sans affecter votre statut.
+            </div>
+          </div>
         </div>
 
         {/* Progression vers le prochain statut */}

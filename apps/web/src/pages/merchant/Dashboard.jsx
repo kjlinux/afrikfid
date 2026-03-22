@@ -92,7 +92,7 @@ export default function MerchantDashboard() {
   const [showKey, setShowKey] = useState(false)
   const { toast } = useToast()
 
-  const token = localStorage.getItem('accessToken')
+  const token = localStorage.getItem('afrikfid_token_merchant')
 
   useEffect(() => {
     api.get('/merchants/me/profile').then(r => setProfile(r.data.merchant))

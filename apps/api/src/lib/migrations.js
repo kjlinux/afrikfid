@@ -942,6 +942,80 @@ const MIGRATIONS = [
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
     `,
   },
+  {
+    version: 27,
+    name: '027_subscription_payments',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 §2.5 — Prélèvement mensuel automatique des abonnements marchands
+      -- Source de revenu n°1 : abonnement fixe réductible via Starter Boost
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS subscription_payments (
+        id TEXT PRIMARY KEY,
+        subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        base_amount NUMERIC NOT NULL,
+        discount_percent NUMERIC NOT NULL DEFAULT 0,
+        effective_amount NUMERIC NOT NULL,
+        recruited_clients_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'completed', 'failed', 'waived')),
+        failure_reason TEXT,
+        paid_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sub_payments_merchant ON subscription_payments(merchant_id, period_start DESC);
+      CREATE INDEX IF NOT EXISTS idx_sub_payments_status ON subscription_payments(status, created_at);
+
+      -- Suivi de la dernière date de prélèvement sur la subscription
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_billed_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_failure_count INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 28,
+    name: '028_status_special_cases',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 §2.4.4 — Cas Particuliers de gestion des statuts
+      -- Fraude avérée | Partenaire sortant | Geste commercial | Erreur technique
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Colonne partenaire sortant : date à partir de laquelle le marchand se retire
+      -- Le statut client est maintenu pendant 6 mois après partner_exit_at
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS partner_exit_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS partner_exit_status_hold_until TIMESTAMPTZ DEFAULT NULL;
+
+      -- Table des demandes de geste commercial (validation comité gouvernance)
+      CREATE TABLE IF NOT EXISTS governance_requests (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        requested_by TEXT NOT NULL REFERENCES admins(id),
+        type TEXT NOT NULL CHECK (type IN ('commercial_gesture', 'retroactive_restore', 'fraud_revoke', 'partner_exit')),
+        current_status TEXT NOT NULL,
+        requested_status TEXT,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'approved', 'rejected')),
+        reviewed_by TEXT REFERENCES admins(id),
+        reviewed_at TIMESTAMPTZ,
+        review_comment TEXT,
+        applied_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_governance_requests_client ON governance_requests(client_id);
+      CREATE INDEX IF NOT EXISTS idx_governance_requests_status ON governance_requests(status, created_at DESC);
+
+      -- Colonne pour marquer le retrait de statut suite à fraude avérée (sans préavis, CDC §2.4.4)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS fraud_status_revoked_at TIMESTAMPTZ DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS fraud_status_revoked_reason TEXT DEFAULT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

@@ -476,6 +476,47 @@ router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
   });
 });
 
+// GET /api/v1/clients/:id/wallet — CDC v3 §3.6 — solde et mouvements cashback
+router.get('/:id/wallet', requireAuth, async (req, res) => {
+  const clientRes = await db.query('SELECT id FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+  if (!(await canAccessClient(req, client.id))) return res.status(403).json({ error: 'Accès interdit' });
+
+  const { limit = 20, page = 1 } = req.query;
+  const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+  if (!wallet) return res.status(404).json({ error: 'Portefeuille non trouvé' });
+
+  const movements = (await db.query(
+    `SELECT wm.*, t.reference as tx_reference, t.merchant_id
+     FROM wallet_movements wm
+     LEFT JOIN transactions t ON t.id = wm.transaction_id
+     WHERE wm.wallet_id = $1
+     ORDER BY wm.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [wallet.id, parseInt(limit), (page - 1) * limit]
+  )).rows;
+
+  const total = parseInt((await db.query(
+    'SELECT COUNT(*) as c FROM wallet_movements WHERE wallet_id = $1', [wallet.id]
+  )).rows[0].c);
+
+  res.json({
+    wallet: {
+      id: wallet.id,
+      balance: wallet.balance,
+      totalEarned: wallet.total_earned,
+      totalSpent: wallet.total_spent,
+      currency: wallet.currency || 'XOF',
+      maxBalance: wallet.max_balance || null,
+    },
+    movements,
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit),
+  });
+});
+
 function sanitizeClient(c) {
   // Déchiffrer le téléphone en toute sécurité — retourne null si échec (clé absente/différente)
   let phoneMasked = null;

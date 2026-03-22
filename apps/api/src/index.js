@@ -20,6 +20,7 @@ const statusNotifWorker = require('./workers/status-notifications');
 const dailySummaryWorker = require('./workers/daily-workflow');
 const reconciliationWorker = require('./workers/reconciliation');
 const cleanupWorker = require('./workers/cleanup');
+const subscriptionBillingWorker = require('./workers/subscription-billing');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
@@ -380,6 +381,9 @@ if (process.env.NODE_ENV !== 'test') {
 
   // CDC v3 §3.5 — Success Fee mensuel (1er du mois à 04h00)
   successFeeWorker.start();
+
+  // CDC v3 §2.5 — Prélèvement abonnements mensuel (2e du mois à 05h00)
+  subscriptionBillingWorker.start();
 
   // CDC v3 §5.1 — Batch RFM quotidien (06h00)
   rfmBatchWorker.start();

@@ -40,7 +40,8 @@ async function runStatusNotifications() {
 
     // Vérifier chaque palier de notification
     for (const schedule of STATUS_NOTIFICATION_SCHEDULE) {
-      if (schedule.days_before && daysUntil === schedule.days_before) {
+      // Fenêtre ±1 jour pour absorber les décalages de cron (comparaison stricte = bug si cron décale)
+      if (schedule.days_before && Math.abs(daysUntil - schedule.days_before) <= 1) {
         // J-90, J-30, J-7
         notifyRequalificationReminder({
           client,
