@@ -100,11 +100,11 @@ const RFM_DEFAULT_THRESHOLDS = {
 // ─── Mapping segments RFM (CDC v3 §5.3) ─────────────────────────────────
 const RFM_SEGMENT_RULES = [
   { segment: 'CHAMPIONS',   minR: 4, minF: 4, minM: 4 },
-  { segment: 'FIDELES',     minR: 3, minF: 3, minM: 3 },
-  { segment: 'PROMETTEURS', minR: 4, minF: 1, minM: 1 },
-  { segment: 'A_RISQUE',    minR: 2, minF: 3, minM: 3 },
-  { segment: 'HIBERNANTS',  minR: 1, minF: 2, minM: 1 },
-  { segment: 'PERDUS',      minR: 1, minF: 1, minM: 1 },
+  { segment: 'FIDELES',     minR: 4, minF: 4, minM: 2, maxM: 3 },
+  { segment: 'PROMETTEURS', minR: 4, minF: 2, maxF: 3, minM: 4 },
+  { segment: 'A_RISQUE',    minR: 2, maxR: 3, minF: 4, minM: 4 },
+  { segment: 'HIBERNANTS',  minR: 2, maxR: 3, minF: 2, maxF: 3 },
+  { segment: 'PERDUS',      maxR: 2, maxF: 2, maxM: 2 },
 ];
 
 // ─── Triggers automatiques (CDC v3 §5.4) ────────────────────────────────

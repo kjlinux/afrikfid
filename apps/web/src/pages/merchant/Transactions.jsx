@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { ArrowUturnLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { exportCsv } from '../../components/ui.jsx'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
@@ -66,6 +67,22 @@ export default function MerchantTransactions() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Mes Transactions ({total})</h1>
+        {transactions.length > 0 && (
+          <button onClick={() => exportCsv(transactions, [
+            { label: 'Référence', key: 'reference' },
+            { label: 'Client', key: 'client_name' },
+            { label: 'Statut', key: 'status' },
+            { label: 'Montant brut', key: 'gross_amount' },
+            { label: 'Reçu net', key: 'merchant_receives' },
+            { label: 'Remise client', key: 'client_rebate_amount' },
+            { label: 'Commission', key: 'platform_commission' },
+            { label: 'Opérateur', key: 'operator' },
+            { label: 'Date', key: 'initiated_at' },
+          ], 'mes-transactions.csv')}
+            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            ↓ Export CSV
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>

@@ -394,6 +394,10 @@ async function runTransitionTriggers() {
       else if (t.old_r_score === 4 && t.new_r_score === 3) {
         triggerName = 'ALERTE_R';
       }
+      // CDC §5.4 — Trigger WIN_BACK : R tombe à 1 (client perdu)
+      else if (t.new_r_score === 1 && t.old_r_score > 1) {
+        triggerName = 'WIN_BACK';
+      }
       // Passage vers segment À_RISQUE
       else if (t.new_segment === 'A_RISQUE' && t.old_segment !== 'A_RISQUE') {
         triggerName = 'A_RISQUE';

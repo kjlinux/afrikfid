@@ -13,7 +13,7 @@ const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../con
 const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
 const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed, notifyFraudBlocked, notifyRefundRequested, notifyWalletCapReached } = require('../lib/notifications');
-const { checkTransaction } = require('../lib/fraud');
+const { checkTransaction, revokeLoyaltyStatusForFraud } = require('../lib/fraud');
 const cinetpay = require('../lib/adapters/cinetpay');
 const flutterwave = require('../lib/adapters/flutterwave');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
@@ -132,6 +132,8 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       reason: `Anomalie config: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
     }).catch(() => { });
+    // CDC §2.4.4 — Retrait immédiat du statut si fraude de configuration détectée
+    if (client?.id) revokeLoyaltyStatusForFraud(client.id, 'y_exceeds_x_config_fraud').catch(() => {});
     return res.status(422).json({
       error: 'DISTRIBUTION_ERROR',
       message: `Taux client Y (${distribution.clientRebatePercent}%) supérieur au taux marchand X (${distribution.merchantRebatePercent}%). Anomalie de configuration.`,

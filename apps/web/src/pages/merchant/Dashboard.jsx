@@ -293,7 +293,7 @@ export default function MerchantDashboard() {
       )}
 
       {/* Bonus recrutement + Success Fee + RFM/Triggers */}
-      <MerchantIntelligenceSection pkg={profile.package} period={period} />
+      <MerchantIntelligenceSection pkg={profile.package} period={period} merchantId={user?.merchantId || user?.id} />
 
       {/* Liens rapides */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 20 }}>
@@ -319,10 +319,11 @@ const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b
 const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
 
 // ─── Section Intelligence Marchand : Bonus, Success Fee, RFM ─────────────────
-function MerchantIntelligenceSection({ pkg, period }) {
+function MerchantIntelligenceSection({ pkg, period, merchantId }) {
   const [subData, setSubData] = useState(null)
   const [sfData, setSfData] = useState(null)
   const [rfmData, setRfmData] = useState(null)
+  const [loyaltyScore, setLoyaltyScore] = useState(null)
   const pkgIdx = PKG_ORDER.indexOf(pkg)
   const isGrowthPlus = pkgIdx >= PKG_ORDER.indexOf('GROWTH')
 
@@ -332,7 +333,10 @@ function MerchantIntelligenceSection({ pkg, period }) {
     if (isGrowthPlus) {
       api.get('/merchants/me/rfm-summary').then(r => setRfmData(r.data)).catch(() => {})
     }
-  }, [isGrowthPlus])
+    if (merchantId) {
+      api.get(`/merchant-intelligence/${merchantId}/loyalty-score`).then(r => setLoyaltyScore(r.data)).catch(() => {})
+    }
+  }, [isGrowthPlus, merchantId])
 
   const sub = subData?.subscription
   const STARTER_TIERS = [
@@ -344,7 +348,7 @@ function MerchantIntelligenceSection({ pkg, period }) {
   ]
 
   return (
-    <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: isGrowthPlus ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
+    <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: isGrowthPlus ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 16 }}>
 
       {/* Abonnement + Bonus recrutement (CDC §2.6) */}
       <Card title={`Abonnement — ${PKG_LABEL[pkg] || pkg}`}>
@@ -417,6 +421,31 @@ function MerchantIntelligenceSection({ pkg, period }) {
           </div>
         ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Chargement...</div>}
       </Card>
+
+      {/* Score fidélité mensuel (CDC §6.4 — tous packages) */}
+      {loyaltyScore && (
+        <Card title="Score fidélité mensuel">
+          <div style={{ textAlign: 'center', paddingBottom: 8 }}>
+            <div style={{ fontSize: 48, fontWeight: 900, color: loyaltyScore.score >= 70 ? '#10b981' : loyaltyScore.score >= 40 ? '#f59e0b' : '#ef4444', lineHeight: 1 }}>
+              {loyaltyScore.score ?? '—'}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>/100</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
+            {loyaltyScore.breakdown && Object.entries(loyaltyScore.breakdown).map(([k, v]) => (
+              <div key={k} style={{ background: '#0f172a', borderRadius: 6, padding: '6px 8px' }}>
+                <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 }}>{k.replace(/_/g, ' ')}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{typeof v === 'number' ? (v < 1 ? Math.round(v * 100) + '%' : v) : v ?? '—'}</div>
+              </div>
+            ))}
+          </div>
+          {loyaltyScore.recommendation && (
+            <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(59,130,246,0.08)', borderRadius: 6, fontSize: 11, color: '#93c5fd' }}>
+              💡 {loyaltyScore.recommendation}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Segmentation RFM — GROWTH+ uniquement (CDC §5.1–5.3) */}
       {isGrowthPlus && (

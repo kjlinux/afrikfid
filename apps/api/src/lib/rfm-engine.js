@@ -48,9 +48,10 @@ function scoreValue(value, thresholds, isRecency) {
  */
 function assignSegment(r, f, m) {
   for (const rule of RFM_SEGMENT_RULES) {
-    if (r >= rule.minR && f >= rule.minF && m >= rule.minM) {
-      return rule.segment;
-    }
+    const rOk = (rule.minR === undefined || r >= rule.minR) && (rule.maxR === undefined || r <= rule.maxR);
+    const fOk = (rule.minF === undefined || f >= rule.minF) && (rule.maxF === undefined || f <= rule.maxF);
+    const mOk = (rule.minM === undefined || m >= rule.minM) && (rule.maxM === undefined || m <= rule.maxM);
+    if (rOk && fOk && mOk) return rule.segment;
   }
   return 'PERDUS';
 }

@@ -84,6 +84,7 @@ router.get('/:merchantId', requireAuth, async (req, res, next) => {
         rfm_detailed: pkgIndex >= 2,
         churn_prediction: pkgIndex >= 2,
         campaigns: pkgIndex >= 2,
+        ai_recommendations: pkgIndex >= 2,
         analytics_advanced: pkgIndex >= 3,
         ltv: pkgIndex >= 3,
         price_elasticity: pkgIndex >= 3,
@@ -410,6 +411,163 @@ router.get('/:merchantId/trade-zones', requireAuth, async (req, res, next) => {
     const minClients = Math.max(parseInt(req.query.min_clients) || 3, 1);
     const result = await getTradeZoneStats(merchantId, { months, minClients });
     res.json(result);
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /merchant-intelligence/:merchantId/recommendations
+ * Recommandations hebdo basées sur les données RFM + churn réelles (CDC §6.1 — Growth+)
+ * Retourne une liste priorisée d'actions concrètes pour la semaine
+ */
+router.get('/:merchantId/recommendations', requireAuth, async (req, res, next) => {
+  try {
+    const { merchantId } = req.params;
+    if (req.merchant && req.merchant.id !== merchantId) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+    if (req.client) return res.status(403).json({ error: 'Accès réservé aux marchands' });
+
+    const merchant = await pool.query('SELECT id, name, package FROM merchants WHERE id = $1', [merchantId]);
+    if (!merchant.rows[0]) return res.status(404).json({ error: 'Marchand introuvable' });
+
+    const pkg = merchant.rows[0].package || 'STARTER_BOOST';
+    const pkgIndex = MERCHANT_PACKAGES.indexOf(pkg);
+    if (pkgIndex < 2) {
+      return res.status(403).json({
+        error: 'Recommandations IA disponibles à partir du package Growth Intelligent',
+        upgrade_to: 'GROWTH',
+      });
+    }
+
+    // Collecter les données de base
+    const [rfmRes, churnRes, abandonsRes, convRes] = await Promise.all([
+      pool.query(`
+        SELECT segment, COUNT(*) AS count,
+          ROUND(AVG(total_amount)::numeric, 0) AS avg_amount
+        FROM rfm_scores WHERE merchant_id = $1
+        GROUP BY segment ORDER BY count DESC
+      `, [merchantId]),
+      pool.query(`
+        SELECT COUNT(*) AS total,
+          SUM(CASE WHEN last_purchase_days > 60 THEN 1 ELSE 0 END) AS critical
+        FROM rfm_scores WHERE merchant_id = $1
+      `, [merchantId]),
+      pool.query(`
+        SELECT COUNT(*) AS count FROM abandon_tracking
+        WHERE merchant_id = $1 AND status = 'active' AND current_step < 5
+      `, [merchantId]).catch(() => ({ rows: [{ count: 0 }] })),
+      pool.query(`
+        SELECT
+          COUNT(*) AS total_tx,
+          COUNT(DISTINCT client_id) AS active_clients,
+          AVG(gross_amount) AS avg_basket
+        FROM transactions
+        WHERE merchant_id = $1 AND status = 'completed'
+          AND completed_at >= NOW() - INTERVAL '7 days'
+      `, [merchantId]),
+    ]);
+
+    const segments = Object.fromEntries(rfmRes.rows.map(r => [r.segment, Number(r.count)]));
+    const criticalChurn = Number(churnRes.rows[0]?.critical || 0);
+    const activeAbandons = Number(abandonsRes.rows[0]?.count || 0);
+    const weekTx = Number(convRes.rows[0]?.total_tx || 0);
+    const weekClients = Number(convRes.rows[0]?.active_clients || 0);
+    const weekBasket = Number(convRes.rows[0]?.avg_basket || 0);
+
+    // Générer des recommandations priorisées basées sur les données réelles
+    const recommendations = [];
+    const week = new Date().toISOString().slice(0, 10);
+
+    if (criticalChurn > 0) {
+      recommendations.push({
+        priority: 1,
+        type: 'CHURN_PREVENTION',
+        title: `${criticalChurn} clients à risque critique de départ`,
+        action: 'Lancer une campagne WIN_BACK immédiate avec offre -20% ou points x3',
+        segment: 'A_RISQUE',
+        client_count: criticalChurn,
+        impact: 'HIGH',
+        deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    if (activeAbandons > 0) {
+      recommendations.push({
+        priority: 2,
+        type: 'ABANDON_PROTOCOL',
+        title: `${activeAbandons} protocoles d'abandon en cours`,
+        action: 'Vérifier et relancer les clients en étape 3+ du protocole d\'abandon',
+        segment: 'HIBERNANTS',
+        client_count: activeAbandons,
+        impact: 'HIGH',
+        deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    if ((segments.PROMETTEURS || 0) > 0) {
+      recommendations.push({
+        priority: 3,
+        type: 'FREQUENCY_BOOST',
+        title: `${segments.PROMETTEURS} clients Prometteurs à activer`,
+        action: 'Envoyer une offre "revenez vite" avec points bonus si retour <15j',
+        segment: 'PROMETTEURS',
+        client_count: segments.PROMETTEURS,
+        impact: 'MEDIUM',
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    if ((segments.CHAMPIONS || 0) > 0) {
+      recommendations.push({
+        priority: 4,
+        type: 'VIP_RETENTION',
+        title: `${segments.CHAMPIONS} clients Champions à fidéliser`,
+        action: 'Proposer un accès VIP prioritaire ou événement exclusif',
+        segment: 'CHAMPIONS',
+        client_count: segments.CHAMPIONS,
+        impact: 'MEDIUM',
+        deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    if (weekTx < 5 && weekClients < 3) {
+      recommendations.push({
+        priority: 5,
+        type: 'ACTIVATION',
+        title: 'Activité faible cette semaine',
+        action: 'Créer un lien de paiement promotionnel et partager via WhatsApp',
+        segment: null,
+        client_count: null,
+        impact: 'MEDIUM',
+        deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    if ((segments.FIDELES || 0) > 0) {
+      recommendations.push({
+        priority: 6,
+        type: 'UPSELL',
+        title: `${segments.FIDELES} clients Fidèles — potentiel upsell panier`,
+        action: 'Cross-sell ou challenge fréquence pour augmenter le panier moyen',
+        segment: 'FIDELES',
+        client_count: segments.FIDELES,
+        impact: 'LOW',
+        deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      });
+    }
+
+    res.json({
+      merchant_id: merchantId,
+      week,
+      generated_at: new Date().toISOString(),
+      context: {
+        week_transactions: weekTx,
+        week_active_clients: weekClients,
+        avg_basket_week: Math.round(weekBasket),
+        total_rfm_clients: rfmRes.rows.reduce((s, r) => s + Number(r.count), 0),
+      },
+      recommendations: recommendations.sort((a, b) => a.priority - b.priority),
+    });
   } catch (err) { next(err); }
 });
 

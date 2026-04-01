@@ -200,6 +200,26 @@ async function evaluateClientStatus(clientId) {
     newStatus = 'ROYAL_ELITE';
   }
 
+  // ── Protection partner_exit (CDC v3 §2.4.4) ──
+  // Si le client bénéficie d'un gel de statut suite à départ partenaire, bloquer tout déclassement
+  if (client.partner_exit_status_hold_until && new Date(client.partner_exit_status_hold_until) > new Date()) {
+    const potentialIdx = STATUS_ORDER.indexOf(meritedStatus);
+    const currIdx0 = STATUS_ORDER.indexOf(currentStatus);
+    if (potentialIdx < currIdx0) {
+      // Gel actif : conserver le statut courant jusqu'à expiration
+      return {
+        clientId,
+        currentStatus,
+        newStatus: currentStatus,
+        changed: false,
+        statusPoints12m,
+        lifetimePoints,
+        consecutiveRoyalYears,
+        held: true,
+      };
+    }
+  }
+
   // ── Soft Landing (CDC v3 §2.4.2) : max -1 niveau par période ──
   const currentIdx = STATUS_ORDER.indexOf(currentStatus);
   const newIdx = STATUS_ORDER.indexOf(newStatus);

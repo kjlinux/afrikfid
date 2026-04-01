@@ -173,6 +173,25 @@ async function getBlockedPhones() {
   }
 }
 
+/**
+ * CDC §2.4.4 — Fraude avérée : retrait immédiat du statut de fidélité sans préavis
+ */
+async function revokeLoyaltyStatusForFraud(clientId, reason = 'fraud_detected') {
+  const res = await db.query('SELECT loyalty_status FROM clients WHERE id = $1', [clientId]);
+  const client = res.rows[0];
+  if (!client || client.loyalty_status === 'OPEN') return;
+
+  await db.query(
+    "UPDATE clients SET loyalty_status = 'OPEN', status_points_12m = 0 WHERE id = $1",
+    [clientId]
+  );
+  await db.query(
+    `INSERT INTO loyalty_status_history (id, client_id, old_status, new_status, changed_by, reason, changed_at)
+     VALUES (gen_random_uuid(), $1, $2, 'OPEN', 'fraud_system', $3, NOW())`,
+    [clientId, client.loyalty_status, reason]
+  ).catch(() => {});
+}
+
 module.exports = {
   RULE_TYPES,
   checkTransaction,
@@ -185,4 +204,5 @@ module.exports = {
   blockPhone,
   unblockPhone,
   getBlockedPhones,
+  revokeLoyaltyStatusForFraud,
 };

@@ -209,13 +209,21 @@ function AiInsightsSection() {
 
 export default function MerchantIntelligence() {
   const { user } = useAuth()
-  const merchantId = user?.id
+  const merchantId = user?.merchantId || user?.id
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [recommendations, setRecommendations] = useState(null)
 
   useEffect(() => {
     if (!merchantId) return
-    api.get(`/merchant-intelligence/${merchantId}`).then(r => setData(r.data)).finally(() => setLoading(false))
+    api.get(`/merchant-intelligence/${merchantId}`).then(r => {
+      setData(r.data)
+      // Charger les recommandations si Growth+
+      const pkgIndex = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'].indexOf(r.data.package)
+      if (pkgIndex >= 2) {
+        api.get(`/merchant-intelligence/${merchantId}/recommendations`).then(rr => setRecommendations(rr.data)).catch(() => {})
+      }
+    }).finally(() => setLoading(false))
   }, [merchantId])
 
   if (loading) return <Spinner />
@@ -397,6 +405,36 @@ export default function MerchantIntelligence() {
             </div>
           ))}
           <a href="/merchant/churn-alerts" style={{ display: 'inline-block', marginTop: 12, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>Voir tous les clients à risque →</a>
+        </div>
+      )}
+
+      {/* Recommandations IA hebdo — GROWTH+ (CDC §6.1) */}
+      {m.ai_recommendations && recommendations && recommendations.recommendations?.length > 0 && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 2 }}>Recommandations IA — Semaine du {recommendations.week}</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>{recommendations.recommendations.length} actions prioritaires · {recommendations.context?.total_rfm_clients} clients analysés</div>
+            </div>
+            <span style={{ padding: '3px 10px', background: '#8b5cf622', color: '#8b5cf6', border: '1px solid #8b5cf644', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>IA</span>
+          </div>
+          {recommendations.recommendations.map((r, i) => {
+            const impactColor = r.impact === 'HIGH' ? '#ef4444' : r.impact === 'MEDIUM' ? '#f59e0b' : '#6b7280'
+            return (
+              <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < recommendations.recommendations.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0f172a', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#64748b', flexShrink: 0 }}>{r.priority}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginBottom: 3 }}>{r.title}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>{r.action}</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {r.segment && <span style={{ fontSize: 10, fontWeight: 700, color: SEG_COLOR[r.segment] || '#6b7280', background: (SEG_COLOR[r.segment] || '#6b7280') + '22', padding: '1px 6px', borderRadius: 10 }}>{r.segment}</span>}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: impactColor }}>{r.impact === 'HIGH' ? '🔴 Critique' : r.impact === 'MEDIUM' ? '🟡 Modéré' : '🔵 Faible'}</span>
+                    {r.deadline && <span style={{ fontSize: 10, color: '#64748b' }}>Avant le {r.deadline}</span>}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

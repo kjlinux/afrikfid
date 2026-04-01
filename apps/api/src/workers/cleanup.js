@@ -23,11 +23,18 @@ async function runCleanup() {
   `);
   const triggerCount = triggerRes.rowCount || 0;
 
-  if (idemCount > 0 || triggerCount > 0) {
-    console.log(`[CLEANUP] ${idemCount} clés idempotence expirées, ${triggerCount} trigger_logs purgés`);
+  // 3. Purger les rfm_transitions traitées > 90 jours (CDC §6.4 — éviter la croissance infinie)
+  const rfmRes = await pool.query(`
+    DELETE FROM rfm_transitions
+    WHERE processed_at IS NOT NULL AND processed_at < NOW() - INTERVAL '90 days'
+  `);
+  const rfmCount = rfmRes.rowCount || 0;
+
+  if (idemCount > 0 || triggerCount > 0 || rfmCount > 0) {
+    console.log(`[CLEANUP] ${idemCount} clés idempotence expirées, ${triggerCount} trigger_logs purgés, ${rfmCount} rfm_transitions purgées`);
   }
 
-  return { idempotencyKeysCleared: idemCount, triggerLogsPurged: triggerCount };
+  return { idempotencyKeysCleared: idemCount, triggerLogsPurged: triggerCount, rfmTransitionsPurged: rfmCount };
 }
 
 // Cron quotidien à 03h00
