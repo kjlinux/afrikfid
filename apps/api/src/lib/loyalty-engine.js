@@ -10,6 +10,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { notifyLoyaltyUpgrade, notifyLoyaltyDowngrade } = require('./notifications');
+const { notifyStatusUpgradeWhatsApp } = require('./whatsapp');
 const { decrypt } = require('./crypto');
 const { triggerPalier } = require('./campaign-engine');
 const {
@@ -316,6 +317,10 @@ async function _runLoyaltyBatch() {
 
         if (isUpgrade) {
           notifyLoyaltyUpgrade({ client: clientForNotif, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
+          // WhatsApp upgrade notification (CDC §5.4 Trigger PALIER)
+          if (clientForNotif.phone) {
+            notifyStatusUpgradeWhatsApp(clientForNotif, evaluation.newStatus).catch(() => {});
+          }
         } else if (isDowngrade) {
           notifyLoyaltyDowngrade({
             client: clientForNotif,

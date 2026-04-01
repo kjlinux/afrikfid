@@ -321,6 +321,85 @@ export default function MerchantIntelligence() {
         </>
       )}
 
+      {/* Taux de retour + Top clients — STARTER_PLUS+ */}
+      {m.return_rate && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' }}>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Taux de retour clients</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: data.return_rate >= 50 ? '#10b981' : data.return_rate >= 25 ? '#f59e0b' : '#ef4444' }}>{data.return_rate ?? '—'}%</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>% clients avec ≥2 achats (12 mois)</div>
+          </div>
+          {data.top_clients && data.top_clients.length > 0 && (
+            <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Top 5 clients fidèles</div>
+              {data.top_clients.map((c, i) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < data.top_clients.length - 1 ? '1px solid #334155' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: '#64748b', width: 18 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600 }}>{c.full_name || 'Client anonyme'}</span>
+                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#3b82f622', color: '#3b82f6', fontWeight: 700 }}>{c.loyalty_status}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>{Number(c.total_spent).toLocaleString()} FCFA</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>{c.tx_count} achats</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alertes churn — STARTER_PLUS+ */}
+      {m.churn_alerts && data.churn_alerts && (data.churn_alerts.critical > 0 || data.churn_alerts.high > 0 || data.churn_alerts.medium > 0) && (
+        <div style={{ background: '#1e293b', border: '1px solid #f9731633', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>Alertes Churn — {data.churn_alerts.total_at_risk} clients à risque</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Clients susceptibles de partir — action recommandée</div>
+            </div>
+            <a href="/merchant/churn-alerts" style={{ padding: '6px 14px', background: '#f97316', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Voir détails</a>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {data.churn_alerts.critical > 0 && <div style={{ flex: 1, padding: '10px 14px', background: '#ef444422', border: '1px solid #ef444444', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#ef4444' }}>{data.churn_alerts.critical}</div>
+              <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600 }}>CRITIQUE</div>
+            </div>}
+            {data.churn_alerts.high > 0 && <div style={{ flex: 1, padding: '10px 14px', background: '#f9731622', border: '1px solid #f9731644', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#f97316' }}>{data.churn_alerts.high}</div>
+              <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>ÉLEVÉ</div>
+            </div>}
+            {data.churn_alerts.medium > 0 && <div style={{ flex: 1, padding: '10px 14px', background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#f59e0b' }}>{data.churn_alerts.medium}</div>
+              <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>MODÉRÉ</div>
+            </div>}
+          </div>
+        </div>
+      )}
+
+      {/* Churn Predictions détaillées — GROWTH+ */}
+      {m.churn_prediction && data.churn_predictions && data.churn_predictions.length > 0 && (
+        <div style={{ ...card, borderColor: '#f9731633' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Prédiction Churn — Top clients à risque</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM — CDC §6.1 Growth+</div>
+          {data.churn_predictions.slice(0, 5).map((p, i) => (
+            <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid #1e293b' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{p.client_name || 'Client anonyme'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 80, height: 6, background: '#1e293b', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${p.churn_score * 100}%`, height: '100%', background: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : '#f59e0b', borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : '#f59e0b' }}>{Math.round(p.churn_score * 100)}%</span>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>{p.recommendation}</div>
+            </div>
+          ))}
+          <a href="/merchant/churn-alerts" style={{ display: 'inline-block', marginTop: 12, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>Voir tous les clients à risque →</a>
+        </div>
+      )}
+
       {/* Analytics avancés LTV — PREMIUM */}
       {m.analytics_advanced && data.ltv_by_segment && (
         <div style={card}>
@@ -337,9 +416,74 @@ export default function MerchantIntelligence() {
         </div>
       )}
 
+      {/* Élasticité-prix — PREMIUM */}
+      {m.analytics_advanced && data.price_elasticity && !data.price_elasticity.insufficient_data && !data.price_elasticity.error && (
+        <div style={card}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Élasticité-Prix</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Sensibilité de vos clients aux remises — CDC §6.1 Premium</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+            {[
+              { label: 'Panier moyen', value: Number(data.price_elasticity.avg_basket).toLocaleString() + ' FCFA', color: '#f1f5f9' },
+              { label: 'Sensibilité prix', value: data.price_elasticity.sensitivity_label, color: data.price_elasticity.price_sensitivity_score >= 70 ? '#ef4444' : data.price_elasticity.price_sensitivity_score >= 40 ? '#f59e0b' : '#10b981' },
+              { label: 'Remise optimale', value: data.price_elasticity.optimal_discount_pct + '%', color: '#8b5cf6' },
+              { label: 'Transactions analysées', value: Number(data.price_elasticity.total_transactions).toLocaleString(), color: '#94a3b8' },
+            ].map(k => (
+              <div key={k.label} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: k.color }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+          {data.price_elasticity.recommendation && (
+            <div style={{ padding: '10px 14px', background: '#8b5cf611', border: '1px solid #8b5cf633', borderRadius: 8, fontSize: 12, color: '#c4b5fd' }}>{data.price_elasticity.recommendation}</div>
+          )}
+        </div>
+      )}
+
+      {/* Zones chalandise — PREMIUM */}
+      {m.analytics_advanced && data.trade_zones && data.trade_zones.total_zones > 0 && (
+        <div style={card}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Zones de Chalandise</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Répartition géographique de votre clientèle — CDC §6.1 Premium</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              { label: 'Zones mappées', value: data.trade_zones.total_zones },
+              { label: 'Clients cartographiés', value: Number(data.trade_zones.total_clients_mapped).toLocaleString() },
+              { label: 'CA cartographié', value: Number(data.trade_zones.total_revenue_mapped).toLocaleString() + ' FCFA' },
+            ].map(k => (
+              <div key={k.label} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#f1f5f9' }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+          {/* Top zones CA */}
+          {data.trade_zones.insights?.top_revenue_zones?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>Top zones par CA</div>
+              {data.trade_zones.insights.top_revenue_zones.map((z, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1e293b' }}>
+                  <span style={{ fontSize: 13, color: '#f1f5f9' }}>{z.city}{z.district ? ` — ${z.district}` : ''}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>{Number(z.revenue).toLocaleString()} FCFA</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Zones à fort potentiel */}
+          {data.trade_zones.insights?.high_potential_zones?.length > 0 && (
+            <div style={{ padding: '10px 14px', background: '#f59e0b11', border: '1px solid #f59e0b33', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 6 }}>Zones à fort potentiel non exploité</div>
+              {data.trade_zones.insights.high_potential_zones.map((z, i) => (
+                <div key={i} style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>• {z.recommendation}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {!m.analytics_advanced && m.rfm_detailed && (
         <div style={upgCard}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Analytics Avancés (LTV, Élasticité)</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Analytics Avancés (LTV, Élasticité, Zones)</div>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Disponible avec le package Premium</p>
           <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Upgrade</a>
         </div>

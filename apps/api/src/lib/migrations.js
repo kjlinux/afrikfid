@@ -1016,6 +1016,108 @@ const MIGRATIONS = [
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS fraud_status_revoked_reason TEXT DEFAULT NULL;
     `,
   },
+  {
+    version: 29,
+    name: '029_contact_priority_and_analytics',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 §6.4 — Workflow 10h00 : liste contacts prioritaires
+      -- CDC v3.0 §6.1 — Analytics avancés : élasticité-prix, zones chalandise
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      -- Liste quotidienne des contacts prioritaires par marchand (worker 10h00)
+      CREATE TABLE IF NOT EXISTS contact_priority_lists (
+        id BIGSERIAL PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        items JSONB NOT NULL DEFAULT '[]',
+        generated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (merchant_id, date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_contact_priority_merchant_date ON contact_priority_lists(merchant_id, date DESC);
+
+      -- Snapshots d'élasticité-prix par marchand (calculés mensuellement, Premium)
+      CREATE TABLE IF NOT EXISTS price_elasticity_snapshots (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        calculated_at TIMESTAMPTZ DEFAULT NOW(),
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        avg_basket NUMERIC NOT NULL DEFAULT 0,
+        basket_distribution JSONB DEFAULT '{}',
+        price_sensitivity_score NUMERIC DEFAULT 0,
+        optimal_discount_pct NUMERIC DEFAULT 0,
+        revenue_at_optimal NUMERIC DEFAULT 0,
+        segments_analysis JSONB DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_price_elasticity_merchant ON price_elasticity_snapshots(merchant_id, calculated_at DESC);
+
+      -- Données de localisation clients (zones chalandise, Premium)
+      -- Stockage ville/quartier anonymisé (pas de coordonnées GPS nominatives — RGPD)
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS city TEXT DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS district TEXT DEFAULT NULL;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT NULL;
+
+      -- Vue agrégée zones chalandise (matérialisée quotidiennement)
+      CREATE TABLE IF NOT EXISTS trade_zone_stats (
+        id BIGSERIAL PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        calculated_date DATE NOT NULL,
+        city TEXT NOT NULL,
+        district TEXT,
+        client_count INTEGER DEFAULT 0,
+        transaction_count INTEGER DEFAULT 0,
+        total_revenue NUMERIC DEFAULT 0,
+        avg_basket NUMERIC DEFAULT 0,
+        loyal_client_count INTEGER DEFAULT 0,
+        UNIQUE (merchant_id, calculated_date, city, district)
+      );
+      CREATE INDEX IF NOT EXISTS idx_trade_zone_merchant_date ON trade_zone_stats(merchant_id, calculated_date DESC);
+
+      -- Rapports périodiques générés automatiquement (trimestriel, semestriel)
+      CREATE TABLE IF NOT EXISTS periodic_reports (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+        report_type TEXT NOT NULL CHECK (report_type IN ('quarterly', 'semiannual', 'annual', 'admin_global')),
+        period_label TEXT NOT NULL,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        data JSONB NOT NULL DEFAULT '{}',
+        generated_at TIMESTAMPTZ DEFAULT NOW(),
+        sent_at TIMESTAMPTZ,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'generated', 'sent', 'error'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_periodic_reports_merchant ON periodic_reports(merchant_id, period_start DESC);
+      CREATE INDEX IF NOT EXISTS idx_periodic_reports_type ON periodic_reports(report_type, generated_at DESC);
+    `,
+  },
+  {
+    version: 30,
+    name: '030_rfm_transitions',
+    up: `
+      -- ═══════════════════════════════════════════════════════════════════════════
+      -- CDC v3.0 §6.4 — Tracking des transitions RFM (workflow 07h00)
+      -- Détecte: R 5→4 (ABSENCE), R 4→3 (ALERTE_R), changements de segment
+      -- ═══════════════════════════════════════════════════════════════════════════
+
+      CREATE TABLE IF NOT EXISTS rfm_transitions (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        old_segment TEXT,
+        new_segment TEXT NOT NULL,
+        old_r_score SMALLINT,
+        new_r_score SMALLINT NOT NULL,
+        transitioned_at TIMESTAMPTZ DEFAULT NOW(),
+        processed_at TIMESTAMPTZ,
+        trigger_fired TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_rfm_transitions_merchant ON rfm_transitions(merchant_id, transitioned_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_rfm_transitions_unprocessed ON rfm_transitions(processed_at) WHERE processed_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_rfm_transitions_client ON rfm_transitions(client_id, transitioned_at DESC);
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

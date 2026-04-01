@@ -831,4 +831,178 @@ router.get('/me/ai-insights', requireMerchant, requirePackage('PREMIUM'), async 
   }
 });
 
+/**
+ * GET /api/v1/merchants/me/sandbox/docs
+ * Documentation sandbox + guide d'intégration pour le marchand (CDC §6.3)
+ * Retourne les endpoints, exemples de requêtes, clés sandbox et guide webhooks.
+ */
+router.get('/me/sandbox/docs', requireMerchant, async (req, res, next) => {
+  try {
+    const merchant = (await db.query(
+      'SELECT id, name, sandbox_key_public, webhook_url, country_id FROM merchants WHERE id = $1',
+      [req.merchant.id]
+    )).rows[0];
+    if (!merchant) return res.status(404).json({ error: 'Marchand introuvable' });
+
+    const baseUrl = process.env.API_BASE_URL || `https://api.afrikfid.com`;
+    const sandboxUrl = process.env.SANDBOX_API_URL || `https://sandbox-api.afrikfid.com`;
+    const webhookTestUrl = `${baseUrl}/api/v1/merchants/me/sandbox/webhook-test`;
+
+    res.json({
+      merchant_id: merchant.id,
+      merchant_name: merchant.name,
+      sandbox: {
+        base_url: sandboxUrl,
+        api_key_public: merchant.sandbox_key_public,
+        note: 'En mode sandbox, les paiements sont simulés. Aucun fonds réel n\'est débité.',
+      },
+      authentication: {
+        method: 'API Key dans l\'en-tête X-API-Key',
+        header: 'X-API-Key: <votre_clé_api>',
+        example: `curl -H "X-API-Key: ${merchant.sandbox_key_public}" ${sandboxUrl}/api/v1/payments/initiate`,
+      },
+      endpoints: [
+        {
+          name: 'Initier un paiement',
+          method: 'POST',
+          url: `${sandboxUrl}/api/v1/payments/initiate`,
+          description: 'Initie une transaction avec calcul automatique X/Y/Z',
+          example_body: {
+            amount: 10000,
+            currency: 'XOF',
+            payment_method: 'mobile_money',
+            payment_operator: 'ORANGE',
+            client_phone: '+22507000000',
+            description: 'Achat test sandbox',
+            idempotency_key: 'test-' + Date.now(),
+          },
+        },
+        {
+          name: 'Statut d\'une transaction',
+          method: 'GET',
+          url: `${sandboxUrl}/api/v1/payments/{transaction_id}/status`,
+          description: 'Récupère le statut et le détail de répartition X/Y/Z',
+        },
+        {
+          name: 'Confirmer un paiement (sandbox)',
+          method: 'POST',
+          url: `${sandboxUrl}/api/v1/sandbox/auto-confirm`,
+          description: 'Confirme automatiquement un paiement pending (sandbox seulement)',
+          example_body: { transaction_id: '<transaction_id>' },
+        },
+        {
+          name: 'Profil client + statut fidélité',
+          method: 'GET',
+          url: `${sandboxUrl}/api/v1/clients/{client_id}/profile`,
+          description: 'Statut fidélité, points statut, points récompense, portefeuille',
+        },
+        {
+          name: 'Remboursement',
+          method: 'POST',
+          url: `${sandboxUrl}/api/v1/payments/{transaction_id}/refund`,
+          example_body: { amount: 5000, reason: 'Client insatisfait' },
+        },
+      ],
+      webhooks: {
+        your_webhook_url: merchant.webhook_url || '(non configurée — configurez dans vos paramètres)',
+        webhook_test_url: webhookTestUrl,
+        events: [
+          { event: 'payment.success', description: 'Paiement confirmé avec répartition X/Y/Z', trigger: 'POST /payments/initiate → confirmation opérateur' },
+          { event: 'payment.failed', description: 'Paiement échoué', trigger: 'Après timeout ou refus opérateur' },
+          { event: 'payment.expired', description: 'Transaction expirée après 120s', trigger: 'Cron expiry worker' },
+          { event: 'refund.completed', description: 'Remboursement effectué', trigger: 'POST /payments/{id}/refund' },
+          { event: 'loyalty.status_changed', description: 'Changement de statut fidélité client', trigger: 'Batch mensuel fidélité' },
+          { event: 'distribution.completed', description: 'Distribution des fonds finalisée', trigger: 'Après paiement confirmé' },
+        ],
+        signature: {
+          header: 'X-Webhook-Signature',
+          method: 'HMAC-SHA256 du body JSON avec votre webhook_secret',
+          verification: 'const sig = crypto.createHmac("sha256", secret).update(rawBody).digest("hex"); assert(sig === req.headers["x-webhook-signature"])',
+        },
+      },
+      quick_start: [
+        '1. Copiez votre clé API sandbox (voir ci-dessus)',
+        '2. Initiez un paiement test avec POST /payments/initiate',
+        '3. Confirmez le paiement avec POST /sandbox/auto-confirm',
+        '4. Configurez votre URL webhook dans vos paramètres',
+        '5. Testez la réception webhook avec POST /merchants/me/sandbox/webhook-test',
+        '6. En production, remplacez la clé sandbox par votre clé API de production',
+      ],
+    });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/v1/merchants/me/sandbox/webhook-test
+ * Envoie un webhook de test vers l'URL configurée (CDC §6.3 — "documentation sandbox")
+ */
+router.post('/me/sandbox/webhook-test', requireMerchant, async (req, res, next) => {
+  try {
+    const merchant = (await db.query(
+      'SELECT id, name, webhook_url, webhook_secret FROM merchants WHERE id = $1',
+      [req.merchant.id]
+    )).rows[0];
+
+    if (!merchant?.webhook_url) {
+      return res.status(400).json({
+        error: 'WEBHOOK_URL_NOT_SET',
+        message: 'Configurez votre URL webhook dans vos paramètres avant de tester.',
+      });
+    }
+
+    const crypto = require('crypto');
+    const axios = require('axios');
+
+    const event = req.body.event || 'payment.success';
+    const payload = {
+      event,
+      merchant_id: merchant.id,
+      sandbox: true,
+      timestamp: new Date().toISOString(),
+      data: req.body.data || {
+        transaction_id: 'test-' + uuidv4(),
+        amount: 10000,
+        currency: 'XOF',
+        status: 'completed',
+        client_rebate_amount: 500,
+        platform_commission_amount: 700,
+        merchant_receives: 8800,
+      },
+    };
+
+    const body = JSON.stringify(payload);
+    const signature = merchant.webhook_secret
+      ? crypto.createHmac('sha256', merchant.webhook_secret).update(body).digest('hex')
+      : 'sandbox-no-secret';
+
+    let deliveryResult;
+    try {
+      const response = await axios.post(merchant.webhook_url, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Webhook-Signature': signature,
+          'X-Afrikfid-Event': event,
+          'X-Sandbox': 'true',
+        },
+        timeout: 10000,
+      });
+      deliveryResult = { success: true, status: response.status, response: String(response.data).slice(0, 200) };
+    } catch (httpErr) {
+      deliveryResult = {
+        success: false,
+        status: httpErr.response?.status || null,
+        error: httpErr.message,
+      };
+    }
+
+    res.json({
+      event,
+      webhook_url: merchant.webhook_url,
+      payload,
+      signature,
+      delivery: deliveryResult,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

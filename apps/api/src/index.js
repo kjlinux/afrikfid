@@ -21,8 +21,11 @@ const dailySummaryWorker = require('./workers/daily-workflow');
 const reconciliationWorker = require('./workers/reconciliation');
 const cleanupWorker = require('./workers/cleanup');
 const subscriptionBillingWorker = require('./workers/subscription-billing');
+const contactPriorityWorker = require('./workers/contact-priority');
+const quarterlyReportWorker = require('./workers/quarterly-report');
 const { rotateKey, reencryptPendingRecords, isRotationDue } = require('./lib/key-rotation');
 const { refreshExchangeRates } = require('./lib/currency');
+const { getAllCircuitStates } = require('./lib/operator-health');
 const { notifyLoyaltyUpgrade } = require('./lib/notifications');
 const swaggerUi = require('swagger-ui-express');
 const yaml = require('js-yaml');
@@ -160,6 +163,7 @@ app.get('/api/v1/health', async (req, res) => {
       db: { status: dbStatus, latencyMs: dbLatencyMs },
       queue: { pendingWebhooks },
       stats: { merchants: merchantCount, clients: clientCount, transactions: txCount },
+      circuit_breakers: getAllCircuitStates(),
     });
   } catch (err) {
     res.status(503).json({
@@ -393,6 +397,12 @@ if (process.env.NODE_ENV !== 'test') {
 
   // CDC v3 §2.4.3 — Notifications requalification statut (08h00)
   statusNotifWorker.start();
+
+  // CDC v3 §6.4 — Liste contacts prioritaires (10h00)
+  contactPriorityWorker.start();
+
+  // CDC v3 §6.3 — Rapport trimestriel automatique (1er du mois à 09h00)
+  quarterlyReportWorker.start();
 
   // CDC v3 §6.4 — Bilan journalier (18h00)
   dailySummaryWorker.start();

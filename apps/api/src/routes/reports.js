@@ -1023,4 +1023,143 @@ router.get('/recruitment-bonuses', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/v1/reports/contact-priority/cached — CDC §6.4 (liste pré-calculée à 10h00 par le worker)
+router.get('/contact-priority/cached', requireAdmin, async (req, res, next) => {
+  try {
+    const { merchant_id, date = new Date().toISOString().slice(0, 10) } = req.query;
+
+    if (merchant_id) {
+      // Lire la liste d'un marchand spécifique
+      const result = await db.query(
+        'SELECT * FROM contact_priority_lists WHERE merchant_id = $1 AND date = $2',
+        [merchant_id, date]
+      );
+      if (!result.rows[0]) {
+        return res.json({ merchant_id, date, items: [], message: 'Liste non encore générée pour ce jour' });
+      }
+      return res.json({
+        merchant_id,
+        date,
+        items: result.rows[0].items,
+        generated_at: result.rows[0].generated_at,
+        total: (result.rows[0].items || []).length,
+      });
+    }
+
+    // Admin : toutes les listes du jour
+    const results = await db.query(
+      `SELECT cpl.*, m.name as merchant_name
+       FROM contact_priority_lists cpl
+       JOIN merchants m ON m.id = cpl.merchant_id
+       WHERE cpl.date = $1
+       ORDER BY m.name ASC`,
+      [date]
+    );
+
+    const totalContacts = results.rows.reduce((sum, r) => sum + (r.items?.length || 0), 0);
+    res.json({
+      date,
+      total_merchants: results.rows.length,
+      total_contacts: totalContacts,
+      merchants: results.rows.map(r => ({
+        merchant_id: r.merchant_id,
+        merchant_name: r.merchant_name,
+        items_count: (r.items || []).length,
+        items: r.items,
+        generated_at: r.generated_at,
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/v1/reports/quarterly — Rapport trimestriel automatique (CDC §6.1)
+// Accessible aux marchands Starter Plus+ (1/an), Growth (2/an), Premium (4/an)
+router.get('/quarterly', requireAdmin, async (req, res, next) => {
+  try {
+    const { merchant_id, quarter, year } = req.query;
+
+    const now = new Date();
+    const y = parseInt(year) || now.getFullYear();
+    const q = parseInt(quarter) || Math.ceil((now.getMonth() + 1) / 3);
+
+    const quarterStart = new Date(y, (q - 1) * 3, 1);
+    const quarterEnd   = new Date(y, q * 3, 1);
+    const periodLabel  = `Q${q} ${y}`;
+
+    // Si rapport déjà généré, le retourner directement
+    const existing = await db.query(
+      `SELECT * FROM periodic_reports
+       WHERE report_type = 'quarterly' AND period_label = $1
+         AND ($2::text IS NULL OR merchant_id = $2)
+       ORDER BY generated_at DESC LIMIT 1`,
+      [periodLabel, merchant_id || null]
+    );
+    if (existing.rows[0]) {
+      return res.json({ cached: true, report: existing.rows[0] });
+    }
+
+    // Générer le rapport
+    const whereMerchant = merchant_id ? 'AND merchant_id = $3' : '';
+    const params = [quarterStart, quarterEnd];
+    if (merchant_id) params.push(merchant_id);
+
+    const [txStats, loyaltyStats, rfmStats, newClients, topClients] = await Promise.all([
+      db.query(`
+        SELECT
+          COUNT(*) AS total_tx,
+          COALESCE(SUM(gross_amount), 0) AS total_revenue,
+          COALESCE(AVG(gross_amount), 0) AS avg_basket,
+          COUNT(DISTINCT client_id) AS unique_clients,
+          COALESCE(SUM(platform_commission_amount), 0) AS total_commission,
+          COALESCE(SUM(client_rebate_amount), 0) AS total_rebates
+        FROM transactions
+        WHERE status = 'completed' AND completed_at >= $1 AND completed_at < $2 ${whereMerchant}
+      `, params),
+      db.query(`
+        SELECT loyalty_status, COUNT(*) AS count
+        FROM clients WHERE is_active = TRUE AND anonymized_at IS NULL
+        GROUP BY loyalty_status
+      `),
+      db.query(`
+        SELECT segment, COUNT(*) AS count
+        FROM rfm_scores
+        WHERE calculated_at >= $1 AND calculated_at < $2 ${merchant_id ? 'AND merchant_id = $3' : ''}
+        GROUP BY segment ORDER BY count DESC
+      `, params),
+      db.query(`
+        SELECT COUNT(*) AS count
+        FROM clients WHERE created_at >= $1 AND created_at < $2
+      `, [quarterStart, quarterEnd]),
+      db.query(`
+        SELECT c.full_name, SUM(t.gross_amount) AS total_spent, COUNT(t.id) AS tx_count
+        FROM transactions t
+        JOIN clients c ON c.id = t.client_id
+        WHERE t.status = 'completed' AND t.completed_at >= $1 AND t.completed_at < $2 ${whereMerchant}
+        GROUP BY c.full_name ORDER BY total_spent DESC LIMIT 5
+      `, params),
+    ]);
+
+    const data = {
+      period: periodLabel,
+      period_start: quarterStart,
+      period_end: quarterEnd,
+      transactions: txStats.rows[0],
+      loyalty_distribution: loyaltyStats.rows,
+      rfm_segmentation: rfmStats.rows,
+      new_clients: Number(newClients.rows[0]?.count || 0),
+      top_clients: topClients.rows,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Sauvegarder le rapport
+    const reportId = require('crypto').randomUUID();
+    await db.query(`
+      INSERT INTO periodic_reports (id, merchant_id, report_type, period_label, period_start, period_end, data, status)
+      VALUES ($1, $2, 'quarterly', $3, $4, $5, $6, 'generated')
+    `, [reportId, merchant_id || null, periodLabel, quarterStart, quarterEnd, JSON.stringify(data)]);
+
+    res.json({ cached: false, report: { id: reportId, merchant_id, report_type: 'quarterly', period_label: periodLabel, data } });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

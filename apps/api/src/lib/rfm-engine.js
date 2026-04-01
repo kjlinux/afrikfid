@@ -78,7 +78,19 @@ async function calculateMerchantRFM(merchantId) {
     GROUP BY client_id
   `, [merchantId]);
 
+  // Lire les scores actuels pour détecter les transitions (CDC §6.4 — "Identification des transitions")
+  const existingScores = await pool.query(
+    'SELECT client_id, segment, r_score FROM rfm_scores WHERE merchant_id = $1',
+    [merchantId]
+  );
+  const prevByClient = {};
+  for (const row of existingScores.rows) {
+    prevByClient[row.client_id] = { segment: row.segment, r_score: Number(row.r_score) };
+  }
+
   let count = 0;
+  const transitions = [];
+
   for (const c of clients.rows) {
     const daysSince = Math.max(0, Math.round(Number(c.days_since_last) || 9999));
     const freq = Number(c.purchase_count) || 0;
@@ -89,6 +101,19 @@ async function calculateMerchantRFM(merchantId) {
     const m = scoreValue(monetary, thresholds.monetary, false);
     const segment = assignSegment(r, f, m);
 
+    // Détecter les transitions de segment et de score R (CDC §6.4 — Workflow 07h00)
+    const prev = prevByClient[c.client_id];
+    if (prev && (prev.segment !== segment || prev.r_score !== r)) {
+      transitions.push({
+        merchant_id: merchantId,
+        client_id: c.client_id,
+        old_segment: prev.segment,
+        new_segment: segment,
+        old_r_score: prev.r_score,
+        new_r_score: r,
+      });
+    }
+
     await pool.query(`
       INSERT INTO rfm_scores (id, merchant_id, client_id, r_score, f_score, m_score, segment, last_purchase_at, purchase_count, total_amount, calculated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
@@ -98,6 +123,20 @@ async function calculateMerchantRFM(merchantId) {
     `, [uuidv4(), merchantId, c.client_id, r, f, m, segment, c.last_purchase_at, freq, monetary]);
     count++;
   }
+
+  // Persister les transitions pour le worker 07h00 (trigger-batch.js)
+  if (transitions.length > 0) {
+    for (const t of transitions) {
+      await pool.query(`
+        INSERT INTO rfm_transitions
+          (id, merchant_id, client_id, old_segment, new_segment, old_r_score, new_r_score, transitioned_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT DO NOTHING
+      `, [uuidv4(), t.merchant_id, t.client_id, t.old_segment, t.new_segment, t.old_r_score, t.new_r_score]).catch(() => {});
+    }
+    console.log(`[RFM] ${transitions.length} transitions détectées pour marchand ${merchantId}`);
+  }
+
   return count;
 }
 

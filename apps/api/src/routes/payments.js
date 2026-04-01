@@ -7,6 +7,7 @@ const { requireApiKey, requireClient, requireMerchant } = require('../middleware
 const { verifyHmacSignature } = require('../middleware/hmac-verify');
 const mobileMoney = require('../lib/adapters/mobile-money');
 const { getOperatorsForCountry } = mobileMoney;
+const { isOperatorAvailable, recordSuccess, recordFailure } = require('../lib/operator-health');
 const { validate } = require('../middleware/validate');
 const { InitiatePaymentSchema, RefundSchema, WalletPaySchema } = require('../config/schemas');
 const { TX_EXPIRY_MS } = require('../config/constants');
@@ -36,9 +37,12 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     product_category,
   } = req.body;
 
-  // Idempotence
+  // Idempotence — fenêtre glissante 24h sur référence marchand (CDC §3.1.4)
   if (idempotency_key) {
-    const existing = (await db.query('SELECT * FROM transactions WHERE idempotency_key = $1', [idempotency_key])).rows[0];
+    const existing = (await db.query(
+      "SELECT * FROM transactions WHERE idempotency_key = $1 AND initiated_at > NOW() - INTERVAL '24 hours'",
+      [idempotency_key]
+    )).rows[0];
     if (existing) return res.status(200).json({ message: 'Transaction existante', transaction: sanitizeTx(existing) });
   }
 
@@ -196,13 +200,25 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       ? distribution.grossAmount - distribution.clientRebateAmount
       : distribution.grossAmount;
 
-    mmResult = await mobileMoney.initiatePayment({
-      operator: payment_operator, phone: client_phone, amount: clientAmount,
-      currency, reference, description,
-    });
+    // Circuit breaker — vérifier si l'opérateur est disponible (CDC §4.1)
+    const cbKey = (payment_operator || '').toUpperCase();
+    const cbStatus = isOperatorAvailable(cbKey);
+    if (!cbStatus.allowed) {
+      mmResult = { success: false, error: 'CIRCUIT_OPEN', message: `Opérateur ${payment_operator} temporairement indisponible (circuit ouvert)` };
+    } else {
+      mmResult = await mobileMoney.initiatePayment({
+        operator: payment_operator, phone: client_phone, amount: clientAmount,
+        currency, reference, description,
+      });
+      if (mmResult.success) {
+        recordSuccess(cbKey);
+      } else {
+        recordFailure(cbKey);
+      }
+    }
 
     // Basculement vers opérateur alternatif si indisponible (CDC §4.1.4)
-    if (!mmResult.success && mmResult.error === 'OPERATOR_UNAVAILABLE') {
+    if (!mmResult.success && (mmResult.error === 'OPERATOR_UNAVAILABLE' || mmResult.error === 'CIRCUIT_OPEN')) {
       const countryCode = merchant.country_id || client?.country_id;
       const alternatives = countryCode
         ? getOperatorsForCountry(countryCode)
@@ -211,20 +227,25 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
         : [];
 
       for (const altOperator of alternatives) {
+        const altCbStatus = isOperatorAvailable(altOperator);
+        if (!altCbStatus.allowed) continue; // Sauter les opérateurs dont le circuit est ouvert
         try {
           const altResult = await mobileMoney.initiatePayment({
             operator: altOperator, phone: client_phone, amount: clientAmount,
             currency, reference: `${reference}-ALT`, description,
           });
           if (altResult.success) {
+            recordSuccess(altOperator);
             mmResult = { ...altResult, usedFallback: true, originalOperator: payment_operator, fallbackOperator: altOperator };
             await db.query(
               "UPDATE transactions SET payment_operator = $1, operator_ref = $2, failure_reason = $3 WHERE id = $4",
               [altOperator, altResult.operatorRef, `Basculement depuis ${payment_operator} (indisponible)`, txId]
             );
             break;
+          } else {
+            recordFailure(altOperator);
           }
-        } catch { /* essayer le suivant */ }
+        } catch { recordFailure(altOperator); /* essayer le suivant */ }
       }
     }
 
@@ -885,9 +906,12 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
   const { merchant_id, amount, currency = 'XOF', description, idempotency_key, product_category } = req.body;
   const client = req.client;
 
-  // Idempotence
+  // Idempotence — fenêtre glissante 24h sur référence marchand (CDC §3.1.4)
   if (idempotency_key) {
-    const existing = (await db.query('SELECT * FROM transactions WHERE idempotency_key = $1', [idempotency_key])).rows[0];
+    const existing = (await db.query(
+      "SELECT * FROM transactions WHERE idempotency_key = $1 AND initiated_at > NOW() - INTERVAL '24 hours'",
+      [idempotency_key]
+    )).rows[0];
     if (existing) return res.status(200).json({ message: 'Transaction existante', transaction: sanitizeTx(existing) });
   }
 

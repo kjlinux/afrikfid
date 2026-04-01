@@ -10,6 +10,7 @@ const { CreateClientSchema, UpdateClientProfileSchema, UpdateLoyaltyStatusSchema
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
 const { randomBytes } = require('crypto');
 const { notifyClientWelcome } = require('../lib/notifications');
+const { notifyWelcomeWhatsApp } = require('../lib/whatsapp');
 const { triggerBienvenue } = require('../lib/campaign-engine');
 
 // POST /api/v1/clients
@@ -43,7 +44,13 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
     let rawPhone = null, rawEmail = null;
     try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { /* ignore */ }
     try { rawEmail = client.email ? decrypt(client.email) : null; } catch { /* ignore */ }
-    triggerBienvenue(merchantId, { ...client, phone: rawPhone, email: rawEmail }).catch(() => {});
+    const clientWithPlainData = { ...client, phone: rawPhone, email: rawEmail };
+    triggerBienvenue(merchantId, clientWithPlainData).catch(() => {});
+    // WhatsApp bienvenue (Starter Boost — CDC §1.4)
+    if (rawPhone) {
+      const merchantRow = (await db.query('SELECT name FROM merchants WHERE id = $1', [merchantId])).rows[0];
+      notifyWelcomeWhatsApp(clientWithPlainData, merchantRow?.name || 'le marchand').catch(() => {});
+    }
   }
   res.status(201).json({ client: sanitizeClient(client) });
 });

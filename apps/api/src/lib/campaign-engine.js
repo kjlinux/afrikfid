@@ -362,6 +362,77 @@ async function runAbandonProtocol() {
   return actionsCount;
 }
 
+/**
+ * Traite les transitions RFM détectées depuis le dernier batch (CDC §6.4 — Workflow 07h00)
+ * Transitions trackers : ABSENCE (R 5→4), ALERTE_R (R 4→3), passage entre segments
+ */
+async function runTransitionTriggers() {
+  // Récupérer les transitions non traitées des dernières 36h
+  const transitions = await pool.query(`
+    SELECT rt.*, c.id as cid, c.full_name, c.phone, c.email, c.loyalty_status
+    FROM rfm_transitions rt
+    JOIN clients c ON c.id = rt.client_id
+    WHERE rt.transitioned_at > NOW() - INTERVAL '36 hours'
+      AND rt.processed_at IS NULL
+      AND c.is_active = TRUE AND c.anonymized_at IS NULL
+    ORDER BY rt.transitioned_at DESC
+    LIMIT 500
+  `).catch(() => ({ rows: [] }));
+
+  let count = 0;
+
+  for (const t of transitions.rows) {
+    try {
+      // Déclencher le bon trigger selon le type de transition
+      let triggerName = null;
+
+      // CDC §5.4 — Trigger ABSENCE : R passe de 5→4
+      if (t.old_r_score === 5 && t.new_r_score === 4) {
+        triggerName = 'ABSENCE';
+      }
+      // CDC §5.4 — Trigger ALERTE_R : R passe de 4→3
+      else if (t.old_r_score === 4 && t.new_r_score === 3) {
+        triggerName = 'ALERTE_R';
+      }
+      // Passage vers segment À_RISQUE
+      else if (t.new_segment === 'A_RISQUE' && t.old_segment !== 'A_RISQUE') {
+        triggerName = 'A_RISQUE';
+      }
+
+      if (triggerName) {
+        // Récupérer la config du trigger pour ce marchand
+        const triggerRes = await pool.query(
+          "SELECT * FROM triggers WHERE merchant_id = $1 AND name = $2 AND is_active = TRUE LIMIT 1",
+          [t.merchant_id, triggerName]
+        );
+        const trigger = triggerRes.rows[0];
+
+        if (trigger) {
+          // Déchiffrer les coordonnées client
+          let rawPhone = null, rawEmail = null;
+          try { rawPhone = t.phone ? require('./crypto').decrypt(t.phone) : null; } catch { /* skip */ }
+          try { rawEmail = t.email ? require('./crypto').decrypt(t.email) : null; } catch { /* skip */ }
+          const client = { ...t, id: t.client_id, phone: rawPhone, email: rawEmail };
+          await fireTrigger(trigger, client);
+        }
+
+        count++;
+      }
+
+      // Marquer la transition comme traitée
+      await pool.query(
+        'UPDATE rfm_transitions SET processed_at = NOW() WHERE id = $1',
+        [t.id]
+      ).catch(() => {});
+    } catch (err) {
+      console.error(`[TRANSITIONS] Erreur client ${t.client_id}:`, err.message);
+    }
+  }
+
+  if (count > 0) console.log(`[TRANSITIONS] ${count} triggers de transition déclenchés`);
+  return count;
+}
+
 module.exports = {
   fireTrigger,
   canFireTrigger,
@@ -371,5 +442,6 @@ module.exports = {
   runSegmentTriggers,
   runBirthdayTriggers,
   runAbandonProtocol,
+  runTransitionTriggers,
   executeCampaign,
 };

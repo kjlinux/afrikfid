@@ -3,6 +3,7 @@
 const { CronJob } = require('cron');
 const { pool } = require('../lib/db');
 const { notifyRequalificationReminder } = require('../lib/notifications');
+const { notifyRequalificationWhatsApp } = require('../lib/whatsapp');
 const { STATUS_NOTIFICATION_SCHEDULE } = require('../config/constants');
 
 /**
@@ -49,6 +50,10 @@ async function runStatusNotifications() {
           currentStatus: client.loyalty_status,
           pointsNeeded,
         });
+        // WhatsApp pour J-30 et J-7 uniquement (CDC §2.4.3 canaux Push+SMS pour ces paliers)
+        if (schedule.days_before <= 30 && client.phone) {
+          notifyRequalificationWhatsApp(client, schedule.days_before, pointsNeeded, client.loyalty_status).catch(() => {});
+        }
         count++;
       }
     }

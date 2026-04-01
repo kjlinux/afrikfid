@@ -46,6 +46,7 @@ import MerchantClients from './pages/merchant/Clients.jsx'
 import MerchantSettings from './pages/merchant/Settings.jsx'
 import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import MerchantIntelligence from './pages/merchant/Intelligence.jsx'
+import MerchantChurnAlerts from './pages/merchant/ChurnAlerts.jsx'
 import MerchantKyc from './pages/merchant/Kyc.jsx'
 import MerchantProfile from './pages/merchant/Profile.jsx'
 import ClientProfile from './pages/client/Profile.jsx'
@@ -319,6 +320,7 @@ export default function App() {
           <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
           <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
           <Route path="/merchant/intelligence" element={<Protected role="merchant"><MerchantLayout><MerchantIntelligence /></MerchantLayout></Protected>} />
+          <Route path="/merchant/churn-alerts" element={<Protected role="merchant"><MerchantLayout><MerchantChurnAlerts /></MerchantLayout></Protected>} />
           <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
           <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
           <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />
