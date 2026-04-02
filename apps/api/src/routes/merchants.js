@@ -516,6 +516,7 @@ function sanitizeMerchant(m, includeKeys = false) {
     category: m.category, rebatePercent: m.rebate_percent, rebateMode: m.rebate_mode,
     settlementFrequency: m.settlement_frequency, webhookUrl: m.webhook_url,
     status: m.status, kycStatus: m.kyc_status, isActive: m.is_active,
+    package: m.package || 'STARTER_BOOST', sector: m.sector,
     kycSubmittedAt: m.kyc_submitted_at,
     kycReviewedAt: m.kyc_reviewed_at,
     kycRejectionReason: m.kyc_rejection_reason,

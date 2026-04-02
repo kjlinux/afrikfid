@@ -16,6 +16,8 @@ export default function AdminCampaigns() {
   const [showModal, setShowModal] = useState(false)
   const [merchants, setMerchants] = useState([])
   const [form, setForm] = useState({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const limit = 20
 
   useEffect(() => {
@@ -39,22 +41,41 @@ export default function AdminCampaigns() {
 
   useEffect(() => { load() }, [tab, page])
 
+  const resetModal = () => {
+    setShowModal(false)
+    setFormError('')
+    setForm({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+  }
+
   const createCampaign = async () => {
+    if (!form.merchant_id) return setFormError('Sélectionnez un marchand')
+    if (!form.name) return setFormError('Saisissez un nom de campagne')
+    if (!form.target_segment) return setFormError('Sélectionnez un segment cible')
+    if (!form.message_template) return setFormError('Saisissez le message template')
+    setFormError('')
+    setSubmitting(true)
     try {
       await api.post('/campaigns', form)
-      setShowModal(false)
-      setForm({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+      resetModal()
       load()
-    } catch { /* ignore */ }
+    } catch (e) {
+      setFormError(e.response?.data?.error || 'Erreur lors de la création')
+    } finally { setSubmitting(false) }
   }
 
   const createTrigger = async () => {
+    if (!form.merchant_id) return setFormError('Sélectionnez un marchand')
+    if (!form.trigger_type) return setFormError('Sélectionnez un type de trigger')
+    if (!form.message_template) return setFormError('Saisissez le message template')
+    setFormError('')
+    setSubmitting(true)
     try {
       await api.post('/campaigns/triggers', form)
-      setShowModal(false)
-      setForm({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+      resetModal()
       load()
-    } catch { /* ignore */ }
+    } catch (e) {
+      setFormError(e.response?.data?.error || 'Erreur lors de la création')
+    } finally { setSubmitting(false) }
   }
 
   const executeCampaign = async (id) => {
@@ -155,28 +176,28 @@ export default function AdminCampaigns() {
       )}
 
       {showModal && (
-        <Modal onClose={() => setShowModal(false)} title={tab === 'campaigns' ? 'Nouvelle campagne' : 'Nouveau trigger'}>
+        <Modal open onClose={resetModal} title={tab === 'campaigns' ? 'Nouvelle campagne' : 'Nouveau trigger'}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Select value={form.merchant_id} onChange={e => setForm({ ...form, merchant_id: e.target.value })}>
-              <option value="">Marchand</option>
+              <option value="">— Sélectionner un marchand —</option>
               {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </Select>
             {tab === 'campaigns' ? (
               <>
                 <Input placeholder="Nom de la campagne" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                 <Select value={form.target_segment} onChange={e => setForm({ ...form, target_segment: e.target.value })}>
-                  <option value="">Segment cible</option>
+                  <option value="">— Segment cible —</option>
                   {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </>
             ) : (
               <>
                 <Select value={form.trigger_type} onChange={e => setForm({ ...form, trigger_type: e.target.value })}>
-                  <option value="">Type de trigger</option>
+                  <option value="">— Type de trigger —</option>
                   {TRIGGER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </Select>
                 <Select value={form.target_segment} onChange={e => setForm({ ...form, target_segment: e.target.value })}>
-                  <option value="">Segment cible (optionnel)</option>
+                  <option value="">— Segment cible (optionnel) —</option>
                   {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </>
@@ -184,15 +205,19 @@ export default function AdminCampaigns() {
             <Select value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value })}>
               <option value="sms">SMS</option>
               <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
             </Select>
             <textarea
               rows={3}
-              placeholder="Message template ({client_name}, {merchant_name})"
+              placeholder="Message template (ex: Bonjour {{prenom}}, profitez de -{{remise}}% chez {{marchand}} !)"
               value={form.message_template}
               onChange={e => setForm({ ...form, message_template: e.target.value })}
               style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
-            <Button onClick={tab === 'campaigns' ? createCampaign : createTrigger}>Créer</Button>
+            {formError && <div style={{ color: '#f87171', fontSize: 12, padding: '6px 10px', background: '#450a0a', borderRadius: 6 }}>{formError}</div>}
+            <Button onClick={tab === 'campaigns' ? createCampaign : createTrigger} disabled={submitting}>
+              {submitting ? 'Création...' : 'Créer'}
+            </Button>
           </div>
         </Modal>
       )}

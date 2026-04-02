@@ -176,7 +176,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // POST /campaigns — créer une campagne (GROWTH+ requis — CDC v3 §6.1)
-router.post('/', requirePackage('GROWTH'), async (req, res, next) => {
+router.post('/', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const { merchant_id, name, target_segment, channel, message_template, scheduled_at } = req.body;
     if (!merchant_id || !name || !target_segment || !message_template) {
@@ -196,7 +196,7 @@ router.post('/', requirePackage('GROWTH'), async (req, res, next) => {
 });
 
 // POST /campaigns/:id/execute — lancer une campagne (GROWTH+ requis)
-router.post('/:id/execute', requirePackage('GROWTH'), async (req, res, next) => {
+router.post('/:id/execute', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const sent = await executeCampaign(req.params.id);
     res.json({ message: `Campagne exécutée: ${sent} messages envoyés`, sent });

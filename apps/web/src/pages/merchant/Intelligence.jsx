@@ -1,4 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import {
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ArrowRightIcon,
+  BoltIcon,
+  ClipboardDocumentListIcon,
+  CpuChipIcon,
+  SparklesIcon,
+  ArrowUpCircleIcon,
+} from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
 import { Badge, Spinner } from '../../components/ui.jsx'
@@ -103,20 +113,21 @@ function SegmentActionsPanel({ rfmDetails }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{d.count} client{d.count > 1 ? 's' : ''}</span>
                   <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: info.priorityColor + '22', color: info.priorityColor, border: `1px solid ${info.priorityColor}44` }}>{info.priority}</span>
                 </div>
-                <span style={{ color: '#64748b', fontSize: 16 }}>{isOpen ? '▲' : '▼'}</span>
+                {isOpen ? <ChevronUpIcon style={{ width: 16, height: 16, color: '#64748b' }} /> : <ChevronDownIcon style={{ width: 16, height: 16, color: '#64748b' }} />}
               </button>
               {isOpen && (
                 <div style={{ padding: '0 16px 16px' }}>
                   <div style={{ marginBottom: 10 }}>
                     {info.actions.map((action, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < info.actions.length - 1 ? '1px solid #1e293b' : 'none' }}>
-                        <span style={{ color: info.priorityColor, fontSize: 14, flexShrink: 0 }}>→</span>
+                        <ArrowRightIcon style={{ width: 14, height: 14, color: info.priorityColor, flexShrink: 0, marginTop: 1 }} />
                         <span style={{ fontSize: 12, color: '#cbd5e1' }}>{action}</span>
                       </div>
                     ))}
                   </div>
-                  <div style={{ padding: '8px 12px', background: info.priorityColor + '11', border: `1px solid ${info.priorityColor}33`, borderRadius: 8, fontSize: 11, color: info.priorityColor }}>
-                    🎯 {info.objectif}
+                  <div style={{ padding: '8px 12px', background: info.priorityColor + '11', border: `1px solid ${info.priorityColor}33`, borderRadius: 8, fontSize: 11, color: info.priorityColor, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <BoltIcon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
+                    {info.objectif}
                   </div>
                 </div>
               )}
@@ -152,7 +163,7 @@ function AiInsightsSection() {
     <div style={{ ...card, borderColor: '#8b5cf6' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 24 }}>🤖</span>
+          <CpuChipIcon style={{ width: 28, height: 28, color: '#8b5cf6' }} />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Recommandations IA</div>
             <div style={{ fontSize: 11, color: '#8b5cf6' }}>Powered by Claude · Exclusif PREMIUM</div>
@@ -160,7 +171,7 @@ function AiInsightsSection() {
         </div>
         <button onClick={loadInsights} disabled={loading}
           style={{ padding: '8px 16px', background: loading ? '#334155' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {loading ? <Spinner size="sm" /> : '✨'}
+          {loading ? <Spinner size="sm" /> : <SparklesIcon style={{ width: 16, height: 16 }} />}
           {loading ? 'Analyse...' : insights ? 'Régénérer' : 'Générer les insights'}
         </button>
       </div>
@@ -169,7 +180,7 @@ function AiInsightsSection() {
 
       {!insights && !loading && !error && (
         <div style={{ textAlign: 'center', padding: '24px 0', color: '#8b5cf6' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🧠</div>
+          <CpuChipIcon style={{ width: 40, height: 40, color: '#8b5cf6', margin: '0 auto 12px' }} />
           <p style={{ fontSize: 13, color: '#64748b' }}>Cliquez sur "Générer les insights" pour obtenir des recommandations personnalisées basées sur vos données RFM.</p>
         </div>
       )}
@@ -192,8 +203,8 @@ function AiInsightsSection() {
                     <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (PRIO_COLOR[rec.priorite] || '#6b7280') + '22', color: PRIO_COLOR[rec.priorite] || '#6b7280', border: '1px solid ' + (PRIO_COLOR[rec.priorite] || '#6b7280') + '44' }}>{rec.priorite}</span>
                   </div>
                 </div>
-                <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>📋 {rec.action}</p>
-                <p style={{ fontSize: 11, color: '#10b981' }}>🎯 {rec.objectif}</p>
+                <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 6 }}><ClipboardDocumentListIcon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />{rec.action}</p>
+                <p style={{ fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'flex-start', gap: 6 }}><BoltIcon style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{rec.objectif}</p>
               </div>
             ))}
           </div>
@@ -212,22 +223,41 @@ export default function MerchantIntelligence() {
   const merchantId = user?.merchantId || user?.id
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [recommendations, setRecommendations] = useState(null)
 
   useEffect(() => {
-    if (!merchantId) return
-    api.get(`/merchant-intelligence/${merchantId}`).then(r => {
-      setData(r.data)
-      // Charger les recommandations si Growth+
-      const pkgIndex = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'].indexOf(r.data.package)
-      if (pkgIndex >= 2) {
-        api.get(`/merchant-intelligence/${merchantId}/recommendations`).then(rr => setRecommendations(rr.data)).catch(() => {})
-      }
-    }).finally(() => setLoading(false))
+    if (!merchantId) { setLoading(false); return }
+    api.get(`/merchant-intelligence/me`)
+      .then(r => {
+        setData(r.data)
+        const pkgIndex = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'].indexOf(r.data.package)
+        if (pkgIndex >= 2) {
+          api.get(`/merchant-intelligence/me/recommendations`).then(rr => setRecommendations(rr.data)).catch(() => {})
+        }
+      })
+      .catch(e => setError(e.response?.data?.error || e.message || 'Erreur inconnue'))
+      .finally(() => setLoading(false))
   }, [merchantId])
 
   if (loading) return <Spinner />
-  if (!data) return <div style={{ textAlign: 'center', color: '#64748b', padding: 32 }}>Aucune donnée disponible</div>
+  if (error) return (
+    <div style={{ padding: '40px 32px' }}>
+      <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '16px 20px', color: '#ef4444', fontSize: 14 }}>
+        <strong>Erreur :</strong> {error}
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>merchantId utilisé : {merchantId || '(non défini)'}</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+          Token merchant présent : {localStorage.getItem('afrikfid_token_merchant') ? 'OUI' : 'NON'} |
+          User role : {user?.role || '(non défini)'}
+        </div>
+        <button onClick={() => { localStorage.removeItem('afrikfid_token_merchant'); localStorage.removeItem('afrikfid_user_merchant'); window.location.href = '/merchant/login'; }}
+          style={{ marginTop: 12, padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+          Se reconnecter en tant que marchand
+        </button>
+      </div>
+    </div>
+  )
+  if (!data) return <div style={{ textAlign: 'center', color: '#64748b', padding: 32 }}>Aucune donnée disponible — merchantId : {merchantId || '(non défini)'}</div>
 
   const m = data.modules
   const pkg = data.package
@@ -267,15 +297,17 @@ export default function MerchantIntelligence() {
               </div>
             ))}
           </div>
-          {!m.rfm_detailed && <p style={{ marginTop: 12, fontSize: 12, color: '#8b5cf6' }}>Passez au package Growth pour voir le détail par segment et les actions recommandées.</p>}
+          {!m.rfm_detailed && <p style={{ marginTop: 12, fontSize: 12, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 4 }}><ArrowUpCircleIcon style={{ width: 14, height: 14, flexShrink: 0 }} />Passez au package Growth Intelligent pour voir le détail par segment et les actions recommandées.</p>}
         </div>
       )}
 
       {!m.rfm_simple && (
         <div style={upgCard}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Segmentation RFM</div>
-          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Disponible à partir du package Starter Plus</p>
-          <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Upgrade</a>
+          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Disponible à partir du package Starter Plus — inclus dans Growth Intelligent et Premium.</p>
+          <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <ArrowUpCircleIcon style={{ width: 16, height: 16 }} />Upgrade
+          </a>
         </div>
       )}
 
@@ -428,7 +460,10 @@ export default function MerchantIntelligence() {
                   <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>{r.action}</div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     {r.segment && <span style={{ fontSize: 10, fontWeight: 700, color: SEG_COLOR[r.segment] || '#6b7280', background: (SEG_COLOR[r.segment] || '#6b7280') + '22', padding: '1px 6px', borderRadius: 10 }}>{r.segment}</span>}
-                    <span style={{ fontSize: 10, fontWeight: 700, color: impactColor }}>{r.impact === 'HIGH' ? '🔴 Critique' : r.impact === 'MEDIUM' ? '🟡 Modéré' : '🔵 Faible'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: impactColor, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: impactColor, display: 'inline-block' }} />
+                      {r.impact === 'HIGH' ? 'Critique' : r.impact === 'MEDIUM' ? 'Modéré' : 'Faible'}
+                    </span>
                     {r.deadline && <span style={{ fontSize: 10, color: '#64748b' }}>Avant le {r.deadline}</span>}
                   </div>
                 </div>
@@ -532,10 +567,12 @@ export default function MerchantIntelligence() {
 
       {!m.analytics_advanced && !m.rfm_simple && (
         <div style={upgCard}>
-          <div style={{ fontSize: 20, marginBottom: 8 }}>🤖</div>
+          <CpuChipIcon style={{ width: 32, height: 32, color: '#8b5cf6', margin: '0 auto 12px' }} />
           <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Recommandations IA</div>
-          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Analyse IA de votre portefeuille client — Package Premium</p>
-          <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Upgrade vers Premium</a>
+          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Analyse IA de votre portefeuille client — disponible à partir du package Growth Intelligent.</p>
+          <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <ArrowUpCircleIcon style={{ width: 16, height: 16 }} />Upgrade
+          </a>
         </div>
       )}
     </div>

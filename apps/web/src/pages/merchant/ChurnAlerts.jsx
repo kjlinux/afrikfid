@@ -1,7 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import {
+  ChartBarIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  LightBulbIcon,
+  ArrowPathIcon,
+  ArrowUpCircleIcon,
+} from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
 import { Spinner, Badge } from '../../components/ui.jsx'
+
+const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth Intelligent', PREMIUM: 'Premium' }
+const PKG_HIERARCHY = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 
 const LEVEL_CONFIG = {
   critical: { label: 'Critique', color: '#ef4444', bg: '#ef444422', border: '#ef444444' },
@@ -38,11 +49,11 @@ export default function MerchantChurnAlerts() {
     if (!merchantId) return
     setLoading(true)
     setError(null)
-    api.get(`/merchant-intelligence/${merchantId}/churn`, { params: { level, limit: 50 } })
+    api.get(`/merchant-intelligence/me/churn`, { params: { level, limit: 50 } })
       .then(r => setData(r.data))
       .catch(e => {
         const err = e.response?.data?.error || e.message
-        if (e.response?.status === 403) {
+        if (e.response?.status === 403 && e.response.data?.upgrade_needed) {
           setError({ upgrade: true, msg: e.response.data?.upgrade_to || 'STARTER_PLUS' })
         } else {
           setError({ msg: err })
@@ -55,17 +66,32 @@ export default function MerchantChurnAlerts() {
 
   if (!merchantId) return <div style={{ padding: 32, color: '#64748b' }}>Session expirée.</div>
 
+  const minRequired = error?.upgrade ? (PKG_LABELS[error.msg] || error.msg) : null
+  const upgradableTo = error?.upgrade ? PKG_HIERARCHY.slice(PKG_HIERARCHY.indexOf(error.msg)) : []
+
   if (error?.upgrade) return (
     <div style={{ padding: '28px 32px' }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 24 }}>Alertes Churn</h1>
       <div style={{ background: '#1e293b', border: '1px dashed #8b5cf6', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#8b5cf6', marginBottom: 8 }}>Fonctionnalité {error.msg}</div>
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
-          La prédiction churn est disponible à partir du package <strong style={{ color: '#f1f5f9' }}>Starter Plus</strong>.
-          <br />Passez à un package supérieur pour identifier vos clients à risque avant qu'ils ne partent.
+        <ChartBarIcon style={{ width: 48, height: 48, color: '#8b5cf6', margin: '0 auto 16px' }} />
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#8b5cf6', marginBottom: 8 }}>Fonctionnalité non incluse dans votre package actuel</div>
+        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+          Les alertes churn sont disponibles à partir du package <strong style={{ color: '#f1f5f9' }}>{minRequired}</strong>.
         </p>
-        <a href="/merchant/settings" style={{ padding: '10px 24px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
+        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+          Votre package actuel ne donne pas accès à cette fonctionnalité. Passez à un package supérieur pour identifier vos clients à risque avant qu'ils ne partent.
+        </p>
+        {upgradableTo.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+            {upgradableTo.map(pkg => (
+              <span key={pkg} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#8b5cf622', color: '#8b5cf6', border: '1px solid #8b5cf644' }}>
+                {PKG_LABELS[pkg]}
+              </span>
+            ))}
+          </div>
+        )}
+        <a href="/merchant/settings" style={{ padding: '10px 24px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <ArrowUpCircleIcon style={{ width: 18, height: 18 }} />
           Upgrader mon package
         </a>
       </div>
@@ -81,7 +107,7 @@ export default function MerchantChurnAlerts() {
         </div>
         <button onClick={load} disabled={loading}
           style={{ padding: '8px 16px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {loading ? <Spinner size="sm" /> : '↻'} Actualiser
+          {loading ? <Spinner size="sm" /> : <ArrowPathIcon style={{ width: 16, height: 16 }} />} Actualiser
         </button>
       </div>
 
@@ -106,14 +132,15 @@ export default function MerchantChurnAlerts() {
           {/* Résumé */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Total à risque', value: data.summary?.total_at_risk ?? 0, color: '#f1f5f9' },
-              { label: 'Critiques', value: data.summary?.by_level?.critical ?? 0, color: '#ef4444' },
-              { label: 'Élevés', value: data.summary?.by_level?.high ?? 0, color: '#f97316' },
-              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: '#f59e0b' },
+              { label: 'Modérés+', value: data.summary?.total_at_risk ?? 0, color: '#f1f5f9', sub: `(${data.summary?.total_including_low ?? 0} avec faibles)` },
+              { label: 'Critiques', value: data.summary?.by_level?.critical ?? 0, color: '#ef4444', sub: 'score ≥ 80%' },
+              { label: 'Élevés', value: data.summary?.by_level?.high ?? 0, color: '#f97316', sub: 'score 60-79%' },
+              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: '#f59e0b', sub: 'tous niveaux' },
             ].map(k => (
               <div key={k.label} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '14px 18px' }}>
                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: k.color }}>{k.value}</div>
+                {k.sub && <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{k.sub}</div>}
               </div>
             ))}
           </div>
@@ -121,14 +148,15 @@ export default function MerchantChurnAlerts() {
           {/* Liste clients */}
           {(data.predictions || []).length === 0 ? (
             <div style={{ ...card, textAlign: 'center', padding: '40px 32px' }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>✅</div>
+              <CheckCircleIcon style={{ width: 40, height: 40, color: '#10b981', margin: '0 auto 12px' }} />
               <div style={{ fontSize: 15, fontWeight: 600, color: '#10b981', marginBottom: 4 }}>Aucun client à risque détecté</div>
               <p style={{ fontSize: 12, color: '#64748b' }}>Avec le filtre "{LEVEL_CONFIG[level].label}+" — essayez un filtre moins strict.</p>
             </div>
           ) : (
             <div style={card}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>
-                {data.predictions.length} client{data.predictions.length > 1 ? 's' : ''} à risque
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {data.predictions.length} client{data.predictions.length > 1 ? 's' : ''} à risque {LEVEL_CONFIG[level].label.toLowerCase()}+
+                <span style={{ fontSize: 11, color: '#475569', fontWeight: 400 }}>/ {data.summary?.total_at_risk ?? '?'} modérés+ au total</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -173,7 +201,7 @@ export default function MerchantChurnAlerts() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>Signaux détectés</div>
                 {(selected.signals || []).map((s, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < selected.signals.length - 1 ? '1px solid #1e293b' : 'none' }}>
-                    <span style={{ color: '#f97316', flexShrink: 0 }}>⚠</span>
+                    <ExclamationTriangleIcon style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
                     <span style={{ fontSize: 12, color: '#cbd5e1' }}>{s}</span>
                   </div>
                 ))}
@@ -192,8 +220,9 @@ export default function MerchantChurnAlerts() {
                   ))}
                 </div>
               )}
-              <div style={{ padding: '10px 14px', background: '#3b82f611', border: '1px solid #3b82f633', borderRadius: 8, fontSize: 12, color: '#93c5fd' }}>
-                💡 {selected.recommendation}
+              <div style={{ padding: '10px 14px', background: '#3b82f611', border: '1px solid #3b82f633', borderRadius: 8, fontSize: 12, color: '#93c5fd', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <LightBulbIcon style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />
+                {selected.recommendation}
               </div>
             </div>
           )}

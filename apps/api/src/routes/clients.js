@@ -15,7 +15,7 @@ const { triggerBienvenue } = require('../lib/campaign-engine');
 
 // POST /api/v1/clients
 router.post('/', validate(CreateClientSchema), async (req, res) => {
-  const { full_name, phone, email, country_id, password, birth_date } = req.body;
+  const { full_name, phone, email, country_id, password, birth_date, city, district, country_code } = req.body;
 
   const phoneHash = hashField(phone);
   const existing = await db.query('SELECT id FROM clients WHERE phone_hash = $1', [phoneHash]);
@@ -29,9 +29,9 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
   const emailHash = email ? hashField(email) : null;
 
   await db.query(
-    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash, birth_date)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash, birth_date || null]
+    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash, birth_date, city, district, country_code)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash, birth_date || null, city || null, district || null, country_code || country_id || null]
   );
 
   await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2)', [uuidv4(), id]);
@@ -217,7 +217,7 @@ router.patch('/:id/profile', requireAuth, validate(UpdateClientProfileSchema), a
   const isOwner = req.client && req.client.id === client.id;
   if (!req.admin && !isOwner) return res.status(403).json({ error: 'Accès interdit' });
 
-  const { full_name, email, birth_date } = req.body;
+  const { full_name, email, birth_date, city, district, country_code } = req.body;
   const updates = [];
   const params = [];
   let idx = 1;
@@ -230,6 +230,9 @@ router.patch('/:id/profile', requireAuth, validate(UpdateClientProfileSchema), a
     updates.push(`email_hash = $${idx++}`); params.push(eHash);
   }
   if (birth_date !== undefined) { updates.push(`birth_date = $${idx++}`); params.push(birth_date); }
+  if (city !== undefined) { updates.push(`city = $${idx++}`); params.push(city || null); }
+  if (district !== undefined) { updates.push(`district = $${idx++}`); params.push(district || null); }
+  if (country_code !== undefined) { updates.push(`country_code = $${idx++}`); params.push(country_code || null); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
 

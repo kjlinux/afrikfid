@@ -298,12 +298,12 @@ export default function MerchantDashboard() {
       {/* Liens rapides */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 20 }}>
         <a href="/merchant/links" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', textDecoration: 'none', display: 'block' }}>
-          <LinkIcon className="w-6 h-6" style={{ marginBottom: 6, color: '#f59e0b' }} />
+          <LinkIcon style={{ width: 24, height: 24, marginBottom: 6, color: '#f59e0b' }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b' }}>Liens de paiement</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Créer et gérer vos liens</div>
         </a>
         <a href="/merchant/transactions" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px', textDecoration: 'none', display: 'block' }}>
-          <ClipboardDocumentListIcon className="w-6 h-6" style={{ marginBottom: 6, color: '#3b82f6' }} />
+          <ClipboardDocumentListIcon style={{ width: 24, height: 24, marginBottom: 6, color: '#3b82f6' }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: '#3b82f6' }}>Transactions</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Historique complet</div>
         </a>
@@ -426,22 +426,29 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
       {loyaltyScore && (
         <Card title="Score fidélité mensuel">
           <div style={{ textAlign: 'center', paddingBottom: 8 }}>
-            <div style={{ fontSize: 48, fontWeight: 900, color: loyaltyScore.score >= 70 ? '#10b981' : loyaltyScore.score >= 40 ? '#f59e0b' : '#ef4444', lineHeight: 1 }}>
-              {loyaltyScore.score ?? '—'}
+            <div style={{ fontSize: 48, fontWeight: 900, lineHeight: 1, color: (loyaltyScore.loyalty_score ?? loyaltyScore.score) >= 70 ? '#10b981' : (loyaltyScore.loyalty_score ?? loyaltyScore.score) >= 40 ? '#f59e0b' : '#ef4444' }}>
+              {loyaltyScore.loyalty_score ?? loyaltyScore.score ?? '—'}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>/100</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
-            {loyaltyScore.breakdown && Object.entries(loyaltyScore.breakdown).map(([k, v]) => (
+            {(loyaltyScore.score_breakdown || loyaltyScore.breakdown) && Object.entries(loyaltyScore.score_breakdown || loyaltyScore.breakdown).map(([k, v]) => (
               <div key={k} style={{ background: '#0f172a', borderRadius: 6, padding: '6px 8px' }}>
                 <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 }}>{k.replace(/_/g, ' ')}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{typeof v === 'number' ? (v < 1 ? Math.round(v * 100) + '%' : v) : v ?? '—'}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{typeof v === 'number' ? (v <= 1 && k.includes('rate') ? Math.round(v * 100) + '%' : fmt(v)) : v ?? '—'}</div>
               </div>
             ))}
           </div>
-          {loyaltyScore.recommendation && (
-            <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(59,130,246,0.08)', borderRadius: 6, fontSize: 11, color: '#93c5fd' }}>
-              💡 {loyaltyScore.recommendation}
+          {loyaltyScore.stats && (
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              <div style={{ background: '#0f172a', borderRadius: 6, padding: '5px 8px', fontSize: 11 }}>
+                <div style={{ color: '#64748b' }}>Clients actifs</div>
+                <div style={{ color: '#f1f5f9', fontWeight: 700 }}>{loyaltyScore.stats.active_clients}</div>
+              </div>
+              <div style={{ background: '#0f172a', borderRadius: 6, padding: '5px 8px', fontSize: 11 }}>
+                <div style={{ color: '#64748b' }}>Clients fidèles</div>
+                <div style={{ color: '#10b981', fontWeight: 700 }}>{loyaltyScore.stats.loyal_clients}</div>
+              </div>
             </div>
           )}
         </Card>

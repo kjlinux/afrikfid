@@ -681,6 +681,7 @@ const MIGRATIONS = [
 
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS package TEXT DEFAULT 'STARTER_BOOST'
         CHECK (package IN ('STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'));
+      UPDATE merchants SET package = 'STARTER_BOOST' WHERE package IS NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS sector TEXT DEFAULT 'general';
 
       CREATE TABLE IF NOT EXISTS subscriptions (

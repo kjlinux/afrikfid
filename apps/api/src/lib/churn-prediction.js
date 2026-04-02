@@ -224,7 +224,8 @@ async function getChurnSummary(merchantId) {
   const allRisk = await getMerchantChurnRisk(merchantId, 'low', 500);
 
   const summary = {
-    total_at_risk: allRisk.length,
+    total_at_risk: allRisk.filter(r => r.churn_level !== 'low').length,
+    total_including_low: allRisk.length,
     by_level: { low: 0, medium: 0, high: 0, critical: 0 },
     avg_churn_score: 0,
     top_at_risk: [],

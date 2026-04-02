@@ -21,15 +21,19 @@ const router = Router();
  */
 router.get('/:merchantId', requireAuth, async (req, res, next) => {
   try {
-    const { merchantId } = req.params;
+    // Support /me : résoudre l'ID depuis le token
+    const merchantId = req.params.merchantId === 'me'
+      ? req.merchant?.id
+      : req.params.merchantId;
 
-    // Un marchand ne peut consulter que sa propre intelligence — l'admin voit tout
+    // Seuls les admins et marchands ont accès
+    if (!req.admin && !req.merchant) {
+      return res.status(403).json({ error: 'Accès réservé aux marchands et administrateurs' });
+    }
+    if (!merchantId) return res.status(403).json({ error: 'Accès réservé aux marchands' });
+    // Un marchand ne peut consulter que sa propre intelligence
     if (req.merchant && req.merchant.id !== merchantId) {
       return res.status(403).json({ error: 'Accès interdit : vous ne pouvez consulter que votre propre dashboard' });
-    }
-    // Les clients n'ont pas accès aux données d'intelligence marchande
-    if (req.client) {
-      return res.status(403).json({ error: 'Accès réservé aux marchands et administrateurs' });
     }
 
     const merchant = await pool.query(
@@ -206,6 +210,37 @@ router.get('/:merchantId', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+async function handleChurn(merchantId, req, res) {
+  const merchant = await pool.query('SELECT id, name, package FROM merchants WHERE id = $1', [merchantId]);
+  if (!merchant.rows[0]) return res.status(404).json({ error: 'Marchand introuvable' });
+
+  const pkg = merchant.rows[0].package || 'STARTER_BOOST';
+  const pkgIndex = MERCHANT_PACKAGES.indexOf(pkg);
+  if (pkgIndex < 1) {
+    return res.status(403).json({
+      error: 'Fonctionnalité réservée aux packages Starter Plus et supérieurs',
+      upgrade_to: 'STARTER_PLUS',
+      upgrade_needed: true,
+    });
+  }
+
+  const { level = 'medium', limit = '50' } = req.query;
+  const predictions = await getMerchantChurnRisk(merchantId, level, parseInt(limit, 10));
+  const summary = await getChurnSummary(merchantId);
+  res.json({ merchantId, summary, predictions });
+}
+
+/**
+ * GET /merchant-intelligence/me/churn
+ * Self-service — utilise req.merchant.id du token JWT (évite tout mismatch ID)
+ */
+router.get('/me/churn', requireAuth, async (req, res, next) => {
+  try {
+    if (!req.merchant) return res.status(403).json({ error: 'Accès réservé aux marchands' });
+    await handleChurn(req.merchant.id, req, res);
+  } catch (err) { next(err); }
+});
+
 /**
  * GET /merchant-intelligence/:merchantId/churn
  * Prédiction churn détaillée (Growth+ CDC §6.1)
@@ -218,26 +253,7 @@ router.get('/:merchantId/churn', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'Accès interdit' });
     }
     if (req.client) return res.status(403).json({ error: 'Accès réservé aux marchands et administrateurs' });
-
-    const merchant = await pool.query(
-      'SELECT id, name, package FROM merchants WHERE id = $1', [merchantId]
-    );
-    if (!merchant.rows[0]) return res.status(404).json({ error: 'Marchand introuvable' });
-
-    const pkg = merchant.rows[0].package || 'STARTER_BOOST';
-    const pkgIndex = MERCHANT_PACKAGES.indexOf(pkg);
-    if (pkgIndex < 1) {
-      return res.status(403).json({
-        error: 'Fonctionnalité réservée aux packages Starter Plus et supérieurs',
-        upgrade_to: 'STARTER_PLUS',
-      });
-    }
-
-    const { level = 'medium', limit = '50' } = req.query;
-    const predictions = await getMerchantChurnRisk(merchantId, level, parseInt(limit, 10));
-    const summary = await getChurnSummary(merchantId);
-
-    res.json({ merchantId, summary, predictions });
+    await handleChurn(merchantId, req, res);
   } catch (err) { next(err); }
 });
 
@@ -415,13 +431,17 @@ router.get('/:merchantId/trade-zones', requireAuth, async (req, res, next) => {
 });
 
 /**
- * GET /merchant-intelligence/:merchantId/recommendations
+ * GET /merchant-intelligence/:merchantId/recommendations  (ou /me/recommendations)
  * Recommandations hebdo basées sur les données RFM + churn réelles (CDC §6.1 — Growth+)
  * Retourne une liste priorisée d'actions concrètes pour la semaine
  */
 router.get('/:merchantId/recommendations', requireAuth, async (req, res, next) => {
   try {
-    const { merchantId } = req.params;
+    // Support /me/recommendations : résoudre l'ID depuis le token
+    const merchantId = req.params.merchantId === 'me'
+      ? req.merchant?.id
+      : req.params.merchantId;
+    if (!merchantId) return res.status(403).json({ error: 'Accès réservé aux marchands' });
     if (req.merchant && req.merchant.id !== merchantId) {
       return res.status(403).json({ error: 'Accès interdit' });
     }

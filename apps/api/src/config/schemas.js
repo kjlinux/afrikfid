@@ -96,12 +96,18 @@ const CreateClientSchema = z.object({
   country_id: z.string().length(2).optional(),
   password: z.string().min(8).optional(),
   birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu: YYYY-MM-DD').optional(),
+  city: z.string().min(2).max(100).optional(),
+  district: z.string().min(2).max(100).optional(),
+  country_code: z.string().length(2).optional(),
 });
 
 const UpdateClientProfileSchema = z.object({
   full_name: z.string().min(2).max(100).optional(),
   email: email.optional(),
   birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu: YYYY-MM-DD').optional().nullable(),
+  city: z.string().min(2).max(100).optional().nullable(),
+  district: z.string().min(2).max(100).optional().nullable(),
+  country_code: z.string().length(2).optional().nullable(),
 });
 
 const UpdateLoyaltyStatusSchema = z.object({

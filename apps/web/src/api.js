@@ -11,74 +11,19 @@ api.interceptors.request.use(config => {
   const role = roleFromPath(window.location.pathname)
   const token = role
     ? localStorage.getItem(tokenKey(role))
-    : (localStorage.getItem(tokenKey('admin')) || localStorage.getItem(tokenKey('merchant')) || localStorage.getItem(tokenKey('client')))
+    : (localStorage.getItem(tokenKey('admin')) || localStorage.getItem(tokenKey('merchant')))
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// Refresh automatique du token sur 401
-let refreshing = false
-let pendingQueue = []
-
-function processQueue(error, token = null) {
-  pendingQueue.forEach(p => error ? p.reject(error) : p.resolve(token))
-  pendingQueue = []
-}
-
+// Sur 401 : redirection immédiate vers la page de connexion
 api.interceptors.response.use(
   res => res,
-  async err => {
-    const originalReq = err.config
-
-    // Ignorer les pages publiques et les requêtes de refresh elles-mêmes
-    if (window.location.pathname.startsWith('/pay/') || originalReq._retry) {
-      return Promise.reject(err)
-    }
-
-    if (err.response?.status === 401) {
+  err => {
+    if (err.response?.status === 401 && !window.location.pathname.startsWith('/pay/')) {
       const role = roleFromPath(window.location.pathname)
-
-      if (refreshing) {
-        // Mettre en file d'attente pendant le refresh en cours
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({ resolve, reject })
-        }).then(token => {
-          originalReq.headers.Authorization = `Bearer ${token}`
-          return api(originalReq)
-        })
-      }
-
-      originalReq._retry = true
-      refreshing = true
-
-      const refreshKey = `afrikfid_refresh_${role || 'unknown'}`
-      const refreshToken = localStorage.getItem(refreshKey)
-
-      if (!refreshToken) {
-        refreshing = false
-        redirectToLogin(role)
-        return Promise.reject(err)
-      }
-
-      try {
-        const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken })
-        const newToken = data.accessToken
-
-        // Mettre à jour le token stocké
-        localStorage.setItem(tokenKey(role), newToken)
-
-        processQueue(null, newToken)
-        originalReq.headers.Authorization = `Bearer ${newToken}`
-        return api(originalReq)
-      } catch (refreshErr) {
-        processQueue(refreshErr, null)
-        redirectToLogin(role)
-        return Promise.reject(refreshErr)
-      } finally {
-        refreshing = false
-      }
+      redirectToLogin(role)
     }
-
     return Promise.reject(err)
   }
 )

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { Card, Badge, Modal, Button, Input, Select, Pagination, Spinner, Alert, EmptyState, KpiCard } from '../../components/ui.jsx'
 
@@ -185,7 +186,7 @@ export default function AdminRefunds() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 48 }}><Spinner /></div>
         ) : refunds.length === 0 ? (
-          <EmptyState icon="↩️" title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
+          <EmptyState icon={<ArrowUturnLeftIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>

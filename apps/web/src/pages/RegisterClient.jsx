@@ -15,8 +15,111 @@ const COUNTRIES = [
   { id: 'TD', name: 'Tchad',         flag: '🇹🇩', prefix: '+235', currency: 'XAF', digits: 8  },
   { id: 'CG', name: 'Congo',         flag: '🇨🇬', prefix: '+242', currency: 'XAF', digits: 9  },
   { id: 'GA', name: 'Gabon',         flag: '🇬🇦', prefix: '+241', currency: 'XAF', digits: 8  },
+  { id: 'GW', name: 'Guinée-Bissau', flag: '🇬🇼', prefix: '+245', currency: 'XOF', digits: 7  },
+  { id: 'GQ', name: 'Guinée Éq.',    flag: '🇬🇶', prefix: '+240', currency: 'XAF', digits: 9  },
+  { id: 'CF', name: 'RCA',           flag: '🇨🇫', prefix: '+236', currency: 'XAF', digits: 8  },
   { id: 'KE', name: 'Kenya',         flag: '🇰🇪', prefix: '+254', currency: 'KES', digits: 9  },
 ]
+
+// Villes et quartiers par pays (ISO 3166-1 alpha-2)
+const GEO_DATA = {
+  CI: {
+    cities: ['Abidjan', 'Bouaké', 'Daloa', 'Korhogo', 'Man', 'San-Pédro', 'Yamoussoukro'],
+    districts: {
+      Abidjan: ['Abobo', 'Adjamé', 'Attécoubé', 'Cocody', 'Koumassi', 'Marcory', 'Plateau', 'Port-Bouët', 'Treichville', 'Yopougon'],
+      Bouaké: ['Koko', 'N\'Dotré', 'Sokoura', 'Nimbo'],
+      Daloa: ['Centre', 'Lobia', 'Orly'],
+      default: [],
+    },
+  },
+  SN: {
+    cities: ['Dakar', 'Thiès', 'Saint-Louis', 'Kaolack', 'Ziguinchor', 'Touba', 'Mbour'],
+    districts: {
+      Dakar: ['Almadies', 'Dakar Plateau', 'Grand Dakar', 'Guédiawaye', 'Liberté', 'Médina', 'Ouakam', 'Parcelles Assainies', 'Pikine', 'Point E', 'Yoff'],
+      Thiès: ['Centre', 'Nord', 'Ouest'],
+      default: [],
+    },
+  },
+  CM: {
+    cities: ['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 'Ngaoundéré'],
+    districts: {
+      Douala: ['Akwa', 'Bali', 'Bassa', 'Bonanjo', 'Bonabéri', 'Deïdo', 'Kotto', 'Logbessou', 'Makepe', 'New Bell'],
+      Yaoundé: ['Bastos', 'Centre Administratif', 'Essos', 'Melen', 'Mvog-Mbi', 'Nlongkak', 'Tsinga'],
+      default: [],
+    },
+  },
+  KE: {
+    cities: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Nyeri'],
+    districts: {
+      Nairobi: ['CBD', 'Eastleigh', 'Gigiri', 'Hurlingham', 'Industrial Area', 'Karen', 'Kilimani', 'Lavington', 'Parklands', 'Westlands'],
+      Mombasa: ['Island', 'Likoni', 'Mvita', 'Nyali'],
+      default: [],
+    },
+  },
+  BF: {
+    cities: ['Ouagadougou', 'Bobo-Dioulasso', 'Koudougou', 'Banfora', 'Ouahigouya'],
+    districts: {
+      Ouagadougou: ['Baskuy', 'Bogodogo', 'Boulmiougou', 'Nongr-Massom', 'Sig-Noghin', 'Somgandé', 'Taabtenga', 'Wemtenga'],
+      'Bobo-Dioulasso': ['Accart-ville', 'Dafra', 'Karandasso', 'Koko', 'Sarfalao'],
+      default: [],
+    },
+  },
+  ML: {
+    cities: ['Bamako', 'Sikasso', 'Mopti', 'Kayes', 'Ségou', 'Gao'],
+    districts: {
+      Bamako: ['ACI 2000', 'Badalabougou', 'Banconi', 'Djélibougou', 'Hamdallaye', 'Korofina', 'Lafiabougou', 'Niarela', 'Sogoniko'],
+      default: [],
+    },
+  },
+  NE: {
+    cities: ['Niamey', 'Zinder', 'Maradi', 'Agadez', 'Tahoua'],
+    districts: { default: [] },
+  },
+  TG: {
+    cities: ['Lomé', 'Sokodé', 'Kara', 'Palimé', 'Atakpamé'],
+    districts: {
+      Lomé: ['Agoè', 'Bè', 'Cacaveli', 'Nyékonakpoè', 'Tokoin'],
+      default: [],
+    },
+  },
+  BJ: {
+    cities: ['Cotonou', 'Porto-Novo', 'Parakou', 'Abomey-Calavi', 'Bohicon'],
+    districts: {
+      Cotonou: ['Akpakpa', 'Cadjehoun', 'Dantokpa', 'Fidjrossè', 'Gbèdjromèdji', 'Menontin', 'Zogbo'],
+      default: [],
+    },
+  },
+  GA: {
+    cities: ['Libreville', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda'],
+    districts: {
+      Libreville: ['Akanda', 'Angondjé', 'Centre-ville', 'Glass', 'Louis', 'Oloumi'],
+      default: [],
+    },
+  },
+  CG: {
+    cities: ['Brazzaville', 'Pointe-Noire', 'Dolisie', 'Nkayi', 'Impfondo'],
+    districts: {
+      Brazzaville: ['Bacongo', 'Djiri', 'Madibou', 'Makélékélé', 'Mfilou', 'Moungali', 'Ouenzé', 'Poto-Poto', 'Talangaï'],
+      default: [],
+    },
+  },
+  TD: {
+    cities: ["N'Djamena", 'Moundou', 'Sarh', 'Abéché', 'Kélo'],
+    districts: { default: [] },
+  },
+  GW: {
+    cities: ['Bissau', 'Bafatá', 'Gabú', 'Bissorã'],
+    districts: { default: [] },
+  },
+  GQ: {
+    cities: ['Malabo', 'Bata', 'Ebebiyín', 'Aconibe'],
+    districts: { default: [] },
+  },
+  CF: {
+    cities: ['Bangui', 'Bimbo', 'Mbaïki', 'Berberati', 'Bambari'],
+    districts: { default: [] },
+  },
+}
 
 const inp = {
   width: '100%', padding: '10px 12px', background: '#0f172a',
@@ -29,6 +132,7 @@ export default function RegisterClient() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
     full_name: '', phoneLocal: '', email: '', country_id: 'CI', password: '', password_confirm: '',
+    city: '', district: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -39,8 +143,14 @@ export default function RegisterClient() {
   const selectedCountry = COUNTRIES.find(c => c.id === form.country_id) || COUNTRIES[0]
 
   const handleCountryChange = (country_id) => {
-    setForm(f => ({ ...f, country_id, phoneLocal: '' }))
+    setForm(f => ({ ...f, country_id, phoneLocal: '', city: '', district: '' }))
   }
+
+  const geo = GEO_DATA[form.country_id] || { cities: [], districts: { default: [] } }
+  const availableCities = geo.cities
+  const availableDistricts = form.city
+    ? (geo.districts[form.city] || geo.districts.default || [])
+    : []
 
   const fullPhone = form.phoneLocal.trim()
     ? `${selectedCountry.prefix}${form.phoneLocal.replace(/^0+/, '').replace(/\s/g, '')}`
@@ -62,6 +172,9 @@ export default function RegisterClient() {
         email: form.email || undefined,
         country_id: form.country_id,
         password: form.password,
+        city: form.city || undefined,
+        district: form.district || undefined,
+        country_code: form.country_id,
       })
       setSuccess(data.client)
     } catch (e) {
@@ -165,6 +278,41 @@ export default function RegisterClient() {
               <input style={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)}
                 placeholder="votre@email.com" />
             </div>
+
+            {/* Localisation — ville + quartier selon pays */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={lbl}>Ville <span style={{ color: '#475569' }}>(optionnel)</span></label>
+                {availableCities.length > 0 ? (
+                  <select style={inp} value={form.city} onChange={e => { set('city', e.target.value); set('district', '') }}>
+                    <option value="">— Choisir</option>
+                    {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <input style={inp} value={form.city} onChange={e => set('city', e.target.value)}
+                    placeholder="Votre ville" />
+                )}
+              </div>
+              <div>
+                <label style={lbl}>Quartier / Commune <span style={{ color: '#475569' }}>(optionnel)</span></label>
+                {availableDistricts.length > 0 ? (
+                  <select style={inp} value={form.district} onChange={e => set('district', e.target.value)}>
+                    <option value="">— Choisir</option>
+                    {availableDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                ) : (
+                  <input style={inp} value={form.district} onChange={e => set('district', e.target.value)}
+                    placeholder={form.city ? 'Votre quartier' : 'Choisir une ville d\'abord'}
+                    disabled={availableCities.length > 0 && !form.city} />
+                )}
+              </div>
+            </div>
+            {(form.city || form.district) && (
+              <div style={{ fontSize: 11, color: '#475569', marginBottom: 14, padding: '6px 10px', background: '#0f172a', borderRadius: 6, border: '1px solid #1e293b' }}>
+                Zone de chalandise : <strong style={{ color: '#94a3b8' }}>{[form.city, form.district].filter(Boolean).join(' — ')}</strong>
+                {' '}— utilisée pour la cartographie de votre marchand.
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               <div>

@@ -13,7 +13,10 @@ function requirePackage(minPackage) {
 
   return async (req, res, next) => {
     try {
-      const merchantId = req.merchant?.id || req.params.merchantId || req.query.merchant_id;
+      // Les admins ne sont pas soumis à la restriction de package
+      if (req.admin) return next();
+
+      const merchantId = req.merchant?.id || req.params.merchantId || req.query.merchant_id || req.body?.merchant_id;
       if (!merchantId) return res.status(400).json({ error: 'merchant_id requis' });
 
       const result = await pool.query('SELECT package FROM merchants WHERE id = $1', [merchantId]);

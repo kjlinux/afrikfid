@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
     "seed:extended": "node src/seed-extended.js",
+    "seed:supermarche": "node src/seed-supermarche.js",
     "seed:all": "node src/seed.js && node src/seed-extended.js",
     "reset": "node src/resetDb.js",
     "test": "NODE_ENV=test npx jest --forceExit --runInBand",

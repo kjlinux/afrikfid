@@ -180,6 +180,7 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
       id: merchant.id, name: merchant.name, email: merchant.email,
       status: merchant.status, rebatePercent: merchant.rebate_percent,
       totpEnabled: merchant.totp_enabled || false,
+      package: merchant.package || 'STARTER_BOOST',
     },
   });
 });
