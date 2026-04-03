@@ -11,7 +11,8 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
-import { Badge, Spinner } from '../../components/ui.jsx'
+import { Badge, Spinner, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const SEG_COLOR = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#f59e0b', A_RISQUE: '#f97316', HIBERNANTS: '#6b7280', PERDUS: '#ef4444' }
 
@@ -273,13 +274,15 @@ export default function MerchantIntelligence() {
       {/* KPIs — tous packages */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'Transactions', value: Number(data.kpis?.total_transactions || 0).toLocaleString(), color: '#f1f5f9' },
-          { label: "Chiffre d'affaires", value: Number(data.kpis?.total_revenue || 0).toLocaleString() + ' FCFA', color: '#10b981' },
-          { label: 'Panier moyen', value: Math.round(Number(data.kpis?.avg_basket || 0)).toLocaleString() + ' FCFA', color: '#f59e0b' },
-          { label: 'Clients uniques', value: Number(data.kpis?.unique_clients || 0).toLocaleString(), color: '#3b82f6' },
+          { label: 'Transactions', value: Number(data.kpis?.total_transactions || 0).toLocaleString(), color: '#f1f5f9', tip: null },
+          { label: "Chiffre d'affaires", value: Number(data.kpis?.total_revenue || 0).toLocaleString() + ' FCFA', color: '#10b981', tip: TOOLTIPS.chiffre_affaires },
+          { label: 'Panier moyen', value: Math.round(Number(data.kpis?.avg_basket || 0)).toLocaleString() + ' FCFA', color: '#f59e0b', tip: TOOLTIPS.panier_moyen },
+          { label: 'Clients uniques', value: Number(data.kpis?.unique_clients || 0).toLocaleString(), color: '#3b82f6', tip: null },
         ].map(k => (
           <div key={k.label} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>{k.label}</div>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>
+              {k.label}{k.tip && <InfoTooltip text={k.tip} />}
+            </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
           </div>
         ))}
@@ -288,7 +291,7 @@ export default function MerchantIntelligence() {
       {/* Segmentation RFM — STARTER_PLUS+ */}
       {m.rfm_simple && data.rfm_stats && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>Segmentation RFM</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>Segmentation RFM<InfoTooltip text={TOOLTIPS.RFM} /></div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {(data.rfm_stats.segments || []).map(s => (
               <div key={s.segment} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
@@ -365,7 +368,9 @@ export default function MerchantIntelligence() {
       {m.return_rate && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
           <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Taux de retour clients</div>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+              Taux de retour clients<InfoTooltip text={TOOLTIPS.taux_retour} />
+            </div>
             <div style={{ fontSize: 36, fontWeight: 800, color: data.return_rate >= 50 ? '#10b981' : data.return_rate >= 25 ? '#f59e0b' : '#ef4444' }}>{data.return_rate ?? '—'}%</div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>% clients avec ≥2 achats (12 mois)</div>
           </div>
@@ -395,7 +400,9 @@ export default function MerchantIntelligence() {
         <div style={{ background: '#1e293b', border: '1px solid #f9731633', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>Alertes Churn — {data.churn_alerts.total_at_risk} clients à risque</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>
+                Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /> — {data.churn_alerts.total_at_risk} clients à risque
+              </div>
               <div style={{ fontSize: 11, color: '#64748b' }}>Clients susceptibles de partir — action recommandée</div>
             </div>
             <a href="/merchant/churn-alerts" style={{ padding: '6px 14px', background: '#f97316', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Voir détails</a>
@@ -420,7 +427,7 @@ export default function MerchantIntelligence() {
       {/* Churn Predictions détaillées — GROWTH+ */}
       {m.churn_prediction && data.churn_predictions && data.churn_predictions.length > 0 && (
         <div style={{ ...card, borderColor: '#f9731633' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Prédiction Churn — Top clients à risque</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Prédiction Churn<InfoTooltip text={TOOLTIPS.churn} /> — Top clients à risque</div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM — CDC §6.1 Growth+</div>
           {data.churn_predictions.slice(0, 5).map((p, i) => (
             <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid #1e293b' : 'none' }}>
@@ -476,7 +483,7 @@ export default function MerchantIntelligence() {
       {/* Analytics avancés LTV — PREMIUM */}
       {m.analytics_advanced && data.ltv_by_segment && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>LTV par segment</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>LTV par segment<InfoTooltip text={TOOLTIPS.LTV} /></div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {data.ltv_by_segment.map(l => (
               <div key={l.segment} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '14px 16px' }}>
@@ -492,7 +499,7 @@ export default function MerchantIntelligence() {
       {/* Élasticité-prix — PREMIUM */}
       {m.analytics_advanced && data.price_elasticity && !data.price_elasticity.insufficient_data && !data.price_elasticity.error && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Élasticité-Prix</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Élasticité-Prix<InfoTooltip text={TOOLTIPS.elasticite_prix} /></div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Sensibilité de vos clients aux remises — CDC §6.1 Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             {[
@@ -516,7 +523,7 @@ export default function MerchantIntelligence() {
       {/* Zones chalandise — PREMIUM */}
       {m.analytics_advanced && data.trade_zones && data.trade_zones.total_zones > 0 && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Zones de Chalandise</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Zones de Chalandise<InfoTooltip text={TOOLTIPS.zones_chalandise} /></div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Répartition géographique de votre clientèle — CDC §6.1 Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[

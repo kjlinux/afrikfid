@@ -185,7 +185,7 @@ export default function RegisterClient() {
   if (success) return (
     <Screen>
       <div style={{ background: '#1e293b', borderRadius: 16, padding: 36, maxWidth: 420, width: '100%', textAlign: 'center', border: '1px solid #334155' }}>
-        <SparklesIcon className="w-16 h-16 mx-auto text-emerald-500" style={{ marginBottom: 16 }} />
+        <SparklesIcon style={{ width: 64, height: 64, margin: '0 auto 16px', color: '#10b981', display: 'block' }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#10b981', marginBottom: 10 }}>Compte créé !</h2>
         <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Votre identifiant Afrik'Fid</div>

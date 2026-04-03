@@ -109,7 +109,7 @@ export default function Register() {
   if (success) return (
     <Screen>
       <div style={{ background: '#1e293b', borderRadius: 16, padding: 40, maxWidth: 440, width: '100%', textAlign: 'center', border: '1px solid #334155' }}>
-        <SparklesIcon className="w-16 h-16 mx-auto text-emerald-500" style={{ marginBottom: 16 }} />
+        <SparklesIcon style={{ width: 64, height: 64, margin: '0 auto 16px', color: '#10b981', display: 'block' }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#10b981', marginBottom: 10 }}>Demande envoyée !</h2>
         <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>
           Votre demande d'inscription a bien été reçue.<br />
@@ -295,7 +295,7 @@ export default function Register() {
                   ].map(m => (
                     <button key={m.value} type="button" onClick={() => set('rebate_mode', m.value)}
                       style={{ padding: '14px 12px', border: '2px solid ' + (form.rebate_mode === m.value ? '#f59e0b' : '#334155'), borderRadius: 10, background: form.rebate_mode === m.value ? 'rgba(245,158,11,0.08)' : '#0f172a', cursor: 'pointer', textAlign: 'left' }}>
-                      <m.Icon className="w-6 h-6" style={{ marginBottom: 6 }} />
+                      <m.Icon style={{ width: 24, height: 24, marginBottom: 6 }} />
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>{m.label}</div>
                       <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6, lineHeight: 1.5 }}>{m.desc}</div>
                       <div style={{ fontSize: 9, color: '#64748b', background: '#1e293b', borderRadius: 4, padding: '3px 6px', fontFamily: 'monospace' }}>{m.example}</div>

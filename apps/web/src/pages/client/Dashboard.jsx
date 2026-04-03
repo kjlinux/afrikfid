@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../App.jsx'
 import api from '../../api.js'
+import { InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STATUS_META = {
@@ -39,11 +41,14 @@ function ProgressBar({ value, color }) {
 
 function StatusBadge({ status }) {
   const m = STATUS_META[status] || STATUS_META.OPEN
-  return (
+  const tip = TOOLTIPS[status]
+  const badge = (
     <span style={{ background: m.bg, border: `1px solid ${m.color}40`, borderRadius: 6, padding: '3px 10px', color: m.color, fontWeight: 700, fontSize: 13 }}>
       {m.icon} {status}
     </span>
   )
+  if (!tip) return badge
+  return <Tooltip text={tip}>{badge}</Tooltip>
 }
 
 function TxStatusBadge({ status }) {
@@ -182,7 +187,9 @@ export default function ClientDashboard() {
         {/* Carte statut fidélité */}
         <div style={{ background: `linear-gradient(135deg, ${meta.color}20, #1e293b)`, border: `1px solid ${meta.color}40`, borderRadius: 16, padding: '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Votre statut fidélité</div>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>
+              Votre statut fidélité<InfoTooltip text={TOOLTIPS[status]} />
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 36, lineHeight: 1 }}>{meta.icon}</span>
               <div>
@@ -198,15 +205,17 @@ export default function ClientDashboard() {
               const done = i <= currentIdx
               return (
                 <React.Fragment key={s}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: done ? m.color : '#0f172a',
-                    border: `2px solid ${done ? m.color : '#334155'}`,
-                    fontSize: 13, fontWeight: 700,
-                    color: done ? '#fff' : '#64748b',
-                  }} title={s}>
-                    {m.icon}
-                  </div>
+                  <Tooltip text={TOOLTIPS[s] || s} position="bottom">
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: done ? m.color : '#0f172a',
+                      border: `2px solid ${done ? m.color : '#334155'}`,
+                      fontSize: 13, fontWeight: 700,
+                      color: done ? '#fff' : '#64748b',
+                    }}>
+                      {m.icon}
+                    </div>
+                  </Tooltip>
                   {i < STATUS_ORDER.length - 1 && (
                     <div style={{ width: 20, height: 2, background: i < currentIdx ? '#f59e0b' : '#334155', borderRadius: 1 }} />
                   )}
@@ -237,7 +246,7 @@ export default function ClientDashboard() {
             color="#f59e0b"
           />
           <KpiCard
-            label="Remises reçues (est.)"
+            label={<>Remises reçues (est.)<InfoTooltip text={TOOLTIPS.remise_y} /></>}
             value={fmt(rebateTotal)}
             sub={`Taux actuel : ${meta.pct}% (${status})`}
             color={meta.color}
@@ -376,13 +385,16 @@ export default function ClientDashboard() {
                     <td style={{ padding: '11px 16px', display: 'flex', gap: 6 }}>
                       {tx.status === 'completed' && (<>
                         <button onClick={() => { setRefundModal(tx); setRefundReason(''); setRefundMsg('') }}
+                          title="Demander le remboursement de cette transaction au marchand"
                           style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 6, color: '#3b82f6', cursor: 'pointer' }}>
                           Remboursement
                         </button>
-                        <button onClick={() => { setDisputeModal(tx); setDisputeMsg(''); setDisputeForm({ reason: '', description: '' }) }}
-                          style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}>
-                          Litige
-                        </button>
+                        <Tooltip text={TOOLTIPS.litige}>
+                          <button onClick={() => { setDisputeModal(tx); setDisputeMsg(''); setDisputeForm({ reason: '', description: '' }) }}
+                            style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}>
+                            Litige
+                          </button>
+                        </Tooltip>
                       </>)}
                     </td>
                   </tr>

@@ -4,9 +4,92 @@ import {
   StarIcon,
   SparklesIcon,
   InboxIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/solid'
 
 export const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
+
+// Tooltip : enveloppe un élément et affiche un texte explicatif au survol (ou au clic sur mobile)
+export function Tooltip({ text, children, position = 'top' }) {
+  const [visible, setVisible] = React.useState(false)
+  const posStyles = {
+    top:    { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+    bottom: { top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+    right:  { left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+    left:   { right: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+  }
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-block', cursor: 'help' }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      onClick={() => setVisible(v => !v)}
+    >
+      <span style={{ borderBottom: '1px dotted #64748b' }}>{children}</span>
+      {visible && (
+        <span style={{
+          position: 'absolute',
+          ...posStyles[position],
+          background: '#0f172a',
+          border: '1px solid #334155',
+          borderRadius: 8,
+          padding: '8px 12px',
+          fontSize: 12,
+          color: '#cbd5e1',
+          lineHeight: 1.5,
+          width: 240,
+          zIndex: 9999,
+          pointerEvents: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          whiteSpace: 'normal',
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// InfoTooltip : petite icône ⓘ qui affiche un tooltip explicatif au survol
+export function InfoTooltip({ text, position = 'top' }) {
+  const [visible, setVisible] = React.useState(false)
+  const posStyles = {
+    top:    { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+    bottom: { top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+    right:  { left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+    left:   { right: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+  }
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginLeft: 4, cursor: 'help' }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      onClick={e => { e.stopPropagation(); setVisible(v => !v) }}
+    >
+      <InformationCircleIcon style={{ width: 14, height: 14, color: '#475569' }} />
+      {visible && (
+        <span style={{
+          position: 'absolute',
+          ...posStyles[position],
+          background: '#0f172a',
+          border: '1px solid #334155',
+          borderRadius: 8,
+          padding: '8px 12px',
+          fontSize: 12,
+          color: '#cbd5e1',
+          lineHeight: 1.5,
+          width: 240,
+          zIndex: 9999,
+          pointerEvents: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          whiteSpace: 'normal',
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
 
 export const STATUS_COLORS = {
   completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
@@ -37,15 +120,26 @@ export function Badge({ status, label, color, children }) {
   )
 }
 
+const LOYALTY_TOOLTIPS = {
+  OPEN: "Statut de départ. Vous bénéficiez des avantages de base du programme de fidélité.",
+  LIVE: "Statut actif. Vous avez effectué vos premiers achats et bénéficiez de remises sur vos transactions.",
+  GOLD: "Statut Premium. Vos achats réguliers vous donnent droit à des remises améliorées.",
+  ROYAL: "Statut Élite. Réservé aux clients les plus fidèles avec les meilleures remises disponibles.",
+  ROYAL_ELITE: "Statut Suprême. Le niveau de fidélité le plus élevé — avantages exclusifs et remises maximales.",
+}
+
 export function LoyaltyBadge({ status }) {
   const color = LOYALTY_COLORS[status] || '#6B7280'
   const Icon = status === 'ROYAL' ? TrophyIcon : status === 'GOLD' ? StarIcon : status === 'LIVE' ? SparklesIcon : null
-  return (
+  const tip = LOYALTY_TOOLTIPS[status]
+  const badge = (
     <span style={{ color, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       {Icon ? <Icon style={{ width: 14, height: 14 }} /> : <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block' }} />}
       {status}
     </span>
   )
+  if (!tip) return badge
+  return <Tooltip text={tip}>{badge}</Tooltip>
 }
 
 export function KpiCard({ label, value, sub, color = '#f59e0b', icon, trend }) {

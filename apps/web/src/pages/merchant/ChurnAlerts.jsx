@@ -9,7 +9,8 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
-import { Spinner, Badge } from '../../components/ui.jsx'
+import { Spinner, Badge, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth Intelligent', PREMIUM: 'Premium' }
 const PKG_HIERARCHY = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
@@ -102,7 +103,7 @@ export default function MerchantChurnAlerts() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Alertes Churn</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /></h1>
           <p style={{ fontSize: 12, color: '#64748b' }}>Clients susceptibles de partir — agissez avant qu'il ne soit trop tard</p>
         </div>
         <button onClick={load} disabled={loading}
@@ -132,13 +133,15 @@ export default function MerchantChurnAlerts() {
           {/* Résumé */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Modérés+', value: data.summary?.total_at_risk ?? 0, color: '#f1f5f9', sub: `(${data.summary?.total_including_low ?? 0} avec faibles)` },
-              { label: 'Critiques', value: data.summary?.by_level?.critical ?? 0, color: '#ef4444', sub: 'score ≥ 80%' },
-              { label: 'Élevés', value: data.summary?.by_level?.high ?? 0, color: '#f97316', sub: 'score 60-79%' },
-              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: '#f59e0b', sub: 'tous niveaux' },
+              { label: 'Modérés+', value: data.summary?.total_at_risk ?? 0, color: '#f1f5f9', sub: `(${data.summary?.total_including_low ?? 0} avec faibles)`, tip: TOOLTIPS.churn },
+              { label: 'Critiques', value: data.summary?.by_level?.critical ?? 0, color: '#ef4444', sub: 'score ≥ 80%', tip: null },
+              { label: 'Élevés', value: data.summary?.by_level?.high ?? 0, color: '#f97316', sub: 'score 60-79%', tip: null },
+              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: '#f59e0b', sub: 'tous niveaux', tip: TOOLTIPS.score_churn },
             ].map(k => (
               <div key={k.label} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '14px 18px' }}>
-                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
+                  {k.label}{k.tip && <InfoTooltip text={k.tip} />}
+                </div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: k.color }}>{k.value}</div>
                 {k.sub && <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{k.sub}</div>}
               </div>
@@ -162,8 +165,16 @@ export default function MerchantChurnAlerts() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #334155' }}>
-                      {['Client', 'Risque', 'Score', 'Segment RFM', 'Action recommandée'].map((h, i) => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
+                      {[
+                        { label: 'Client', tip: null },
+                        { label: 'Risque', tip: TOOLTIPS.churn },
+                        { label: 'Score', tip: TOOLTIPS.score_churn },
+                        { label: 'Segment RFM', tip: TOOLTIPS.RFM },
+                        { label: 'Action recommandée', tip: null },
+                      ].map(h => (
+                        <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                          {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -209,12 +220,12 @@ export default function MerchantChurnAlerts() {
               {selected.rfm_context && (
                 <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                   {[
-                    { label: 'Récence', value: selected.rfm_context.r, max: 5 },
-                    { label: 'Fréquence', value: selected.rfm_context.f, max: 5 },
-                    { label: 'Montant', value: selected.rfm_context.m, max: 5 },
+                    { label: 'Récence', value: selected.rfm_context.r, max: 5, tip: 'Score de 1 à 5 : à quel point ce client a acheté récemment. 5 = très récent.' },
+                    { label: 'Fréquence', value: selected.rfm_context.f, max: 5, tip: 'Score de 1 à 5 : combien de fois ce client achète. 5 = très fréquent.' },
+                    { label: 'Montant', value: selected.rfm_context.m, max: 5, tip: 'Score de 1 à 5 : combien ce client dépense au total. 5 = gros dépenseur.' },
                   ].map(s => (
                     <div key={s.label} style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>{s.label}</div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>{s.tip ? <Tooltip text={s.tip}>{s.label}</Tooltip> : s.label}</div>
                       <div style={{ fontSize: 20, fontWeight: 800, color: s.value >= 4 ? '#10b981' : s.value >= 3 ? '#f59e0b' : '#ef4444' }}>{s.value}<span style={{ fontSize: 12, color: '#64748b' }}>/5</span></div>
                     </div>
                   ))}

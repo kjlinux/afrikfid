@@ -94,7 +94,7 @@ export default function AdminAuditLogs() {
 
       {/* Table */}
       {loading ? <Spinner /> : logs.length === 0 ? (
-        <EmptyState icon={<ClipboardDocumentListIcon className="w-10 h-10 text-slate-500" />} title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
+        <EmptyState icon={<ClipboardDocumentListIcon style={{ width: 40, height: 40, color: '#64748b' }} />} title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
       ) : (
         <Card>
           <div style={{ overflowX: 'auto' }}>

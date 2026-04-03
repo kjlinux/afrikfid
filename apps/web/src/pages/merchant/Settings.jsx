@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
-import { Card, Spinner, CopyButton } from '../../components/ui.jsx'
+import { Card, Spinner, CopyButton, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 import {
   GlobeAltIcon,
   CreditCardIcon,
@@ -198,10 +199,10 @@ export default function MerchantSettings() {
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <GlobeAltIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Webhook de notification</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Webhook de notification<InfoTooltip text={TOOLTIPS.webhook} /></h2>
         </div>
         <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-          Afrik'Fid enverra des notifications signées (HMAC-SHA256) à cette URL pour chaque événement de paiement.
+          Afrik'Fid enverra des notifications signées (<Tooltip text={TOOLTIPS.hmac}>HMAC-SHA256</Tooltip>) à cette URL pour chaque événement de paiement.
         </p>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>URL de callback</label>
@@ -250,11 +251,13 @@ export default function MerchantSettings() {
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <KeyIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Clés API</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Clés API<InfoTooltip text={TOOLTIPS.api_key} /></h2>
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clé publique (Sandbox)</div>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Clé publique (Sandbox)<InfoTooltip text={TOOLTIPS.sandbox} />
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <code style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: '#f59e0b', wordBreak: 'break-all' }}>
               {profile.sandboxKeyPublic}
@@ -267,7 +270,9 @@ export default function MerchantSettings() {
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clé publique (Production)</div>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Clé publique (Production)<InfoTooltip text={TOOLTIPS.production} />
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <code style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: '#10b981', wordBreak: 'break-all' }}>
               {profile.apiKeyPublic}
@@ -282,7 +287,7 @@ export default function MerchantSettings() {
             <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <LockClosedIcon style={{ width: 18, height: 18, color: '#f59e0b', flexShrink: 0 }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>KYC requis</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>KYC requis<InfoTooltip text={TOOLTIPS.KYC} /></div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                   Votre KYC doit être approuvé pour accéder aux clés de production.{' '}
                   <a href="/merchant/kyc" style={{ color: '#f59e0b', textDecoration: 'underline' }}>Compléter mon KYC →</a>
@@ -317,15 +322,17 @@ export default function MerchantSettings() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
-            ['Nom marchand',    profile.name],
-            ['Email',           profile.email],
-            ['Taux X%',         `${profile.rebatePercent}% (défini par Afrik\'Fid)`],
-            ['Settlement',      profile.settlementFrequency || 'daily'],
-            ['Statut KYC',      profile.kycStatus],
-            ['Statut compte',   profile.status],
-          ].map(([k, v]) => (
+            ['Nom marchand',    profile.name,                                         null],
+            ['Email',           profile.email,                                        null],
+            ['Taux X%',         `${profile.rebatePercent}% (défini par Afrik\'Fid)`, TOOLTIPS.remise_x],
+            ['Settlement',      profile.settlementFrequency || 'daily',               TOOLTIPS.settlement],
+            ['Statut KYC',      profile.kycStatus,                                    TOOLTIPS.KYC],
+            ['Statut compte',   profile.status,                                       null],
+          ].map(([k, v, tip]) => (
             <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{k}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                {tip ? <>{k}<InfoTooltip text={tip} /></> : k}
+              </div>
               <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500 }}>{v || '—'}</div>
             </div>
           ))}

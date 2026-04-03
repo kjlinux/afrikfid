@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import api from '../../api.js'
 import { useAuth } from '../../App.jsx'
-import { fmt, KpiCard, Card, CopyButton, Spinner, PeriodSelector, exportCsv } from '../../components/ui.jsx'
+import { fmt, KpiCard, Card, CopyButton, Spinner, PeriodSelector, exportCsv, InfoTooltip, Tooltip as HelpTooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 import { useSSE } from '../../hooks/useSSE.js'
 import { useToast } from '../../components/ToastNotification.jsx'
 import { Link } from 'react-router-dom'
@@ -25,14 +26,14 @@ const PKG_COLOR = { STARTER_BOOST: '#64748b', STARTER_PLUS: '#3b82f6', GROWTH: '
 
 // Matrice des fonctionnalités par package (CDC v3 §6.1)
 const FEATURE_MATRIX = [
-  { key: 'taux_retour',   label: 'Taux de retour clients',          min: 'STARTER_PLUS', path: '/merchant/clients' },
-  { key: 'top_clients',   label: 'Top clients fidèles',             min: 'STARTER_PLUS', path: '/merchant/clients' },
-  { key: 'rfm',           label: 'Segmentation RFM automatique',    min: 'GROWTH',        path: '/merchant/intelligence' },
-  { key: 'campaigns',     label: 'Campagnes automatisées',          min: 'GROWTH',        path: '/merchant/intelligence' },
-  { key: 'churn',         label: 'Prédiction churn & alertes',      min: 'GROWTH',        path: '/merchant/intelligence' },
-  { key: 'ltv',           label: 'LTV par client et statut',        min: 'PREMIUM',       path: '/merchant/intelligence' },
-  { key: 'elasticite',    label: 'Élasticité-prix & prévisions',    min: 'PREMIUM',       path: '/merchant/intelligence' },
-  { key: 'erp',           label: 'Intégration ERP / CRM',           min: 'PREMIUM',       path: '/merchant/settings' },
+  { key: 'taux_retour',   label: 'Taux de retour clients',          tip: 'taux_retour',     min: 'STARTER_PLUS', path: '/merchant/clients' },
+  { key: 'top_clients',   label: 'Top clients fidèles',             tip: null,              min: 'STARTER_PLUS', path: '/merchant/clients' },
+  { key: 'rfm',           label: 'Segmentation RFM automatique',    tip: 'RFM',             min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'campaigns',     label: 'Campagnes automatisées',          tip: null,              min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'churn',         label: 'Prédiction churn & alertes',      tip: 'churn',           min: 'GROWTH',        path: '/merchant/intelligence' },
+  { key: 'ltv',           label: 'LTV par client et statut',        tip: 'LTV',             min: 'PREMIUM',       path: '/merchant/intelligence' },
+  { key: 'elasticite',    label: 'Élasticité-prix & prévisions',    tip: 'elasticite_prix', min: 'PREMIUM',       path: '/merchant/intelligence' },
+  { key: 'erp',           label: 'Intégration ERP / CRM',           tip: null,              min: 'PREMIUM',       path: '/merchant/settings' },
 ]
 
 function PackageBadge({ pkg }) {
@@ -61,13 +62,17 @@ function FeatureAccessPanel({ pkg }) {
         {accessible.map(f => (
           <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.15)' }}>
             <span style={{ color: '#10b981', fontSize: 14 }}>✓</span>
-            <a href={f.path} style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none' }}>{f.label}</a>
+            <a href={f.path} style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none' }}>
+              {f.label}{f.tip && TOOLTIPS[f.tip] && <InfoTooltip text={TOOLTIPS[f.tip]} />}
+            </a>
           </div>
         ))}
         {locked.map(f => (
           <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(100,116,139,0.06)', borderRadius: 6, border: '1px solid rgba(100,116,139,0.15)' }}>
             <span style={{ color: '#475569', fontSize: 14 }}>🔒</span>
-            <span style={{ fontSize: 12, color: '#475569' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: '#475569' }}>
+              {f.label}{f.tip && TOOLTIPS[f.tip] && <InfoTooltip text={TOOLTIPS[f.tip]} />}
+            </span>
             <span style={{ marginLeft: 'auto', fontSize: 10, color: PKG_COLOR[f.min], fontWeight: 700 }}>{PKG_LABEL[f.min]}</span>
           </div>
         ))}
@@ -175,12 +180,16 @@ export default function MerchantDashboard() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Bonjour, {profile.name}</h1>
           <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-              Remise X = {profile.rebatePercent}%
-            </span>
-            <span style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {profile.rebateMode === 'cashback' ? 'Cashback différé' : 'Remise immédiate'}
-            </span>
+            <HelpTooltip text={TOOLTIPS.remise_x}>
+              <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+                Remise X = {profile.rebatePercent}%
+              </span>
+            </HelpTooltip>
+            <HelpTooltip text={profile.rebateMode === 'cashback' ? TOOLTIPS.cashback : TOOLTIPS.remise_immediate}>
+              <span style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                {profile.rebateMode === 'cashback' ? 'Cashback différé' : 'Remise immédiate'}
+              </span>
+            </HelpTooltip>
             <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
               {profile.countryId} · {profile.currency}
             </span>
@@ -200,9 +209,9 @@ export default function MerchantDashboard() {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-        <KpiCard label="Volume total" value={`${fmt(s.total_volume)} XOF`} icon={<CurrencyDollarIcon />} color="#f59e0b" />
-        <KpiCard label="Reçu net" value={`${fmt(s.total_received)} XOF`} icon={<CheckCircleIcon />} color="#10b981" sub={`Après remise X=${profile.rebatePercent}%`} />
-        <KpiCard label="Remises accordées" value={`${fmt(s.total_rebate_given)} XOF`} icon={<GiftIcon />} color="#3b82f6" sub="Cashback clients (Y%)" />
+        <KpiCard label={<>Volume total<InfoTooltip text={TOOLTIPS.chiffre_affaires} /></>} value={`${fmt(s.total_volume)} XOF`} icon={<CurrencyDollarIcon />} color="#f59e0b" />
+        <KpiCard label={<>Reçu net<InfoTooltip text={TOOLTIPS.recu_net} /></>} value={`${fmt(s.total_received)} XOF`} icon={<CheckCircleIcon />} color="#10b981" sub={`Après remise X=${profile.rebatePercent}%`} />
+        <KpiCard label={<>Remises accordées<InfoTooltip text={TOOLTIPS.remise_y} /></>} value={`${fmt(s.total_rebate_given)} XOF`} icon={<GiftIcon />} color="#3b82f6" sub="Cashback clients (Y%)" />
         <KpiCard label="Transactions" value={s.completed_count} icon={<ChartBarIcon />} color="#8b5cf6" sub={`sur ${period} jours`} />
       </div>
 
@@ -261,7 +270,7 @@ export default function MerchantDashboard() {
           {/* Clés API */}
           <div style={{ marginTop: 16, background: '#0f172a', borderRadius: 8, padding: 12 }}>
             <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              CLÉ API SANDBOX
+              <span>CLÉ API SANDBOX<InfoTooltip text={TOOLTIPS.sandbox} position="left" /></span>
               <CopyButton text={profile.sandboxKeyPublic} />
             </div>
             <code style={{ fontSize: 11, color: '#f59e0b', wordBreak: 'break-all', display: showKey ? 'block' : 'none' }}>{profile.sandboxKeyPublic}</code>
@@ -351,7 +360,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
     <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: isGrowthPlus ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 16 }}>
 
       {/* Abonnement + Bonus recrutement (CDC §2.6) */}
-      <Card title={`Abonnement — ${PKG_LABEL[pkg] || pkg}`}>
+      <Card title={<>{`Abonnement — ${PKG_LABEL[pkg] || pkg}`}<InfoTooltip text={TOOLTIPS[`pkg_${pkg?.toLowerCase()}`] || 'Votre formule d\'abonnement Afrik\'Fid.'} /></>}>
         {sub ? (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -368,7 +377,9 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
             </div>
             {pkg === 'STARTER_BOOST' && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>CLIENTS RECRUTÉS CE MOIS</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>
+                CLIENTS RECRUTÉS CE MOIS<InfoTooltip text={TOOLTIPS.bonus_recrutement} />
+              </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b' }}>{sub.recruited_clients_count || 0}</span>
                   <span style={{ fontSize: 12, color: '#94a3b8', alignSelf: 'flex-end' }}>clients</span>
@@ -395,7 +406,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
       </Card>
 
       {/* Success Fee (CDC §3.5) */}
-      <Card title="Success Fee (CDC §3.5)">
+      <Card title={<>Success Fee<InfoTooltip text={TOOLTIPS.success_fee} /></>}>
         {sfData ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -424,7 +435,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
 
       {/* Score fidélité mensuel (CDC §6.4 — tous packages) */}
       {loyaltyScore && (
-        <Card title="Score fidélité mensuel">
+        <Card title={<>Score fidélité mensuel<InfoTooltip text={TOOLTIPS.score_fidelite} /></>}>
           <div style={{ textAlign: 'center', paddingBottom: 8 }}>
             <div style={{ fontSize: 48, fontWeight: 900, lineHeight: 1, color: (loyaltyScore.loyalty_score ?? loyaltyScore.score) >= 70 ? '#10b981' : (loyaltyScore.loyalty_score ?? loyaltyScore.score) >= 40 ? '#f59e0b' : '#ef4444' }}>
               {loyaltyScore.loyalty_score ?? loyaltyScore.score ?? '—'}
@@ -456,7 +467,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
 
       {/* Segmentation RFM — GROWTH+ uniquement (CDC §5.1–5.3) */}
       {isGrowthPlus && (
-        <Card title="Segmentation RFM clients (CDC §5.3)">
+        <Card title={<>Segmentation RFM clients<InfoTooltip text={TOOLTIPS.RFM} /></>}>
           {rfmData ? (
             <div>
               {rfmData.segments?.map(seg => (
@@ -472,7 +483,9 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
               ))}
               {rfmData.abandonStats?.some(a => a.status === 'active') && (
                 <div style={{ marginTop: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 12px' }}>
-                  <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginBottom: 4 }}>Protocole abandon actif</div>
+                  <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginBottom: 4 }}>
+                  Protocole abandon actif<InfoTooltip text={TOOLTIPS.protocole_abandon} />
+                </div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>
                     {rfmData.abandonStats?.filter(a => a.status === 'active').reduce((s, a) => s + parseInt(a.count), 0)} clients en cours de réactivation
                   </div>

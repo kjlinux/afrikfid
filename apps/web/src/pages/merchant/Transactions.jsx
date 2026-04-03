@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { ArrowUturnLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import { exportCsv } from '../../components/ui.jsx'
+import { exportCsv, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
@@ -99,8 +100,21 @@ export default function MerchantTransactions() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#0f172a' }}>
-              {['Référence', 'Client', 'Statut', 'Montant brut', 'Reçu net', 'Remise Y%', 'Commission Z%', 'Opérateur', 'Date', ''].map(h => (
-                <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+              {[
+                { label: 'Référence', tip: null },
+                { label: 'Client', tip: null },
+                { label: 'Statut', tip: null },
+                { label: 'Montant brut', tip: TOOLTIPS.montant_brut },
+                { label: 'Reçu net', tip: TOOLTIPS.recu_net },
+                { label: 'Remise Y%', tip: TOOLTIPS.remise_y },
+                { label: 'Commission Z%', tip: TOOLTIPS.commission_z },
+                { label: 'Opérateur', tip: null },
+                { label: 'Date', tip: null },
+                { label: '', tip: null },
+              ].map(h => (
+                <th key={h.label} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
+                </th>
               ))}
             </tr>
           </thead>

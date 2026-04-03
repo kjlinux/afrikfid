@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../App.jsx'
 import api from '../../api.js'
+import { InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 import {
   ShieldCheckIcon, LockClosedIcon, DevicePhoneMobileIcon,
   CheckCircleIcon, ExclamationCircleIcon, QrCodeIcon, KeyIcon,
@@ -134,12 +136,14 @@ export default function ClientProfile() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
-              ['Identifiant', user?.afrikfidId],
-              ['Statut fidélité', user?.loyaltyStatus],
-              ['2FA', totpEnabled ? 'Activé' : 'Désactivé'],
-            ].map(([k, v]) => (
+              ['Identifiant', user?.afrikfidId, null],
+              ['Statut fidélité', user?.loyaltyStatus, user?.loyaltyStatus ? TOOLTIPS[user.loyaltyStatus] : null],
+              ['2FA', totpEnabled ? 'Activé' : 'Désactivé', TOOLTIPS.deux_fa],
+            ].map(([k, v, tip]) => (
               <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{k}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                  {tip ? <>{k}<InfoTooltip text={tip} /></> : k}
+                </div>
                 <div style={{ fontSize: 13, color: k === '2FA' ? (totpEnabled ? '#10b981' : '#ef4444') : '#f1f5f9', fontWeight: 500 }}>{v || '—'}</div>
               </div>
             ))}
@@ -149,7 +153,7 @@ export default function ClientProfile() {
         <div style={{ background: '#1e293b', borderRadius: 12, padding: 20, border: '1px solid #334155' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <ShieldCheckIcon style={{ width: 16, height: 16, color: '#10b981' }} />
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>Authentification à deux facteurs (2FA)</h2>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>Authentification à deux facteurs (2FA)<InfoTooltip text={TOOLTIPS.deux_fa} /></h2>
           </div>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 18 }}>
             Protégez votre compte avec Google Authenticator, Authy, etc.
@@ -225,7 +229,7 @@ export default function ClientProfile() {
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>
                     <DevicePhoneMobileIcon style={{ width: 13, height: 13, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                    2. Entrez le code généré
+                    2. Entrez le code généré<InfoTooltip text={TOOLTIPS.totp} />
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <input type="text" value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -263,7 +267,7 @@ export default function ClientProfile() {
         <div style={{ background: '#1e293b', borderRadius: 12, padding: 20, border: '1px solid #334155', marginTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <ArrowDownTrayIcon style={{ width: 16, height: 16, color: '#64748b' }} />
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>Mes données personnelles (RGPD)</h2>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>Mes données personnelles (RGPD)<InfoTooltip text={TOOLTIPS.RGPD} /></h2>
           </div>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 18 }}>
             Conformément au RGPD, vous pouvez exporter ou supprimer vos données personnelles.
@@ -278,7 +282,7 @@ export default function ClientProfile() {
           <button onClick={() => setShowDeleteConfirm(true)}
             style={{ width: '100%', padding: '10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <TrashIcon style={{ width: 15, height: 15 }} />
-            Supprimer mon compte (droit à l'oubli)
+            Supprimer mon compte (<Tooltip text={TOOLTIPS.droit_oubli}>droit à l'oubli</Tooltip>)
           </button>
         </div>
 

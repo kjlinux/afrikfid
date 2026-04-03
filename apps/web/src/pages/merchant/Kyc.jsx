@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import api from '../../api.js'
-import { Spinner, Alert } from '../../components/ui.jsx'
+import { Spinner, Alert, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 const STATUS_CONFIG = {
@@ -124,7 +125,7 @@ export default function MerchantKyc() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ maxWidth: 620 }}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Vérification KYC</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Vérification KYC<InfoTooltip text={TOOLTIPS.KYC} /></h1>
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
           Soumettez vos documents pour activer votre compte et commencer à accepter des paiements.
         </p>
@@ -184,7 +185,7 @@ export default function MerchantKyc() {
                     placeholder="Prénom Nom" />
                 </div>
                 <div>
-                  <label style={lbl}>N° RCCM <span style={{ color: '#64748b', fontWeight: 400 }}>(optionnel)</span></label>
+                  <label style={lbl}>N° RCCM<InfoTooltip text={TOOLTIPS.RCCM} /> <span style={{ color: '#64748b', fontWeight: 400 }}>(optionnel)</span></label>
                   <input style={inp} value={rccmNumber}
                     onChange={e => setRccmNumber(e.target.value)}
                     placeholder="Ex: CI-ABJ-2023-B-00123" />
@@ -193,7 +194,7 @@ export default function MerchantKyc() {
 
               {/* Upload RCCM */}
               <FileDropZone
-                label="Registre du Commerce et du Crédit Mobilier (RCCM)"
+                label={<>Registre du Commerce et du Crédit Mobilier (RCCM)<InfoTooltip text={TOOLTIPS.RCCM} /></>}
                 accept=".pdf,.jpg,.jpeg,.png,.webp"
                 file={rccm}
                 onChange={setRccm}
@@ -210,7 +211,7 @@ export default function MerchantKyc() {
               />
 
               <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#475569' }}>
-                <LockClosedIcon className="inline w-4 h-4 mr-1" />Vos documents sont chiffrés et stockés de manière sécurisée. Ils ne seront utilisés que pour la vérification de votre identité conformément à notre politique RGPD.
+                <LockClosedIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />Vos documents sont chiffrés et stockés de manière sécurisée. Ils ne seront utilisés que pour la vérification de votre identité conformément à notre politique RGPD.
               </div>
 
               {error && (
@@ -254,8 +255,8 @@ export default function MerchantKyc() {
         <div style={{ background: '#1e293b', borderRadius: 14, padding: 28, border: '1px solid #334155' }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 16 }}>Votre dossier</h2>
           <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.7 }}>
-            <div><CheckCircleIcon className="inline w-4 h-4 mr-1 text-emerald-500" />RCCM déposé</div>
-            <div><CheckCircleIcon className="inline w-4 h-4 mr-1 text-emerald-500" />CNI du gérant déposée</div>
+            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />RCCM déposé</div>
+            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />CNI du gérant déposée</div>
             <div style={{ marginTop: 12, color: '#94a3b8' }}>
               Si vous avez besoin de modifier votre dossier, contactez notre support.
             </div>

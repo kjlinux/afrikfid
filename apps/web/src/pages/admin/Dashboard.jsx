@@ -280,7 +280,7 @@ export default function AdminDashboard() {
         ].map(item => (
           <a key={item.href} href={item.href}
             style={{ background: '#1e293b', borderRadius: 12, padding: '16px 20px', border: '1px solid #334155', textDecoration: 'none', display: 'block', transition: 'border-color 0.15s' }}>
-            <item.Icon className="w-6 h-6" style={{ marginBottom: 8, color: item.color }} />
+            <item.Icon style={{ width: 24, height: 24, marginBottom: 8, color: item.color }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: item.color }}>{item.label}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{item.desc}</div>
           </a>

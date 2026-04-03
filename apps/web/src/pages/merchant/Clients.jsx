@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../api.js'
-import { fmt, Card, Spinner, LoyaltyBadge, Pagination, exportCsv } from '../../components/ui.jsx'
+import { fmt, Card, Spinner, LoyaltyBadge, Pagination, exportCsv, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { TOOLTIPS } from '../../lib/tooltips.js'
 import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
@@ -8,23 +9,37 @@ const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b
 const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
 const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 
+const RFM_TIPS = {
+  CHAMPIONS: TOOLTIPS.seg_champions,
+  FIDELES: TOOLTIPS.seg_fideles,
+  PROMETTEURS: TOOLTIPS.seg_prometteurs,
+  A_RISQUE: TOOLTIPS.seg_a_risque,
+  HIBERNANTS: TOOLTIPS.seg_hibernants,
+  PERDUS: TOOLTIPS.seg_perdus,
+}
+
 function RfmBadge({ segment }) {
   if (!segment) return null
   const color = RFM_COLORS[segment] || '#6B7280'
-  return (
+  const badge = (
     <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
       {RFM_LABELS[segment] || segment}
     </span>
   )
+  const tip = RFM_TIPS[segment]
+  if (!tip) return badge
+  return <Tooltip text={tip}>{badge}</Tooltip>
 }
 
 function AbandonBadge({ step, status }) {
   if (!step || status !== 'active') return null
   const color = step >= 4 ? '#ef4444' : '#f59e0b'
   return (
-    <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
-      Abandon S{step}
-    </span>
+    <Tooltip text={TOOLTIPS.protocole_abandon}>
+      <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
+        Abandon S{step}
+      </span>
+    </Tooltip>
   )
 }
 
@@ -126,12 +141,19 @@ export default function MerchantClients() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #334155' }}>
-                {['Client', 'Statut fidélité',
-                  ...(isGrowthPlus ? ['Segment RFM'] : []),
-                  'Transactions', 'Volume total', 'Remises reçues', 'Dernière visite',
-                  ...(isGrowthPlus ? ['Abandon'] : []),
+                {[
+                  { label: 'Client', tip: null },
+                  { label: 'Statut fidélité', tip: null },
+                  ...(isGrowthPlus ? [{ label: 'Segment RFM', tip: TOOLTIPS.RFM }] : []),
+                  { label: 'Transactions', tip: null },
+                  { label: 'Volume total', tip: TOOLTIPS.chiffre_affaires },
+                  { label: 'Remises reçues', tip: TOOLTIPS.remise_y },
+                  { label: 'Dernière visite', tip: null },
+                  ...(isGrowthPlus ? [{ label: 'Abandon', tip: TOOLTIPS.protocole_abandon }] : []),
                 ].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                  <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: 11 }}>
+                    {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
+                  </th>
                 ))}
               </tr>
             </thead>
