@@ -16,7 +16,7 @@ import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const SEG_COLOR = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#f59e0b', A_RISQUE: '#f97316', HIBERNANTS: '#6b7280', PERDUS: '#ef4444' }
 
-// CDC §5.6 — Actions recommandées par segment
+//— Actions recommandées par segment
 const SEG_ACTIONS = {
   CHAMPIONS: {
     label: 'Champions',
@@ -94,7 +94,7 @@ function SegmentActionsPanel({ rfmDetails }) {
   return (
     <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Actions Recommandées par Segment</div>
-      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>CDC §5.6 — Playbook opérationnel pour chaque segment RFM</div>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>— Playbook opérationnel pour chaque segment RFM</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {segments.sort((a, b) => {
           const prio = { URGENTE: 0, VIP: 0, HAUTE: 1, MOYENNE: 2, FAIBLE: 3 }
@@ -428,7 +428,7 @@ export default function MerchantIntelligence() {
       {m.churn_prediction && data.churn_predictions && data.churn_predictions.length > 0 && (
         <div style={{ ...card, borderColor: '#f9731633' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Prédiction Churn<InfoTooltip text={TOOLTIPS.churn} /> — Top clients à risque</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM — CDC §6.1 Growth+</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM —Growth+</div>
           {data.churn_predictions.slice(0, 5).map((p, i) => (
             <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid #1e293b' : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -447,7 +447,7 @@ export default function MerchantIntelligence() {
         </div>
       )}
 
-      {/* Recommandations IA hebdo — GROWTH+ (CDC §6.1) */}
+      {/* Recommandations IA hebdo — GROWTH+  */}
       {m.ai_recommendations && recommendations && recommendations.recommendations?.length > 0 && (
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -500,7 +500,7 @@ export default function MerchantIntelligence() {
       {m.analytics_advanced && data.price_elasticity && !data.price_elasticity.insufficient_data && !data.price_elasticity.error && (
         <div style={card}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Élasticité-Prix<InfoTooltip text={TOOLTIPS.elasticite_prix} /></div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Sensibilité de vos clients aux remises — CDC §6.1 Premium</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Sensibilité de vos clients aux remises —Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             {[
               { label: 'Panier moyen', value: Number(data.price_elasticity.avg_basket).toLocaleString() + ' FCFA', color: '#f1f5f9' },
@@ -524,7 +524,7 @@ export default function MerchantIntelligence() {
       {m.analytics_advanced && data.trade_zones && data.trade_zones.total_zones > 0 && (
         <div style={card}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Zones de Chalandise<InfoTooltip text={TOOLTIPS.zones_chalandise} /></div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Répartition géographique de votre clientèle — CDC §6.1 Premium</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Répartition géographique de votre clientèle —Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Zones mappées', value: data.trade_zones.total_zones },

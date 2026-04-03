@@ -66,7 +66,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SANDBOX_MODE: "false"
-      # Chiffrement AES-256 (CDC §5.4.1)
+      # Chiffrement AES-256 
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       HMAC_SECRET: ${HMAC_SECRET}
       # SMS

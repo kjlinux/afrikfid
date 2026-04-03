@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Circuit Breaker pour opérateurs Mobile Money (CDC §4.1)
+ * Circuit Breaker pour opérateurs Mobile Money 
  * États : CLOSED (normal) → OPEN (bloqué) → HALF_OPEN (test)
  *
  * Règles :
@@ -15,7 +15,7 @@
  */
 
 const FAILURE_THRESHOLD = parseInt(process.env.CB_FAILURE_THRESHOLD) || 3;
-const RESET_TIMEOUT_MS  = parseInt(process.env.CB_RESET_TIMEOUT_MS)  || 5 * 60 * 1000; // 5 min
+const RESET_TIMEOUT_MS = parseInt(process.env.CB_RESET_TIMEOUT_MS) || 5 * 60 * 1000; // 5 min
 
 const CB_STATES = { CLOSED: 'CLOSED', OPEN: 'OPEN', HALF_OPEN: 'HALF_OPEN' };
 

@@ -29,7 +29,7 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Aucune donnée' });
 
-  // CDC §2.2 invariant : Y ≤ X obligatoire — bloquer AVANT l'UPDATE si violation détectée
+  //invariant : Y ≤ X obligatoire — bloquer AVANT l'UPDATE si violation détectée
   if (client_rebate_percent !== undefined) {
     const newY = parseFloat(client_rebate_percent);
     const conflicting = (await db.query(
@@ -39,7 +39,7 @@ router.put('/config/:status', requireAdmin, async (req, res) => {
     if (conflicting.length > 0) {
       return res.status(409).json({
         error: 'Y_EXCEEDS_X',
-        message: `Impossible : le taux Y% (${newY}%) dépasse le taux X% de ${conflicting.length} marchand(s), entraînant une commission Z% négative (violation CDC §2.2).`,
+        message: `Impossible : le taux Y% (${newY}%) dépasse le taux X% de ${conflicting.length} marchand(s), entraînant une commission Z% négative (violation.`,
         affectedMerchants: conflicting.map(m => ({ id: m.id, name: m.name, rebatePercent: m.rebate_percent })),
       });
     }
@@ -180,11 +180,11 @@ router.patch('/wallet/:clientId/cap', requireAdmin, async (req, res) => {
   res.json({ message: cap ? `Plafond individuel fixé à ${cap}` : 'Plafond individuel supprimé', clientId: req.params.clientId, maxBalance: cap });
 });
 
-// ─── CDC §2.4.4 — Cas Particuliers de gestion des statuts ────────
+// ───— Cas Particuliers de gestion des statuts ────────
 
 /**
  * POST /api/v1/loyalty/clients/:clientId/fraud-revoke
- * Retrait immédiat du statut suite à fraude avérée, sans préavis (CDC §2.4.4)
+ * Retrait immédiat du statut suite à fraude avérée, sans préavis 
  * Le statut est remis à OPEN immédiatement.
  */
 router.post('/clients/:clientId/fraud-revoke', requireAdmin, async (req, res) => {
@@ -199,7 +199,7 @@ router.post('/clients/:clientId/fraud-revoke', requireAdmin, async (req, res) =>
   const previousStatus = client.loyalty_status;
   const { v4: uuidv4 } = require('uuid');
 
-  // Retrait immédiat → OPEN, sans Soft Landing (CDC §2.4.4)
+  // Retrait immédiat → OPEN, sans Soft Landing 
   await db.query(
     `UPDATE clients
      SET loyalty_status = 'OPEN', fraud_status_revoked_at = NOW(), fraud_status_revoked_reason = $1,
@@ -229,7 +229,7 @@ router.post('/clients/:clientId/fraud-revoke', requireAdmin, async (req, res) =>
 
 /**
  * POST /api/v1/loyalty/clients/:clientId/partner-exit-hold
- * Partenaire sortant : maintien du statut acquis pendant 6 mois (CDC §2.4.4)
+ * Partenaire sortant : maintien du statut acquis pendant 6 mois 
  */
 router.post('/clients/:clientId/partner-exit-hold', requireAdmin, async (req, res) => {
   const { clientId } = req.params;
@@ -272,7 +272,7 @@ router.post('/clients/:clientId/partner-exit-hold', requireAdmin, async (req, re
 });
 
 /**
- * POST /api/v1/loyalty/governance-requests — Créer une demande de geste commercial (CDC §2.4.4)
+ * POST /api/v1/loyalty/governance-requests — Créer une demande de geste commercial 
  * Requiert validation du comité de gouvernance.
  */
 router.post('/governance-requests', requireAdmin, async (req, res) => {
@@ -326,7 +326,7 @@ router.get('/governance-requests', requireAdmin, async (req, res) => {
 });
 
 /**
- * PATCH /api/v1/loyalty/governance-requests/:id/review — Approuver ou rejeter (CDC §2.4.4)
+ * PATCH /api/v1/loyalty/governance-requests/:id/review — Approuver ou rejeter 
  * Si approuvé, applique le changement de statut ou le geste commercial.
  */
 router.patch('/governance-requests/:id/review', requireAdmin, async (req, res) => {

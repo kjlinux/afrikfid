@@ -337,9 +337,9 @@ async function _runLoyaltyBatch() {
 
         if (isUpgrade) {
           notifyLoyaltyUpgrade({ client: clientForNotif, oldStatus: evaluation.currentStatus, newStatus: evaluation.newStatus });
-          // WhatsApp upgrade notification (CDC §5.4 Trigger PALIER)
+          // WhatsApp upgrade notification Trigger PALIER)
           if (clientForNotif.phone) {
-            notifyStatusUpgradeWhatsApp(clientForNotif, evaluation.newStatus).catch(() => {});
+            notifyStatusUpgradeWhatsApp(clientForNotif, evaluation.newStatus).catch(() => { });
           }
         } else if (isDowngrade) {
           notifyLoyaltyDowngrade({
@@ -355,7 +355,7 @@ async function _runLoyaltyBatch() {
           [row.id]
         )).rows.map(r => r.merchant_id);
         for (const mid of merchantIds) {
-          triggerPalier(mid, clientForNotif, evaluation.currentStatus, evaluation.newStatus).catch(() => {});
+          triggerPalier(mid, clientForNotif, evaluation.currentStatus, evaluation.newStatus).catch(() => { });
         }
       }
       results.push(evaluation);

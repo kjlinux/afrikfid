@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Chiffrement AES-256-GCM des données sensibles au repos (CDC §5.4.1)
+ * Chiffrement AES-256-GCM des données sensibles au repos 
  *
  * Variables d'environnement requises en production :
  *   ENCRYPTION_KEY  — 64 caractères hexadécimaux (= 32 octets)

@@ -506,7 +506,7 @@ function hasMoovCredentials() {
   return !!(process.env.MOOV_CLIENT_ID && process.env.MOOV_CLIENT_SECRET);
 }
 
-// ─── Table de failover par devise/pays (CDC §4.1.4) ──────────────────────────
+// ─── Table de failover par devise/pays  ──────────────────────────
 // Si l'opérateur principal échoue, on tente les suivants dans l'ordre.
 const FAILOVER_CHAINS = {
   XOF: ['ORANGE', 'MTN', 'WAVE', 'MOOV'],
@@ -525,7 +525,7 @@ function getFailoverChain(operator, currency) {
 /**
  * Tente l'initiation sur l'opérateur demandé.
  * En cas d'erreur technique (timeout, API down), bascule automatiquement
- * vers un opérateur alternatif disponible sur la même devise (CDC §4.1.4).
+ * vers un opérateur alternatif disponible sur la même devise .
  */
 async function initiatePayment({ operator, phone, amount, currency, reference, description, notifyUrl }) {
   const op = Object.values(OPERATORS).find(o => o.code === operator.toUpperCase());

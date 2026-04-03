@@ -55,7 +55,7 @@ router.get('/:merchantId', requireAuth, async (req, res, next) => {
       WHERE merchant_id = $1 AND status = 'completed'
     `, [merchantId]);
 
-    // Taux de retour clients (CDC §6.3 — Starter Plus+)
+    // Taux de retour clients — Starter Plus+)
     // = % de clients ayant acheté plus d'une fois
     const returnRateRes = await pool.query(`
       SELECT
@@ -148,7 +148,7 @@ router.get('/:merchantId', requireAuth, async (req, res, next) => {
         CHAMPIONS: 'Offres VIP et accès anticipé',
       };
 
-      // Churn prediction détaillé (CDC §6.1 Growth+)
+      // Churn prediction détaillé Growth+)
       const churnRisk = await getMerchantChurnRisk(merchantId, 'medium', 10);
       result.churn_predictions = churnRisk.map(r => ({
         client_id: r.client_id,
@@ -192,13 +192,13 @@ router.get('/:merchantId', requireAuth, async (req, res, next) => {
       `, [merchantId]);
       result.monthly_trend = trend.rows;
 
-      // Élasticité-prix (CDC §6.1 Premium)
+      // Élasticité-prix Premium)
       result.price_elasticity = await calculatePriceElasticity(merchantId, { months: 3 }).catch(err => ({
         error: err.message,
         insufficient_data: true,
       }));
 
-      // Cartographie zones chalandise (CDC §6.1 Premium)
+      // Cartographie zones chalandise Premium)
       result.trade_zones = await getTradeZoneStats(merchantId, { months: 6 }).catch(err => ({
         error: err.message,
         total_zones: 0,
@@ -243,7 +243,7 @@ router.get('/me/churn', requireAuth, async (req, res, next) => {
 
 /**
  * GET /merchant-intelligence/:merchantId/churn
- * Prédiction churn détaillée (Growth+ CDC §6.1)
+ * Prédiction churn détaillée (Growth+
  * Query params: level=medium|high|critical (défaut: medium), limit=50
  */
 router.get('/:merchantId/churn', requireAuth, async (req, res, next) => {
@@ -283,7 +283,7 @@ router.get('/:merchantId/churn/:clientId', requireAuth, async (req, res, next) =
 
 /**
  * GET /merchant-intelligence/:merchantId/loyalty-score
- * Score fidélité mensuel (CDC §6.1 — tous packages)
+ * Score fidélité mensuel — tous packages)
  * Calcule un score 0-100 basé sur: tx récentes, taux retour, progression statuts
  */
 router.get('/:merchantId/loyalty-score', requireAuth, async (req, res, next) => {
@@ -348,9 +348,9 @@ router.get('/:merchantId/loyalty-score', requireAuth, async (req, res, next) => 
     // - 40 pts: taux de retour (returningClients / activeClients)
     // - 30 pts: % clients fidèles (Live+)
     // - 30 pts: volume transactions (normalisé, plafonné à 100 tx = max)
-    const returnScore  = activeClients > 0 ? (returningClients / activeClients) * 40 : 0;
-    const loyalScore   = activeClients > 0 ? (loyalClients / activeClients) * 30 : 0;
-    const txScore      = Math.min(txCount / 100, 1) * 30;
+    const returnScore = activeClients > 0 ? (returningClients / activeClients) * 40 : 0;
+    const loyalScore = activeClients > 0 ? (loyalClients / activeClients) * 30 : 0;
+    const txScore = Math.min(txCount / 100, 1) * 30;
     const loyaltyScore = Math.round(returnScore + loyalScore + txScore);
 
     res.json({
@@ -375,7 +375,7 @@ router.get('/:merchantId/loyalty-score', requireAuth, async (req, res, next) => 
 
 /**
  * GET /merchant-intelligence/:merchantId/price-elasticity
- * Analyse élasticité-prix (CDC §6.1 — Premium)
+ * Analyse élasticité-prix — Premium)
  * Query: months=3 (période d'analyse)
  */
 router.get('/:merchantId/price-elasticity', requireAuth, async (req, res, next) => {
@@ -403,7 +403,7 @@ router.get('/:merchantId/price-elasticity', requireAuth, async (req, res, next) 
 
 /**
  * GET /merchant-intelligence/:merchantId/trade-zones
- * Cartographie zones chalandise (CDC §6.1 — Premium)
+ * Cartographie zones chalandise — Premium)
  * Query: months=6, min_clients=3
  */
 router.get('/:merchantId/trade-zones', requireAuth, async (req, res, next) => {
@@ -432,7 +432,7 @@ router.get('/:merchantId/trade-zones', requireAuth, async (req, res, next) => {
 
 /**
  * GET /merchant-intelligence/:merchantId/recommendations  (ou /me/recommendations)
- * Recommandations hebdo basées sur les données RFM + churn réelles (CDC §6.1 — Growth+)
+ * Recommandations hebdo basées sur les données RFM + churn réelles — Growth+)
  * Retourne une liste priorisée d'actions concrètes pour la semaine
  */
 router.get('/:merchantId/recommendations', requireAuth, async (req, res, next) => {

@@ -25,12 +25,12 @@ export const options = {
   stages: [
     { duration: '30s', target: 50 },   // montée progressive
     { duration: '1m', target: 200 },  // charge intermédiaire
-    { duration: '2m', target: 500 },  // charge cible (CDC §5.5 — 500 tx simultanées)
+    { duration: '2m', target: 500 },  // charge cible — 500 tx simultanées)
     { duration: '1m', target: 500 },  // maintien
     { duration: '30s', target: 0 },    // descente
   ],
   thresholds: {
-    // CDC §5.5 : P95 < 2000ms, P99 < 5000ms
+    //: P95 < 2000ms, P99 < 5000ms
     'http_req_duration{scenario:default}': ['p(95)<2000', 'p(99)<5000'],
     'initiate_latency': ['p(95)<2000', 'p(99)<5000'],
     'errors': ['rate<0.05'],  // moins de 5% d'erreurs

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Routes audit logs — journal d'audit complet (CDC §4.6.1)
+ * Routes audit logs — journal d'audit complet 
  * Accès admin uniquement.
  */
 
@@ -29,12 +29,12 @@ router.get('/', requireAdmin, async (req, res) => {
   let idx = 1;
 
   if (actor_type) { conditions.push(`actor_type = $${idx++}`); values.push(actor_type); }
-  if (actor_id)   { conditions.push(`actor_id = $${idx++}`);   values.push(actor_id); }
-  if (action)     { conditions.push(`action ILIKE $${idx++}`); values.push(`%${action}%`); }
+  if (actor_id) { conditions.push(`actor_id = $${idx++}`); values.push(actor_id); }
+  if (action) { conditions.push(`action ILIKE $${idx++}`); values.push(`%${action}%`); }
   if (resource_type) { conditions.push(`resource_type = $${idx++}`); values.push(resource_type); }
-  if (resource_id)   { conditions.push(`resource_id = $${idx++}`);   values.push(resource_id); }
-  if (date_from)  { conditions.push(`created_at >= $${idx++}`); values.push(date_from); }
-  if (date_to)    { conditions.push(`created_at <= $${idx++}`); values.push(date_to); }
+  if (resource_id) { conditions.push(`resource_id = $${idx++}`); values.push(resource_id); }
+  if (date_from) { conditions.push(`created_at >= $${idx++}`); values.push(date_from); }
+  if (date_to) { conditions.push(`created_at <= $${idx++}`); values.push(date_to); }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 

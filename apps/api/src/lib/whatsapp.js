@@ -12,13 +12,13 @@
 
 const axios = require('axios');
 
-const WA_TOKEN           = process.env.WHATSAPP_TOKEN;
+const WA_TOKEN = process.env.WHATSAPP_TOKEN;
 const WA_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const TWILIO_SID         = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN       = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_FROM        = process.env.TWILIO_WHATSAPP_FROM; // ex: whatsapp:+14155238886
+const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM; // ex: whatsapp:+14155238886
 
-const META_ENABLED   = !!(WA_TOKEN && WA_PHONE_NUMBER_ID);
+const META_ENABLED = !!(WA_TOKEN && WA_PHONE_NUMBER_ID);
 const TWILIO_ENABLED = !!(TWILIO_SID && TWILIO_TOKEN && TWILIO_FROM);
 
 /**
@@ -102,7 +102,7 @@ async function sendWhatsApp(to, message) {
 
 /**
  * Notification de bienvenue Starter Boost
- * CDC §5.4 Trigger BIENVENUE
+ *Trigger BIENVENUE
  */
 async function notifyWelcomeWhatsApp(client, merchantName) {
   const name = client.full_name || 'cher client';
@@ -117,7 +117,7 @@ async function notifyWelcomeWhatsApp(client, merchantName) {
 
 /**
  * Confirmation de paiement avec détail remise
- * CDC §3.1.3 étape 8
+ *étape 8
  */
 async function notifyPaymentWhatsApp(client, tx) {
   const name = client.full_name || 'client';
@@ -135,7 +135,7 @@ async function notifyPaymentWhatsApp(client, tx) {
 }
 
 /**
- * Alerte churn — segment À RISQUE (CDC §5.4 Trigger ALERTE_R)
+ * Alerte churn — segment À RISQUE Trigger ALERTE_R)
  */
 async function notifyChurnAlertWhatsApp(client, merchantName, offerText) {
   const name = client.full_name || 'cher client';
@@ -150,7 +150,7 @@ async function notifyChurnAlertWhatsApp(client, merchantName, offerText) {
 }
 
 /**
- * Notification de montée de statut (CDC §5.4 Trigger PALIER)
+ * Notification de montée de statut Trigger PALIER)
  */
 async function notifyStatusUpgradeWhatsApp(client, newStatus) {
   const name = client.full_name || 'cher client';
@@ -166,7 +166,7 @@ async function notifyStatusUpgradeWhatsApp(client, newStatus) {
 }
 
 /**
- * Rappel requalification (CDC §2.4.3)
+ * Rappel requalification 
  */
 async function notifyRequalificationWhatsApp(client, daysLeft, pointsNeeded, currentStatus) {
   const name = client.full_name || 'cher client';
@@ -182,7 +182,7 @@ async function notifyRequalificationWhatsApp(client, daysLeft, pointsNeeded, cur
 
 /**
  * Rapport fidélité mensuel simplifié pour marchand Starter Boost
- * CDC §6.1 — "Score fidélité mensuel"
+ *— "Score fidélité mensuel"
  */
 async function notifyMerchantMonthlyScoreWhatsApp(merchant, stats) {
   const name = merchant.name || 'Marchand';

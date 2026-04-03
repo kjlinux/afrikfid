@@ -150,7 +150,7 @@ function getAbandonAction(step) {
   return actions[step] || 'Action de réactivation';
 }
 
-// Cron 10h00 quotidien (CDC §6.4)
+// Cron 10h00 quotidien 
 const contactPriorityWorker = new CronJob('0 10 * * *', async () => {
   try {
     await generateContactPriorityLists();

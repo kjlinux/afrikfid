@@ -261,7 +261,7 @@ router.get('/me/stats', requireMerchant, async (req, res) => {
   res.json({ stats: statsRes.rows[0], byLoyaltyStatus: byStatusRes.rows });
 });
 
-// GET /api/v1/merchants/me/clients — Clients fidélisés du marchand (CDC §4.6.2)
+// GET /api/v1/merchants/me/clients — Clients fidélisés du marchand 
 router.get('/me/clients', requireMerchant, async (req, res) => {
   const { page = 1, limit = 20, loyalty_status } = req.query;
   const mid = req.merchant.id;
@@ -311,7 +311,7 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
   res.json({ clients, total, page: parseInt(page), limit: parseInt(limit), stats: { byStatus: byStatusRes } });
 });
 
-// PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres (CDC §4.2.2)
+// PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres 
 // Seuls les champs autorisés au marchand : webhook_url, rebate_mode, allow_guest_mode
 router.patch('/me/settings', requireMerchant, async (req, res) => {
   const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode'];
@@ -350,7 +350,7 @@ router.post('/me/reveal-secret', requireMerchant, async (req, res) => {
   res.json({ apiKeySecret: merchant.api_key_secret, sandboxKeySecret: merchant.sandbox_key_secret });
 });
 
-// POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC (CDC §4.2.1)
+// POST /api/v1/merchants/me/kyc — Marchand soumet ses informations KYC 
 // Accepte un multipart/form-data avec jusqu'à 5 fichiers (PDF, JPEG, PNG, WEBP)
 // ET/OU un champ JSON "documents" pour les métadonnées textuelles
 router.post('/me/kyc', requireMerchant, (req, res, next) => {
@@ -568,7 +568,7 @@ router.get('/:id/kyc/files/:filename', requireAdmin, async (req, res) => {
   res.sendFile(resolvedPath);
 });
 
-// GET /api/v1/merchants/me/refunds (marchand connecté — CDC §4.6.2)
+// GET /api/v1/merchants/me/refunds (marchand connecté —
 router.get('/me/refunds', requireMerchant, async (req, res) => {
   const { page = 1, limit = 20, status, refund_type } = req.query;
   let sql = `
@@ -710,11 +710,11 @@ router.put('/:id/category-rates/:category', requireAdmin, async (req, res, next)
     const merchant = (await db.query('SELECT id, rebate_percent FROM merchants WHERE id = $1', [id])).rows[0];
     if (!merchant) return res.status(404).json({ error: 'NOT_FOUND', message: 'Marchand introuvable' });
 
-    // CDC §2.2 : le taux catégorie ne peut pas dépasser le taux X% du marchand → Z% resterait positif
+    //: le taux catégorie ne peut pas dépasser le taux X% du marchand → Z% resterait positif
     if (rate > parseFloat(merchant.rebate_percent)) {
       return res.status(400).json({
         error: 'VALIDATION_ERROR',
-        message: `Le taux catégorie (${rate}%) ne peut pas dépasser le taux X% du marchand (${merchant.rebate_percent}%) — CDC §2.2.`,
+        message: `Le taux catégorie (${rate}%) ne peut pas dépasser le taux X% du marchand (${merchant.rebate_percent}%) —.`,
       });
     }
 
@@ -744,7 +744,7 @@ router.delete('/:id/category-rates/:category', requireAdmin, async (req, res, ne
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/merchants/me/subscription — Abonnement + bonus recrutement (CDC §2.5, §2.6)
+// GET /api/v1/merchants/me/subscription — Abonnement + bonus recrutement , §2.6)
 router.get('/me/subscription', requireMerchant, async (req, res, next) => {
   try {
     const mid = req.merchant.id;
@@ -763,7 +763,7 @@ router.get('/me/subscription', requireMerchant, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/merchants/me/success-fees — Success fees du marchand (CDC §3.5)
+// GET /api/v1/merchants/me/success-fees — Success fees du marchand 
 router.get('/me/success-fees', requireMerchant, async (req, res, next) => {
   try {
     const mid = req.merchant.id;
@@ -783,7 +783,7 @@ router.get('/me/success-fees', requireMerchant, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/merchants/me/rfm-summary — Résumé RFM et triggers (GROWTH+ — CDC §5.1, §5.4)
+// GET /api/v1/merchants/me/rfm-summary — Résumé RFM et triggers (GROWTH+ —, §5.4)
 router.get('/me/rfm-summary', requireMerchant, requirePackage('GROWTH'), async (req, res, next) => {
   try {
     const mid = req.merchant.id;
@@ -813,7 +813,7 @@ router.get('/me/rfm-summary', requireMerchant, requirePackage('GROWTH'), async (
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/merchants/me/ai-insights — Recommandations IA (PREMIUM uniquement — CDC §6.3)
+// GET /api/v1/merchants/me/ai-insights — Recommandations IA (PREMIUM uniquement —
 router.get('/me/ai-insights', requireMerchant, requirePackage('PREMIUM'), async (req, res, next) => {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -834,7 +834,7 @@ router.get('/me/ai-insights', requireMerchant, requirePackage('PREMIUM'), async 
 
 /**
  * GET /api/v1/merchants/me/sandbox/docs
- * Documentation sandbox + guide d'intégration pour le marchand (CDC §6.3)
+ * Documentation sandbox + guide d'intégration pour le marchand 
  * Retourne les endpoints, exemples de requêtes, clés sandbox et guide webhooks.
  */
 router.get('/me/sandbox/docs', requireMerchant, async (req, res, next) => {
@@ -935,7 +935,7 @@ router.get('/me/sandbox/docs', requireMerchant, async (req, res, next) => {
 
 /**
  * POST /api/v1/merchants/me/sandbox/webhook-test
- * Envoie un webhook de test vers l'URL configurée (CDC §6.3 — "documentation sandbox")
+ * Envoie un webhook de test vers l'URL configurée — "documentation sandbox")
  */
 router.post('/me/sandbox/webhook-test', requireMerchant, async (req, res, next) => {
   try {

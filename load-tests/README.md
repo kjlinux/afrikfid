@@ -1,6 +1,7 @@
 # Tests de charge Afrik'Fid — k6
 
-Conformément au CDC §5.5, les tests de charge vérifient :
+Conformément au, les tests de charge vérifient :
+
 - **Disponibilité** : 99.9% uptime
 - **Latence P95** : < 2 secondes
 - **Latence P99** : < 5 secondes

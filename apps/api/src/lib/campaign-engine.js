@@ -209,7 +209,7 @@ async function executeCampaign(campaignId) {
       await pool.query("UPDATE campaign_actions SET status = 'sent', sent_at = NOW() WHERE id = $1", [actionId]);
       sent++;
     } catch (err) {
-      // CDC §5.6 : audit trail obligatoire pour toutes les communications marketing
+      //: audit trail obligatoire pour toutes les communications marketing
       console.error(`[CAMPAIGN] Échec envoi action ${actionId} (client ${client.id}):`, err.message);
       await pool.query("UPDATE campaign_actions SET status = 'failed' WHERE id = $1", [actionId]);
     }
@@ -363,7 +363,7 @@ async function runAbandonProtocol() {
 }
 
 /**
- * Traite les transitions RFM détectées depuis le dernier batch (CDC §6.4 — Workflow 07h00)
+ * Traite les transitions RFM détectées depuis le dernier batch — Workflow 07h00)
  * Transitions trackers : ABSENCE (R 5→4), ALERTE_R (R 4→3), passage entre segments
  */
 async function runTransitionTriggers() {
@@ -386,15 +386,15 @@ async function runTransitionTriggers() {
       // Déclencher le bon trigger selon le type de transition
       let triggerName = null;
 
-      // CDC §5.4 — Trigger ABSENCE : R passe de 5→4
+      //— Trigger ABSENCE : R passe de 5→4
       if (t.old_r_score === 5 && t.new_r_score === 4) {
         triggerName = 'ABSENCE';
       }
-      // CDC §5.4 — Trigger ALERTE_R : R passe de 4→3
+      //— Trigger ALERTE_R : R passe de 4→3
       else if (t.old_r_score === 4 && t.new_r_score === 3) {
         triggerName = 'ALERTE_R';
       }
-      // CDC §5.4 — Trigger WIN_BACK : R tombe à 1 (client perdu)
+      //— Trigger WIN_BACK : R tombe à 1 (client perdu)
       else if (t.new_r_score === 1 && t.old_r_score > 1) {
         triggerName = 'WIN_BACK';
       }
@@ -427,7 +427,7 @@ async function runTransitionTriggers() {
       await pool.query(
         'UPDATE rfm_transitions SET processed_at = NOW() WHERE id = $1',
         [t.id]
-      ).catch(() => {});
+      ).catch(() => { });
     } catch (err) {
       console.error(`[TRANSITIONS] Erreur client ${t.client_id}:`, err.message);
     }

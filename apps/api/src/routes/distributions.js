@@ -2,7 +2,7 @@
 
 /**
  * Route GET /api/v1/distributions/:id
- * Retourne le détail d'une distribution individuelle (CDC §4.5.1)
+ * Retourne le détail d'une distribution individuelle 
  * Accès : marchand propriétaire (via clé API) ou admin
  */
 

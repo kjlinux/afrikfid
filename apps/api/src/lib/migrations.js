@@ -313,11 +313,11 @@ const MIGRATIONS = [
     version: 6,
     name: '006_merchant_alert_thresholds',
     up: `
-      -- Seuils d'alerte par marchand (CDC §4.2.2)
+      -- Seuils d'alerte par marchand 
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS daily_volume_limit NUMERIC DEFAULT NULL;
 
-      -- Mode invité configurable par marchand (CDC §4.1.4)
+      -- Mode invité configurable par marchand 
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS allow_guest_mode BOOLEAN DEFAULT TRUE;
     `,
   },
@@ -325,7 +325,7 @@ const MIGRATIONS = [
     version: 7,
     name: '007_encryption_hash_fields',
     up: `
-      -- Champs de hachage pour la recherche sur données chiffrées (CDC §5.4.1)
+      -- Champs de hachage pour la recherche sur données chiffrées 
       -- Les valeurs phone/email dans clients seront chiffrées AES-256-GCM.
       -- Ces colonnes _hash (HMAC-SHA256) permettent la recherche sans déchiffrer.
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS phone_hash TEXT DEFAULT NULL;
@@ -342,7 +342,7 @@ const MIGRATIONS = [
     version: 8,
     name: '008_transaction_retry_and_kyc_fields',
     up: `
-      -- Retry opérateur avant expiration finale (CDC §4.1.4)
+      -- Retry opérateur avant expiration finale 
       -- retry_until : horodatage jusqu'auquel le worker doit interroger l'opérateur
       ALTER TABLE transactions ADD COLUMN IF NOT EXISTS retry_until TIMESTAMPTZ DEFAULT NULL;
       ALTER TABLE transactions ADD COLUMN IF NOT EXISTS last_operator_check TIMESTAMPTZ DEFAULT NULL;
@@ -383,14 +383,14 @@ const MIGRATIONS = [
     version: 10,
     name: '010_security_rgpd_2fa',
     up: `
-      -- Chiffrement bank_account marchand (CDC §5.4.1)
+      -- Chiffrement bank_account marchand 
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS bank_account_hash TEXT DEFAULT NULL;
 
       -- RGPD — champ anonymisation pour les clients (CDC §RGPD)
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMPTZ DEFAULT NULL;
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS gdpr_deletion_requested_at TIMESTAMPTZ DEFAULT NULL;
 
-      -- 2FA TOTP pour admins (CDC §5.4 sécurité renforcée)
+      -- 2FA TOTP pour admins sécurité renforcée)
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
@@ -411,7 +411,7 @@ const MIGRATIONS = [
     version: 11,
     name: '011_disbursements',
     up: `
-      -- Table de règlement automatique vers les marchands (CDC §4.1.3 — distribution fonds)
+      -- Table de règlement automatique vers les marchands — distribution fonds)
       CREATE TABLE IF NOT EXISTS disbursements (
         id TEXT PRIMARY KEY,
         beneficiary_type TEXT NOT NULL DEFAULT 'merchant',
@@ -444,7 +444,7 @@ const MIGRATIONS = [
     version: 12,
     name: '012_loyalty_config_category',
     up: `
-      -- Taux Y% par catégorie marchand (CDC §2.5 — taux configurables par pays et catégorie)
+      -- Taux Y% par catégorie marchand — taux configurables par pays et catégorie)
       CREATE TABLE IF NOT EXISTS loyalty_config_category (
         id TEXT PRIMARY KEY,
         category TEXT NOT NULL,
@@ -461,7 +461,7 @@ const MIGRATIONS = [
     version: 14,
     name: '014_seed_countries',
     up: `
-      -- Seed des pays couverts par la passerelle (CDC §1.3 — zones UEMOA, CEMAC, Est-Afrique)
+      -- Seed des pays couverts par la passerelle — zones UEMOA, CEMAC, Est-Afrique)
       INSERT INTO countries (id, name, currency, zone) VALUES
         -- Zone UEMOA (XOF)
         ('CI', 'Côte d''Ivoire',  'XOF', 'UEMOA'),
@@ -488,7 +488,7 @@ const MIGRATIONS = [
     version: 17,
     name: '017_disputes',
     up: `
-      -- Gestion des litiges (CDC §4.6.1 — Refunds & Disputes Management)
+      -- Gestion des litiges — Refunds & Disputes Management)
       CREATE TABLE IF NOT EXISTS disputes (
         id TEXT PRIMARY KEY,
         transaction_id TEXT NOT NULL REFERENCES transactions(id),
@@ -528,7 +528,7 @@ const MIGRATIONS = [
     version: 16,
     name: '016_loyalty_status_history',
     up: `
-      -- Historique complet des changements de statut fidélité (CDC §4.3.1)
+      -- Historique complet des changements de statut fidélité 
       CREATE TABLE IF NOT EXISTS loyalty_status_history (
         id TEXT PRIMARY KEY,
         client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -548,7 +548,7 @@ const MIGRATIONS = [
     version: 13,
     name: '013_encryption_key_rotation',
     up: `
-      -- Versioning des clés AES-256-GCM (CDC §5.4.1 — rotation tous les 90j, PCI-DSS)
+      -- Versioning des clés AES-256-GCM — rotation tous les 90j, PCI-DSS)
       CREATE TABLE IF NOT EXISTS encryption_keys (
         id TEXT PRIMARY KEY,
         version INTEGER NOT NULL UNIQUE,
@@ -592,7 +592,7 @@ const MIGRATIONS = [
     version: 18,
     name: '018_merchant_category_rates',
     up: `
-      -- Taux X% par catégorie de produit par marchand (CDC §2.1 — X% variable par catégorie)
+      -- Taux X% par catégorie de produit par marchand — X% variable par catégorie)
       CREATE TABLE IF NOT EXISTS merchant_category_rates (
         id TEXT PRIMARY KEY,
         merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
@@ -612,7 +612,7 @@ const MIGRATIONS = [
     version: 19,
     name: '019_api_key_rotation',
     up: `
-      -- Date de création des clés API marchands pour rotation automatique (CDC §5.4.1 — rotation 90j)
+      -- Date de création des clés API marchands pour rotation automatique — rotation 90j)
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS api_key_created_at TIMESTAMPTZ DEFAULT NOW();
       UPDATE merchants SET api_key_created_at = created_at WHERE api_key_created_at IS NULL;
     `,
@@ -630,7 +630,7 @@ const MIGRATIONS = [
     version: 20,
     name: '020_merchant_2fa',
     up: `
-      -- 2FA TOTP pour marchands (CDC §5.4.2 — authentification forte multi-acteurs)
+      -- 2FA TOTP pour marchands — authentification forte multi-acteurs)
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL;
@@ -936,7 +936,7 @@ const MIGRATIONS = [
     version: 26,
     name: '026_client_2fa',
     up: `
-      -- 2FA TOTP pour clients (CDC §5.4.2 — authentification forte multi-acteurs)
+      -- 2FA TOTP pour clients — authentification forte multi-acteurs)
       -- Présent pour admins (migration 010) et marchands (migration 020), manquant pour clients
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL;
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
@@ -1012,7 +1012,7 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_governance_requests_client ON governance_requests(client_id);
       CREATE INDEX IF NOT EXISTS idx_governance_requests_status ON governance_requests(status, created_at DESC);
 
-      -- Colonne pour marquer le retrait de statut suite à fraude avérée (sans préavis, CDC §2.4.4)
+      -- Colonne pour marquer le retrait de statut suite à fraude avérée (sans préavis,
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS fraud_status_revoked_at TIMESTAMPTZ DEFAULT NULL;
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS fraud_status_revoked_reason TEXT DEFAULT NULL;
     `,

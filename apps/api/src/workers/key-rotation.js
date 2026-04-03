@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Worker de rotation automatique des clés API marchands (CDC §5.4.1)
+ * Worker de rotation automatique des clés API marchands 
  * Rotation tous les 90 jours — cron quotidien à 03h00
  */
 

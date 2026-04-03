@@ -147,7 +147,7 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
     return res.status(401).json({ error: 'Identifiants invalides' });
   }
 
-  // Vérification 2FA marchand si activé (CDC §5.4.2 — authentification forte)
+  // Vérification 2FA marchand si activé — authentification forte)
   if (merchant.totp_enabled && merchant.totp_secret) {
     if (!totp_code) {
       return res.status(200).json({ requires2FA: true, message: 'Code 2FA requis. Veuillez fournir le champ totp_code.' });
@@ -331,7 +331,7 @@ router.delete('/2fa/disable', requireAdmin, async (req, res) => {
   res.json({ message: '2FA désactivé' });
 });
 
-// ─── 2FA Marchands (CDC §5.4.2 — authentification forte) ─────────────────────
+// ─── 2FA Marchands — authentification forte) ─────────────────────
 
 // POST /api/v1/auth/merchant/2fa/setup
 router.post('/merchant/2fa/setup', require('../middleware/auth').requireMerchant, async (req, res) => {

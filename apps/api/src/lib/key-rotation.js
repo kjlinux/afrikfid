@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Rotation automatique des clés de chiffrement AES-256-GCM (CDC §5.4.1 — PCI-DSS)
+ * Rotation automatique des clés de chiffrement AES-256-GCM — PCI-DSS)
  *
  * Principe :
  *  - Les clés sont versionnées en base (table encryption_keys)

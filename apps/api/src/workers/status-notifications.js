@@ -33,7 +33,7 @@ async function runStatusNotifications() {
     const deadline = new Date(client.qualification_deadline);
     const daysUntil = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
 
-    // Calculer les points manquants dynamiquement (CDC §2.4.3)
+    // Calculer les points manquants dynamiquement 
     const config = configByStatus[client.loyalty_status];
     const requiredPoints = config ? parseInt(config.min_status_points) || 0 : 0;
     const currentPoints = parseInt(client.status_points_12m) || 0;
@@ -50,9 +50,9 @@ async function runStatusNotifications() {
           currentStatus: client.loyalty_status,
           pointsNeeded,
         });
-        // WhatsApp pour J-30 et J-7 uniquement (CDC §2.4.3 canaux Push+SMS pour ces paliers)
+        // WhatsApp pour J-30 et J-7 uniquement canaux Push+SMS pour ces paliers)
         if (schedule.days_before <= 30 && client.phone) {
-          notifyRequalificationWhatsApp(client, schedule.days_before, pointsNeeded, client.loyalty_status).catch(() => {});
+          notifyRequalificationWhatsApp(client, schedule.days_before, pointsNeeded, client.loyalty_status).catch(() => { });
         }
         count++;
       }

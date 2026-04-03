@@ -37,7 +37,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     product_category,
   } = req.body;
 
-  // Idempotence — fenêtre glissante 24h sur référence marchand (CDC §3.1.4)
+  // Idempotence — fenêtre glissante 24h sur référence marchand 
   if (idempotency_key) {
     const existing = (await db.query(
       "SELECT * FROM transactions WHERE idempotency_key = $1 AND initiated_at > NOW() - INTERVAL '24 hours'",
@@ -57,7 +57,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     client = (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [phoneHash])).rows[0];
   }
 
-  // Mode invité (CDC §4.1.4) : client non identifié
+  // Mode invité  : client non identifié
   if (!client) {
     const guestAllowed = merchant.allow_guest_mode !== false && merchant.allow_guest_mode !== 0;
     if (!guestAllowed) {
@@ -67,7 +67,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
 
   const loyaltyStatus = client ? client.loyalty_status : 'OPEN';
 
-  // Validation opérateur mobile money vs pays (CDC §3.2 — extensibilité par pays)
+  // Validation opérateur mobile money vs pays — extensibilité par pays)
   if (payment_method === 'mobile_money' && payment_operator) {
     const countryCode = client?.country_id || merchant.country_id;
     if (countryCode) {
@@ -82,7 +82,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     }
   }
 
-  // Vérification seuil maximum par transaction (CDC §4.2.2)
+  // Vérification seuil maximum par transaction 
   if (merchant.max_transaction_amount && amount > parseFloat(merchant.max_transaction_amount)) {
     return res.status(422).json({
       error: 'AMOUNT_EXCEEDS_LIMIT',
@@ -90,7 +90,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     });
   }
 
-  // Vérification volume quotidien marchand (CDC §4.2.2)
+  // Vérification volume quotidien marchand 
   if (merchant.daily_volume_limit) {
     const today = new Date().toISOString().slice(0, 10);
     const dailyRes = await db.query(
@@ -121,7 +121,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   );
 
   if (distribution.yExceedsX) {
-    // Alerte admin pour anomalie de configuration (CDC §4.1.4)
+    // Alerte admin pour anomalie de configuration 
     let _clientPhone = 'inconnu';
     if (client?.phone) { try { _clientPhone = decrypt(client.phone); } catch { /* ignore */ } }
     notifyFraudBlocked({
@@ -132,8 +132,8 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       reason: `Anomalie config: Y (${distribution.clientRebatePercent}%) > X (${distribution.merchantRebatePercent}%)`,
       riskScore: 100,
     }).catch(() => { });
-    // CDC §2.4.4 — Retrait immédiat du statut si fraude de configuration détectée
-    if (client?.id) revokeLoyaltyStatusForFraud(client.id, 'y_exceeds_x_config_fraud').catch(() => {});
+    //— Retrait immédiat du statut si fraude de configuration détectée
+    if (client?.id) revokeLoyaltyStatusForFraud(client.id, 'y_exceeds_x_config_fraud').catch(() => { });
     return res.status(422).json({
       error: 'DISTRIBUTION_ERROR',
       message: `Taux client Y (${distribution.clientRebatePercent}%) supérieur au taux marchand X (${distribution.merchantRebatePercent}%). Anomalie de configuration.`,
@@ -202,7 +202,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       ? distribution.grossAmount - distribution.clientRebateAmount
       : distribution.grossAmount;
 
-    // Circuit breaker — vérifier si l'opérateur est disponible (CDC §4.1)
+    // Circuit breaker — vérifier si l'opérateur est disponible 
     const cbKey = (payment_operator || '').toUpperCase();
     const cbStatus = isOperatorAvailable(cbKey);
     if (!cbStatus.allowed) {
@@ -219,7 +219,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       }
     }
 
-    // Basculement vers opérateur alternatif si indisponible (CDC §4.1.4)
+    // Basculement vers opérateur alternatif si indisponible 
     if (!mmResult.success && (mmResult.error === 'OPERATOR_UNAVAILABLE' || mmResult.error === 'CIRCUIT_OPEN')) {
       const countryCode = merchant.country_id || client?.country_id;
       const alternatives = countryCode
@@ -372,9 +372,9 @@ router.post('/mm/mpesa/notify', async (req, res) => {
     if (!tx) return;
 
     const MPESA_RESULT_CODES = {
-      0:    'Paiement réussi',
-      1:    'Solde insuffisant',
-      17:   'Limite de transfert dépassée',
+      0: 'Paiement réussi',
+      1: 'Solde insuffisant',
+      17: 'Limite de transfert dépassée',
       1001: 'Numéro de bénéficiaire invalide',
       1032: 'Transaction annulée par l\'utilisateur',
       1037: 'Timeout — aucune réponse de l\'utilisateur',
@@ -843,7 +843,7 @@ router.post('/:id/refund/dashboard', requireMerchant, async (req, res) => {
     }
   }
 
-  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount, refundRatio }).catch(() => {});
+  dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_REFUNDED, { transactionId: tx.id, reference: tx.reference, refundAmount, refundRatio }).catch(() => { });
 
   res.json({ refundId, message: 'Remboursement effectué avec succès', amount: refundAmount });
 });
@@ -908,7 +908,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
   const { merchant_id, amount, currency = 'XOF', description, idempotency_key, product_category } = req.body;
   const client = req.client;
 
-  // Idempotence — fenêtre glissante 24h sur référence marchand (CDC §3.1.4)
+  // Idempotence — fenêtre glissante 24h sur référence marchand 
   if (idempotency_key) {
     const existing = (await db.query(
       "SELECT * FROM transactions WHERE idempotency_key = $1 AND initiated_at > NOW() - INTERVAL '24 hours'",
@@ -1049,7 +1049,7 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
         creditedRebate: rebateToCredit,
         cap: walletCap,
         currency,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
 
@@ -1153,7 +1153,7 @@ async function processCompletedPayment(tx) {
           creditedRebate: rebateToCredit,
           cap: effectiveCap,
           currency: tx.currency,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 
@@ -1162,14 +1162,14 @@ async function processCompletedPayment(tx) {
 
     // CDC v3 §5.4 — Trigger 1ER_ACHAT automatique
     const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];
-    if (client) triggerPremierAchat(tx.merchant_id, client).catch(() => {});
+    if (client) triggerPremierAchat(tx.merchant_id, client).catch(() => { });
   }
 
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);
 
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
 
-  // Journalisation audit_log pour conformité BCEAO/BEAC (CDC §4.1.3 étape 7)
+  // Journalisation audit_log pour conformité BCEAO/BEAC étape 7)
   db.query(
     `INSERT INTO audit_logs (id, action, resource_type, resource_id, actor_type, actor_id, payload, created_at)
      VALUES ($1, 'payment.completed', 'transaction', $2, 'system', 'gateway', $3, NOW())`,
@@ -1201,7 +1201,7 @@ async function processCompletedPayment(tx) {
 
   dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_COMPLETED, sanitizeTx(completedTx)).catch(() => { });
 
-  // Webhook distribution.completed (CDC §4.5.3)
+  // Webhook distribution.completed 
   const distributions = (await db.query('SELECT * FROM distributions WHERE transaction_id = $1', [tx.id])).rows;
   dispatchWebhook(tx.merchant_id, WebhookEvents.DISTRIBUTION_COMPLETED, {
     transaction_id: tx.id,
@@ -1221,7 +1221,7 @@ async function processCompletedPayment(tx) {
     notifyCashbackCredit({ client, transaction: completedTx, distribution: distRow });
   }
 
-  // Règlement instantané si settlement_frequency = 'instant' (CDC §4.2.2)
+  // Règlement instantané si settlement_frequency = 'instant' 
   processDisbursementsForMerchant(tx.merchant_id, 'instant').catch(err =>
     console.error(`[DISB/instant] Marchand ${tx.merchant_id}:`, err.message)
   );

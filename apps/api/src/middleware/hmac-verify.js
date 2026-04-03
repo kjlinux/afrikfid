@@ -1,6 +1,6 @@
 /**
  * Middleware de vérification HMAC-SHA256 pour les requêtes entrantes marchands
- * CDC §4.5.2 — Toutes les requêtes doivent être signées via HMAC-SHA256
+ *— Toutes les requêtes doivent être signées via HMAC-SHA256
  *
  * Le marchand doit envoyer le header :
  *   X-AfrikFid-Signature: sha256=<hmac_hex>

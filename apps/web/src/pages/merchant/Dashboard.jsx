@@ -359,7 +359,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
   return (
     <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: isGrowthPlus ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 16 }}>
 
-      {/* Abonnement + Bonus recrutement (CDC §2.6) */}
+      {/* Abonnement + Bonus recrutement  */}
       <Card title={<>{`Abonnement — ${PKG_LABEL[pkg] || pkg}`}<InfoTooltip text={TOOLTIPS[`pkg_${pkg?.toLowerCase()}`] || 'Votre formule d\'abonnement Afrik\'Fid.'} /></>}>
         {sub ? (
           <div>
@@ -405,7 +405,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
         ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Aucun abonnement actif</div>}
       </Card>
 
-      {/* Success Fee (CDC §3.5) */}
+      {/* Success Fee  */}
       <Card title={<>Success Fee<InfoTooltip text={TOOLTIPS.success_fee} /></>}>
         {sfData ? (
           <div>
@@ -420,7 +420,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-              Le success fee est prélevé uniquement sur la croissance réelle de votre CA (CDC §3.5).
+              Le success fee est prélevé uniquement sur la croissance réelle de votre CA .
             </div>
             {sfData.fees?.slice(0, 3).map(f => (
               <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: 12 }}>
@@ -433,7 +433,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
         ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 16 }}>Chargement...</div>}
       </Card>
 
-      {/* Score fidélité mensuel (CDC §6.4 — tous packages) */}
+      {/* Score fidélité mensuel — tous packages) */}
       {loyaltyScore && (
         <Card title={<>Score fidélité mensuel<InfoTooltip text={TOOLTIPS.score_fidelite} /></>}>
           <div style={{ textAlign: 'center', paddingBottom: 8 }}>
@@ -465,7 +465,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
         </Card>
       )}
 
-      {/* Segmentation RFM — GROWTH+ uniquement (CDC §5.1–5.3) */}
+      {/* Segmentation RFM — GROWTH+ uniquement –5.3) */}
       {isGrowthPlus && (
         <Card title={<>Segmentation RFM clients<InfoTooltip text={TOOLTIPS.RFM} /></>}>
           {rfmData ? (

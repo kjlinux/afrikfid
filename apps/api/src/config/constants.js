@@ -19,7 +19,7 @@ const CURRENCIES = ['XOF', 'XAF', 'KES'];
 const ZONES = ['UEMOA', 'CEMAC', 'EAST_AFRICA'];
 
 // ─── Durée d'expiration d'une transaction (ms) ───────────────────────────────
-const TX_EXPIRY_MS = 2 * 60 * 1000; // 120s avant premier retry opérateur (CDC §4.1.4)
+const TX_EXPIRY_MS = 2 * 60 * 1000; // 120s avant premier retry opérateur 
 const TX_RETRY_WINDOW_MS = 10 * 60 * 1000; // 10min de fenêtre de retry opérateur
 const TX_RETRY_INTERVAL_MS = 30 * 1000;    // polling opérateur toutes les 30s
 
@@ -41,18 +41,18 @@ const KYC_STATUSES = ['pending', 'submitted', 'approved', 'rejected'];
 
 // ─── Mapping statuts opérateurs Mobile Money → statuts internes ──────────────
 const MM_STATUS_MAPS = {
-  MTN:    { SUCCESSFUL: 'completed', FAILED: 'failed', REJECTED: 'failed', TIMEOUT: 'failed', EXPIRED: 'failed', PENDING: 'pending' },
-  WAVE:   { complete: 'completed', error: 'failed', cancelled: 'failed', processing: 'pending', open: 'pending' },
-  MOOV:   { SUCCESS: 'completed', FAILED: 'failed', CANCELLED: 'failed', PENDING: 'pending', PROCESSING: 'pending' },
+  MTN: { SUCCESSFUL: 'completed', FAILED: 'failed', REJECTED: 'failed', TIMEOUT: 'failed', EXPIRED: 'failed', PENDING: 'pending' },
+  WAVE: { complete: 'completed', error: 'failed', cancelled: 'failed', processing: 'pending', open: 'pending' },
+  MOOV: { SUCCESS: 'completed', FAILED: 'failed', CANCELLED: 'failed', PENDING: 'pending', PROCESSING: 'pending' },
   AIRTEL: { TS: 'completed', SUCCESS: 'completed', TF: 'failed', FAILED: 'failed', CANCELLED: 'failed' },
   ORANGE: { SUCCESS: 'completed', SUCCESSFULL: 'completed', '00': 'completed', FAILED: 'failed', CANCELLED: 'failed', EXPIRED: 'failed' },
 };
 
 // ─── Table des codes résultat M-Pesa Daraja (STK Push) ───────────────────────
 const MPESA_RESULT_CODES = {
-  0:    'Paiement réussi',
-  1:    'Solde insuffisant',
-  17:   'Limite de transfert dépassée',
+  0: 'Paiement réussi',
+  1: 'Solde insuffisant',
+  17: 'Limite de transfert dépassée',
   1001: 'Numéro de bénéficiaire invalide',
   1032: 'Transaction annulée par l\'utilisateur',
   1037: 'Timeout — aucune réponse de l\'utilisateur',
@@ -78,10 +78,10 @@ const MERCHANT_PACKAGES = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 // ─── Barème Starter Boost — réduction par recrutement (CDC v3 §2.6) ───────
 const STARTER_BOOST_TIERS = [
   { minClients: 100, discountPercent: 50 },
-  { minClients: 50,  discountPercent: 35 },
-  { minClients: 25,  discountPercent: 20 },
-  { minClients: 10,  discountPercent: 10 },
-  { minClients: 0,   discountPercent: 0 },
+  { minClients: 50, discountPercent: 35 },
+  { minClients: 25, discountPercent: 20 },
+  { minClients: 10, discountPercent: 10 },
+  { minClients: 0, discountPercent: 0 },
 ];
 
 // ─── Segments RFM (CDC v3 §5.3) ──────────────────────────────────────────
@@ -92,19 +92,19 @@ const MERCHANT_SECTORS = ['station_service', 'epicerie', 'restaurant', 'beaute',
 
 // ─── Seuils RFM par défaut (CDC v3 §5.2) ────────────────────────────────
 const RFM_DEFAULT_THRESHOLDS = {
-  recency:   { 5: 7, 4: 14, 3: 30, 2: 60, 1: Infinity },
+  recency: { 5: 7, 4: 14, 3: 30, 2: 60, 1: Infinity },
   frequency: { 5: 20, 4: 10, 3: 5, 2: 2, 1: 0 },
-  monetary:  { 5: 500000, 4: 200000, 3: 100000, 2: 50000, 1: 0 },
+  monetary: { 5: 500000, 4: 200000, 3: 100000, 2: 50000, 1: 0 },
 };
 
 // ─── Mapping segments RFM (CDC v3 §5.3) ─────────────────────────────────
 const RFM_SEGMENT_RULES = [
-  { segment: 'CHAMPIONS',   minR: 4, minF: 4, minM: 4 },
-  { segment: 'FIDELES',     minR: 4, minF: 4, minM: 2, maxM: 3 },
+  { segment: 'CHAMPIONS', minR: 4, minF: 4, minM: 4 },
+  { segment: 'FIDELES', minR: 4, minF: 4, minM: 2, maxM: 3 },
   { segment: 'PROMETTEURS', minR: 4, minF: 2, maxF: 3, minM: 4 },
-  { segment: 'A_RISQUE',    minR: 2, maxR: 3, minF: 4, minM: 4 },
-  { segment: 'HIBERNANTS',  minR: 2, maxR: 3, minF: 2, maxF: 3 },
-  { segment: 'PERDUS',      maxR: 2, maxF: 2, maxM: 2 },
+  { segment: 'A_RISQUE', minR: 2, maxR: 3, minF: 4, minM: 4 },
+  { segment: 'HIBERNANTS', minR: 2, maxR: 3, minF: 2, maxF: 3 },
+  { segment: 'PERDUS', maxR: 2, maxF: 2, maxM: 2 },
 ];
 
 // ─── Triggers automatiques (CDC v3 §5.4) ────────────────────────────────
@@ -115,19 +115,19 @@ const TRIGGER_TYPES = [
 
 // ─── Protocole d'abandon (CDC v3 §5.5) ──────────────────────────────────
 const ABANDON_PROTOCOL_STEPS = [
-  { step: 1, delay_days: 0,  channel: 'sms', label: 'Win-back 1 — Offre -15% ou points x2', message: 'Bonjour {client_name}, profitez de -15% chez {merchant_name} ! Votre fidélité compte.' },
+  { step: 1, delay_days: 0, channel: 'sms', label: 'Win-back 1 — Offre -15% ou points x2', message: 'Bonjour {client_name}, profitez de -15% chez {merchant_name} ! Votre fidélité compte.' },
   { step: 2, delay_days: 14, channel: 'sms', label: 'Win-back 2 — Vous nous manquez', message: 'Vous nous manquez {client_name} ! -20% chez {merchant_name} pour votre retour.' },
   { step: 3, delay_days: 14, channel: 'sms', label: 'Win-back 3 — Dernière chance -30%', message: 'Dernière chance {client_name} ! -30% chez {merchant_name}. Offre limitée.' },
-  { step: 4, delay_days: 7,  channel: 'sms', label: 'Enquête — Pourquoi êtes-vous parti ?', message: '{client_name}, pourquoi êtes-vous parti ? Répondez pour nous aider à améliorer votre expérience chez {merchant_name}.' },
+  { step: 4, delay_days: 7, channel: 'sms', label: 'Enquête — Pourquoi êtes-vous parti ?', message: '{client_name}, pourquoi êtes-vous parti ? Répondez pour nous aider à améliorer votre expérience chez {merchant_name}.' },
   { step: 5, delay_days: 30, channel: 'sms', label: 'Classement PERDU définitif', message: null },
 ];
 
 // ─── Notifications de statut planifiées (CDC v3 §2.4.3) ────────────────
 const STATUS_NOTIFICATION_SCHEDULE = [
   { days_before: 90, channels: ['push', 'email'], label: 'Rappel objectif de requalification' },
-  { days_before: 30, channels: ['push', 'sms'],   label: 'Alerte proximité échéance' },
-  { days_before: 7,  channels: ['push', 'sms', 'email'], label: 'Dernière chance de requalification' },
-  { days_after: 1,   channels: ['push', 'email'], label: 'Confirmation nouveau statut' },
+  { days_before: 30, channels: ['push', 'sms'], label: 'Alerte proximité échéance' },
+  { days_before: 7, channels: ['push', 'sms', 'email'], label: 'Dernière chance de requalification' },
+  { days_after: 1, channels: ['push', 'email'], label: 'Confirmation nouveau statut' },
 ];
 
 module.exports = {

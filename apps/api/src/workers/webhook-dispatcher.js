@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 
-// Backoff conforme CDC §4.5.3 : 3 tentatives de retry étalées sur 24h
+// Backoff conforme: 3 tentatives de retry étalées sur 24h
 // Total : 1 tentative initiale + 3 retries = 4 envois maximum
 const RETRY_DELAYS_MS = [
   30 * 60 * 1000,      // Retry 1 : +30 min
@@ -139,15 +139,15 @@ async function requeueWebhook(eventId) {
 }
 
 const WebhookEvents = {
-  // Paiements (noms conformes CDC §4.5.3)
+  // Paiements (noms conformes
   PAYMENT_SUCCESS: 'payment.success',
   PAYMENT_COMPLETED: 'payment.success',   // alias rétrocompat
   PAYMENT_FAILED: 'payment.failed',
   PAYMENT_EXPIRED: 'payment.expired',
   PAYMENT_REFUNDED: 'refund.completed',
-  // Distribution (CDC §4.5.3)
+  // Distribution 
   DISTRIBUTION_COMPLETED: 'distribution.completed',
-  // Fidélité (CDC §4.5.3)
+  // Fidélité 
   STATUS_CHANGED: 'loyalty.status_changed',
   STATUS_UPGRADED: 'loyalty.status_changed', // alias rétrocompat
 };

@@ -21,7 +21,7 @@ const { notifyAdminAlert } = require('../lib/notifications');
 async function billSubscription(sub) {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const periodEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
   // Déjà facturé ce mois ?
   if (sub.last_billed_at) {
@@ -37,13 +37,13 @@ async function billSubscription(sub) {
   const baseFee = parseFloat(sub.base_monthly_fee) || 0;
   if (baseFee <= 0) return null; // pas de frais (Starter Plus / Growth / Premium sur devis = 0 dans la table)
 
-  // Calcul réduction Starter Boost (CDC §2.6)
+  // Calcul réduction Starter Boost 
   let discountPercent = 0;
   let recruitedCount = 0;
   if (sub.package === 'STARTER_BOOST') {
     const boost = await calculateStarterBoostDiscount(sub.merchant_id);
     discountPercent = boost.discountPercent;
-    recruitedCount  = boost.recruitedCount;
+    recruitedCount = boost.recruitedCount;
   }
 
   const effectiveAmount = Math.round(baseFee * (1 - discountPercent / 100));
@@ -95,7 +95,7 @@ async function runSubscriptionBilling() {
        AND m.is_active = TRUE`
   );
 
-  const results  = [];
+  const results = [];
   const failures = [];
 
   for (const sub of subs.rows) {
@@ -121,7 +121,7 @@ async function runSubscriptionBilling() {
     notifyAdminAlert(
       `[Prélèvements abonnements] ${failures.length} échec(s) sur ${subs.rows.length} abonnements. ` +
       `Marchands: ${failures.map(f => f.merchantId).join(', ')}`
-    ).catch(() => {});
+    ).catch(() => { });
   }
 
   console.log(

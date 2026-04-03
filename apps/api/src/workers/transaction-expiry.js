@@ -3,7 +3,7 @@
 /**
  * Worker d'expiration des transactions en attente.
  *
- * Selon le CDC §4.1.4 :
+ * Selon le:
  * - Après TX_EXPIRY_MS (120s) sans confirmation → interroger l'opérateur
  * - Si toujours pending → setter retry_until = NOW() + 10min
  * - Toutes les 30s : re-interroger l'opérateur jusqu'à retry_until
@@ -52,7 +52,7 @@ async function processInitialTimeouts() {
           );
           dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, {
             transaction_id: tx.id, reference: tx.reference,
-          }).catch(() => {});
+          }).catch(() => { });
           resolved = true;
         }
       } catch (err) {
@@ -148,7 +148,7 @@ async function processActiveRetry() {
         );
         dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, {
           transaction_id: tx.id, reference: tx.reference,
-        }).catch(() => {});
+        }).catch(() => { });
       } else {
         await db.query(`UPDATE transactions SET last_operator_check = NOW() WHERE id = $1`, [tx.id]);
       }
@@ -182,7 +182,7 @@ async function processExpiredCardTransactions() {
       transaction_id: tx.id, reference: tx.reference,
       amount: tx.gross_amount, currency: tx.currency,
       expired_at: new Date().toISOString(),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 

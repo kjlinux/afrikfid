@@ -253,7 +253,7 @@ export default function ClientDashboard() {
           />
         </div>
 
-        {/* CDC §2.3 — Points statut vs points récompense séparés */}
+        {/*— Points statut vs points récompense séparés */}
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 14, padding: '16px 20px', marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {/* Points statut */}
           <div>
@@ -348,7 +348,7 @@ export default function ClientDashboard() {
           </div>
         )}
 
-        {/* Mon segment RFM + offres personnalisées (CDC §5.3, §5.4) */}
+        {/* Mon segment RFM + offres personnalisées , §5.4) */}
         <ClientRfmSection rfmSegment={profile.rfmSegment} triggerHistory={profile.triggerHistory} />
 
         {/* Dernières transactions */}
@@ -532,7 +532,7 @@ export default function ClientDashboard() {
   )
 }
 
-// ─── Section segment RFM client (CDC §5.3) ────────────────────────────────────
+// ─── Section segment RFM client  ────────────────────────────────────
 const RFM_META = {
   CHAMPIONS:   { color: '#10b981', icon: '🏆', label: 'Champion',     desc: 'Vous faites partie de nos meilleurs clients ! Continuez comme ça.' },
   FIDELES:     { color: '#3b82f6', icon: '⭐', label: 'Fidèle',        desc: 'Vous achetez régulièrement chez nos marchands partenaires.' },

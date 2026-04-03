@@ -40,7 +40,7 @@ export default function () {
   const scenario = Math.random();
 
   if (scenario < 0.3) {
-    // ── Rapport funnel de conversion (CDC §4.6.1) ──────────────────────────
+    // ── Rapport funnel de conversion  ──────────────────────────
     const start = Date.now();
     const res = http.get(
       `${BASE_URL}/api/v1/reports/loyalty-funnel?days=30`,

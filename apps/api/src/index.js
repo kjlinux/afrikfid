@@ -78,12 +78,12 @@ app.use(cors({
     callback(new Error(`CORS: origine non autorisée — ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  // X-CSRF-Token exposé pour requêtes cross-origin si nécessaire (CDC §5.4.2 OWASP)
+  // X-CSRF-Token exposé pour requêtes cross-origin si nécessaire OWASP)
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Sandbox', 'X-CSRF-Token'],
   credentials: true,
 }));
 
-// Protection CSRF (CDC §5.4.2 — OWASP Top 10 A01)
+// Protection CSRF — OWASP Top 10 A01)
 // L'API utilise exclusivement JWT Bearer en header Authorization.
 // Les navigateurs ne peuvent PAS envoyer des headers Authorization dans des requêtes
 // cross-origin sans CORS pré-vol — le CSRF classique est donc impossible sur cette API.
@@ -104,7 +104,7 @@ app.use(express.json({ limit: '1mb' }));
 // Confiance proxy (Nginx/Kubernetes ingress) pour obtenir la vraie IP client 
 app.set('trust proxy', process.env.TRUST_PROXY === 'false' ? false : 1);
 
-// Rate limiting par IP (CDC §5.4.2 — "rate limiting par IP et par clé API")
+// Rate limiting par IP — "rate limiting par IP et par clé API")
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 min
   max: parseInt(process.env.RATE_LIMIT_MAX) || 200,
@@ -185,7 +185,7 @@ try {
   console.warn('[docs] Swagger UI non disponible:', e.message);
 }
 
-// ─── Prometheus Metrics (prom-client — CDC §5.5 SLA P95 < 2s) ────────────────
+// ─── Prometheus Metrics (prom-client —SLA P95 < 2s) ────────────────
 const promClient = require('prom-client');
 const promRegistry = new promClient.Registry();
 promClient.collectDefaultMetrics({ register: promRegistry, prefix: 'afrikfid_node_' });
@@ -285,7 +285,7 @@ if (process.env.NODE_ENV !== 'test') {
           if (r.newStatus !== 'OPEN') {
             notifyLoyaltyUpgrade({ client, oldStatus: r.currentStatus, newStatus: r.newStatus });
           }
-          // Webhook loyalty.status_changed vers tous les marchands actifs du client (CDC §4.5.3)
+          // Webhook loyalty.status_changed vers tous les marchands actifs du client 
           const merchantIds = (await db.query(
             `SELECT DISTINCT merchant_id FROM transactions WHERE client_id = $1 AND status = 'completed'`,
             [r.clientId]
@@ -315,7 +315,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   }, null, true, 'Africa/Abidjan');
 
-  // Expiration transactions pending: toutes les 30 secondes (CDC §4.1.4)
+  // Expiration transactions pending: toutes les 30 secondes 
   new CronJob('*/30 * * * * *', async () => {
     try {
       await processExpiredTransactions();
@@ -336,7 +336,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   }, null, true, 'Africa/Abidjan');
 
-  // Rotation automatique des clés AES-256-GCM: vérification quotidienne à 03h00 (CDC §5.4.1 — PCI-DSS 90j)
+  // Rotation automatique des clés AES-256-GCM: vérification quotidienne à 03h00 — PCI-DSS 90j)
   new CronJob('0 3 * * *', async () => {
     try {
       if (await isRotationDue()) {
@@ -352,7 +352,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   }, null, true, 'Africa/Abidjan');
 
-  // Rotation automatique des clés API marchands: quotidien à 03h30 (CDC §5.4.1 — rotation 90j)
+  // Rotation automatique des clés API marchands: quotidien à 03h30 — rotation 90j)
   new CronJob('30 3 * * *', async () => {
     try {
       const result = await rotateExpiredApiKeys();
@@ -371,7 +371,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   }, null, true, 'Africa/Abidjan');
 
-  // Surveillance remboursements en attente > 72h (CDC §4.4 — SLA 72h)
+  // Surveillance remboursements en attente > 72h — SLA 72h)
   new CronJob('0 * * * *', async () => {
     try {
       const result = await checkOverdueRefunds();

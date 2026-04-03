@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Gestion des litiges (CDC §4.6.1 — Refunds & Disputes Management)
+ * Gestion des litiges — Refunds & Disputes Management)
  * Un litige est un désaccord signalé sur une transaction : montant incorrect,
  * service non rendu, fraude supposée, etc.
  *

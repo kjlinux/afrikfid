@@ -45,11 +45,11 @@ router.post('/', validate(CreateClientSchema), async (req, res) => {
     try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { /* ignore */ }
     try { rawEmail = client.email ? decrypt(client.email) : null; } catch { /* ignore */ }
     const clientWithPlainData = { ...client, phone: rawPhone, email: rawEmail };
-    triggerBienvenue(merchantId, clientWithPlainData).catch(() => {});
-    // WhatsApp bienvenue (Starter Boost — CDC §1.4)
+    triggerBienvenue(merchantId, clientWithPlainData).catch(() => { });
+    // WhatsApp bienvenue (Starter Boost —
     if (rawPhone) {
       const merchantRow = (await db.query('SELECT name FROM merchants WHERE id = $1', [merchantId])).rows[0];
-      notifyWelcomeWhatsApp(clientWithPlainData, merchantRow?.name || 'le marchand').catch(() => {});
+      notifyWelcomeWhatsApp(clientWithPlainData, merchantRow?.name || 'le marchand').catch(() => { });
     }
   }
   res.status(201).json({ client: sanitizeClient(client) });
@@ -130,7 +130,7 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     [client.id]
   )).rows[0];
 
-  // Score d'activité + éligibilité prochain statut (CDC §4.3.1)
+  // Score d'activité + éligibilité prochain statut 
   const loyaltyConfigs = (await db.query('SELECT * FROM loyalty_config ORDER BY sort_order')).rows;
   const statusOrder = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE'];
   const currentIdx = statusOrder.indexOf(client.loyalty_status);
@@ -303,7 +303,7 @@ router.patch('/:id/loyalty-status', requireAdmin, validate(UpdateLoyaltyStatusSc
   res.json({ client: sanitizeClient(updated), message: 'Statut mis à jour' });
 });
 
-// GET /api/v1/clients/:id/loyalty-history — historique des changements de statut (CDC §4.3.1)
+// GET /api/v1/clients/:id/loyalty-history — historique des changements de statut 
 router.get('/:id/loyalty-history', requireAuth, async (req, res) => {
   const clientRes = await db.query('SELECT id FROM clients WHERE id = $1 OR afrikfid_id = $1', [req.params.id]);
   const client = clientRes.rows[0];
@@ -468,7 +468,7 @@ router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
   const client = clientRes.rows[0];
   if (!client) return res.status(404).json({ error: 'Client non trouvé' });
 
-  // CDC §2.3 : la dépense de points récompense est un acte du client uniquement
+  //: la dépense de points récompense est un acte du client uniquement
   if (!req.client) return res.status(403).json({ error: 'Accès réservé au client' });
   if (req.client.id !== client.id) return res.status(403).json({ error: 'Accès interdit' });
 
@@ -500,7 +500,7 @@ router.post('/:id/rewards/spend', requireAuth, async (req, res) => {
       `INSERT INTO wallet_movements (id, wallet_id, type, amount, balance_before, balance_after, description, created_at)
        VALUES ($1, $2, 'reward_spend', $3, $4, $4, $5, NOW())`,
       [uuidv4(), wallet.id, amountFCFA, wallet.balance,
-       description || `Dépense ${points} pts récompense chez ${merchant.name}`]
+      description || `Dépense ${points} pts récompense chez ${merchant.name}`]
     );
   }
 

@@ -104,7 +104,7 @@ router.get('/overview', requireAdmin, async (req, res) => {
   const merchantCount = parseInt((await db.query("SELECT COUNT(*) as c FROM merchants WHERE is_active = TRUE")).rows[0].c);
   const clientCount = parseInt((await db.query("SELECT COUNT(*) as c FROM clients WHERE is_active = TRUE")).rows[0].c);
 
-  // KPI taux de conversion OPEN→ROYAL (CDC §4.6.1 Analytics)
+  // KPI taux de conversion OPEN→ROYAL Analytics)
   const conversionStats = (await db.query(`
     SELECT
       COUNT(*) as total_clients,
@@ -157,12 +157,12 @@ router.get('/overview', requireAdmin, async (req, res) => {
   const totalScored = parseInt(rfmKpis.total_scored) || 0;
   const rfmSummary = {
     totalScored,
-    champions:   { count: parseInt(rfmKpis.champions),   pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.champions)   / totalScored * 100 * 10) / 10 : 0 },
-    fideles:     { count: parseInt(rfmKpis.fideles),     pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.fideles)     / totalScored * 100 * 10) / 10 : 0 },
+    champions: { count: parseInt(rfmKpis.champions), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.champions) / totalScored * 100 * 10) / 10 : 0 },
+    fideles: { count: parseInt(rfmKpis.fideles), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.fideles) / totalScored * 100 * 10) / 10 : 0 },
     prometteurs: { count: parseInt(rfmKpis.prometteurs), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.prometteurs) / totalScored * 100 * 10) / 10 : 0 },
-    aRisque:     { count: parseInt(rfmKpis.a_risque),    pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.a_risque)    / totalScored * 100 * 10) / 10 : 0 },
-    hibernants:  { count: parseInt(rfmKpis.hibernants),  pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.hibernants)  / totalScored * 100 * 10) / 10 : 0 },
-    perdus:      { count: parseInt(rfmKpis.perdus),      pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.perdus)      / totalScored * 100 * 10) / 10 : 0 },
+    aRisque: { count: parseInt(rfmKpis.a_risque), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.a_risque) / totalScored * 100 * 10) / 10 : 0 },
+    hibernants: { count: parseInt(rfmKpis.hibernants), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.hibernants) / totalScored * 100 * 10) / 10 : 0 },
+    perdus: { count: parseInt(rfmKpis.perdus), pct: totalScored > 0 ? Math.round(parseInt(rfmKpis.perdus) / totalScored * 100 * 10) / 10 : 0 },
   };
 
   // Taux de réactivation win-back : clients passés de PERDUS/HIBERNANTS → autre segment dans les 30 derniers jours
@@ -370,7 +370,7 @@ router.get('/transactions/pdf', requireAdmin, async (req, res) => {
   doc.end();
 });
 
-// GET /api/v1/reports/transactions/excel — Export Excel transactions (CDC §4.6.1)
+// GET /api/v1/reports/transactions/excel — Export Excel transactions 
 router.get('/transactions/excel', requireAdmin, async (req, res) => {
   let ExcelJS;
   try { ExcelJS = require('exceljs'); } catch {
@@ -407,24 +407,24 @@ router.get('/transactions/excel', requireAdmin, async (req, res) => {
   const sheet = workbook.addWorksheet('Transactions', { views: [{ state: 'frozen', ySplit: 1 }] });
 
   sheet.columns = [
-    { header: 'Référence',         key: 'reference',                   width: 26 },
-    { header: 'Marchand',          key: 'merchant_name',               width: 22 },
-    { header: 'Client',            key: 'client_name',                 width: 22 },
-    { header: 'Statut fidélité',   key: 'client_loyalty_status',       width: 14 },
-    { header: 'Montant brut',      key: 'gross_amount',                width: 14 },
-    { header: 'Devise',            key: 'currency',                    width: 8  },
-    { header: 'X% marchand',       key: 'merchant_rebate_percent',     width: 12 },
-    { header: 'Y% client',         key: 'client_rebate_percent',       width: 10 },
-    { header: 'Z% Afrik\'Fid',     key: 'platform_commission_percent', width: 12 },
-    { header: 'Remise client',     key: 'client_rebate_amount',        width: 14 },
-    { header: 'Commission Z',      key: 'platform_commission_amount',  width: 14 },
-    { header: 'Marchand reçoit',   key: 'merchant_receives',           width: 14 },
-    { header: 'Mode remise',       key: 'rebate_mode',                 width: 12 },
-    { header: 'Méthode',           key: 'payment_method',              width: 12 },
-    { header: 'Opérateur',         key: 'payment_operator',            width: 12 },
-    { header: 'Statut',            key: 'status',                      width: 12 },
-    { header: 'Initié le',         key: 'initiated_at',                width: 20 },
-    { header: 'Complété le',       key: 'completed_at',                width: 20 },
+    { header: 'Référence', key: 'reference', width: 26 },
+    { header: 'Marchand', key: 'merchant_name', width: 22 },
+    { header: 'Client', key: 'client_name', width: 22 },
+    { header: 'Statut fidélité', key: 'client_loyalty_status', width: 14 },
+    { header: 'Montant brut', key: 'gross_amount', width: 14 },
+    { header: 'Devise', key: 'currency', width: 8 },
+    { header: 'X% marchand', key: 'merchant_rebate_percent', width: 12 },
+    { header: 'Y% client', key: 'client_rebate_percent', width: 10 },
+    { header: 'Z% Afrik\'Fid', key: 'platform_commission_percent', width: 12 },
+    { header: 'Remise client', key: 'client_rebate_amount', width: 14 },
+    { header: 'Commission Z', key: 'platform_commission_amount', width: 14 },
+    { header: 'Marchand reçoit', key: 'merchant_receives', width: 14 },
+    { header: 'Mode remise', key: 'rebate_mode', width: 12 },
+    { header: 'Méthode', key: 'payment_method', width: 12 },
+    { header: 'Opérateur', key: 'payment_operator', width: 12 },
+    { header: 'Statut', key: 'status', width: 12 },
+    { header: 'Initié le', key: 'initiated_at', width: 20 },
+    { header: 'Complété le', key: 'completed_at', width: 20 },
   ];
 
   // Style en-tête
@@ -496,7 +496,7 @@ router.get('/transactions/excel', requireAdmin, async (req, res) => {
   res.end();
 });
 
-// GET /api/v1/reports/by-country — Revenus Afrik'Fid par pays (CDC §4.6.1)
+// GET /api/v1/reports/by-country — Revenus Afrik'Fid par pays 
 router.get('/by-country', requireAdmin, async (req, res) => {
   const { period = '30d' } = req.query;
   const days = parseInt(period) || 30;
@@ -541,7 +541,7 @@ router.get('/by-country', requireAdmin, async (req, res) => {
   res.json({ byCountry, byZone, period: `${days}d` });
 });
 
-// GET /api/v1/reports/refunds (admin) — liste paginée des remboursements (CDC §4.6.1)
+// GET /api/v1/reports/refunds (admin) — liste paginée des remboursements 
 router.get('/refunds', requireAdmin, async (req, res) => {
   const { page = 1, limit = 20, status, refund_type, q } = req.query;
   let sql = `
@@ -568,7 +568,7 @@ router.get('/refunds', requireAdmin, async (req, res) => {
   res.json({ refunds, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
-// GET /api/v1/reports/by-merchant — Rapport détaillé par marchand (CDC §4.6.1)
+// GET /api/v1/reports/by-merchant — Rapport détaillé par marchand 
 router.get('/by-merchant', requireAdmin, async (req, res) => {
   const { period = '30d', merchant_id, page = 1, limit = 20 } = req.query;
   const days = parseInt(period) || 30;
@@ -637,7 +637,7 @@ router.get('/by-merchant', requireAdmin, async (req, res) => {
   });
 });
 
-// GET /api/v1/reports/loyalty-funnel — Funnel de conversion statuts fidélité (CDC §4.6.1)
+// GET /api/v1/reports/loyalty-funnel — Funnel de conversion statuts fidélité 
 router.get('/loyalty-funnel', requireAdmin, async (req, res, next) => {
   try {
     const { days = 90 } = req.query;
@@ -697,14 +697,14 @@ router.get('/loyalty-funnel', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/contact-priority — CDC §6.4 10h00
+// GET /api/v1/reports/contact-priority —10h00
 // Liste des clients à contacter en priorité aujourd'hui (A RISQUE + abandon proche + échéance statut imminente)
 router.get('/contact-priority', requireAdmin, async (req, res, next) => {
   try {
     const { merchant_id, limit = 50 } = req.query;
     const lim = Math.min(parseInt(limit) || 50, 200);
 
-    // 1. Clients À RISQUE selon RFM (priorité URGENTE selon CDC §5.3)
+    // 1. Clients À RISQUE selon RFM (priorité URGENTE selon
     let rfmSql = `
       SELECT rs.client_id, rs.segment, rs.r_score, rs.f_score, rs.m_score, rs.calculated_at,
              c.full_name, c.loyalty_status, c.phone, c.email,
@@ -736,7 +736,7 @@ router.get('/contact-priority', requireAdmin, async (req, res, next) => {
     `;
     const deadlineRows = (await db.query(deadlineSql)).rows;
 
-    // 3. Clients en abandon step 1-3 (protocole d'abandon CDC §5.5)
+    // 3. Clients en abandon step 1-3 (protocole d'abandon
     let abandonSql = `
       SELECT at2.client_id, 'ABANDON_PROTOCOLE' as segment,
              c.full_name, c.loyalty_status, c.phone, c.email,
@@ -788,7 +788,7 @@ router.get('/contact-priority', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/success-fees — Agrégats success fees (CDC §3.5)
+// GET /api/v1/reports/success-fees — Agrégats success fees 
 router.get('/success-fees', requireAdmin, async (req, res, next) => {
   try {
     const { period = '30d', merchant_id } = req.query;
@@ -849,7 +849,7 @@ router.get('/success-fees', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/subscriptions — Métriques abonnements (CDC §2.5)
+// GET /api/v1/reports/subscriptions — Métriques abonnements 
 router.get('/subscriptions', requireAdmin, async (req, res, next) => {
   try {
     const { period = '30d' } = req.query;
@@ -906,7 +906,7 @@ router.get('/subscriptions', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/triggers — Performance des triggers automatiques (CDC §5.4)
+// GET /api/v1/reports/triggers — Performance des triggers automatiques 
 router.get('/triggers', requireAdmin, async (req, res, next) => {
   try {
     const { period = '30d', merchant_id } = req.query;
@@ -963,7 +963,7 @@ router.get('/triggers', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/recruitment-bonuses — Bonus recrutement Starter Boost par marchand (CDC §2.6)
+// GET /api/v1/reports/recruitment-bonuses — Bonus recrutement Starter Boost par marchand 
 router.get('/recruitment-bonuses', requireAdmin, async (req, res, next) => {
   try {
     const { period = '30d', merchant_id } = req.query;
@@ -1023,7 +1023,7 @@ router.get('/recruitment-bonuses', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/contact-priority/cached — CDC §6.4 (liste pré-calculée à 10h00 par le worker)
+// GET /api/v1/reports/contact-priority/cached —(liste pré-calculée à 10h00 par le worker)
 router.get('/contact-priority/cached', requireAdmin, async (req, res, next) => {
   try {
     const { merchant_id, date = new Date().toISOString().slice(0, 10) } = req.query;
@@ -1072,7 +1072,7 @@ router.get('/contact-priority/cached', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v1/reports/quarterly — Rapport trimestriel automatique (CDC §6.1)
+// GET /api/v1/reports/quarterly — Rapport trimestriel automatique 
 // Accessible aux marchands Starter Plus+ (1/an), Growth (2/an), Premium (4/an)
 router.get('/quarterly', requireAdmin, async (req, res, next) => {
   try {
@@ -1083,8 +1083,8 @@ router.get('/quarterly', requireAdmin, async (req, res, next) => {
     const q = parseInt(quarter) || Math.ceil((now.getMonth() + 1) / 3);
 
     const quarterStart = new Date(y, (q - 1) * 3, 1);
-    const quarterEnd   = new Date(y, q * 3, 1);
-    const periodLabel  = `Q${q} ${y}`;
+    const quarterEnd = new Date(y, q * 3, 1);
+    const periodLabel = `Q${q} ${y}`;
 
     // Si rapport déjà généré, le retourner directement
     const existing = await db.query(

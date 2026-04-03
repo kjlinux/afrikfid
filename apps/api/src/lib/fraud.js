@@ -3,19 +3,19 @@
 const db = require('./db');
 
 const RULE_TYPES = {
-  MAX_AMOUNT_PER_TX:   'max_amount_per_tx',
-  MAX_TX_PER_HOUR:     'max_tx_per_hour',
-  MAX_TX_PER_DAY:      'max_tx_per_day',
-  MAX_AMOUNT_PER_DAY:  'max_amount_per_day',
+  MAX_AMOUNT_PER_TX: 'max_amount_per_tx',
+  MAX_TX_PER_HOUR: 'max_tx_per_hour',
+  MAX_TX_PER_DAY: 'max_tx_per_day',
+  MAX_AMOUNT_PER_DAY: 'max_amount_per_day',
   MAX_FAILED_ATTEMPTS: 'max_failed_attempts',
 };
 
 const DEFAULT_RULES = {
-  [RULE_TYPES.MAX_AMOUNT_PER_TX]:    { value: 5000000,  desc: '5 000 000 XOF par transaction' },
-  [RULE_TYPES.MAX_TX_PER_HOUR]:      { value: 10,       desc: '10 transactions par heure' },
-  [RULE_TYPES.MAX_TX_PER_DAY]:       { value: 30,       desc: '30 transactions par jour' },
-  [RULE_TYPES.MAX_AMOUNT_PER_DAY]:   { value: 10000000, desc: '10 000 000 XOF par jour' },
-  [RULE_TYPES.MAX_FAILED_ATTEMPTS]:  { value: 5,        desc: '5 tentatives échouées' },
+  [RULE_TYPES.MAX_AMOUNT_PER_TX]: { value: 5000000, desc: '5 000 000 XOF par transaction' },
+  [RULE_TYPES.MAX_TX_PER_HOUR]: { value: 10, desc: '10 transactions par heure' },
+  [RULE_TYPES.MAX_TX_PER_DAY]: { value: 30, desc: '30 transactions par jour' },
+  [RULE_TYPES.MAX_AMOUNT_PER_DAY]: { value: 10000000, desc: '10 000 000 XOF par jour' },
+  [RULE_TYPES.MAX_FAILED_ATTEMPTS]: { value: 5, desc: '5 tentatives échouées' },
 };
 
 async function getActiveRules() {
@@ -48,12 +48,12 @@ async function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
 
   const maxAmount = rules[RULE_TYPES.MAX_AMOUNT_PER_TX] || DEFAULT_RULES[RULE_TYPES.MAX_AMOUNT_PER_TX].value;
   if (amount > maxAmount * 0.8) { score += 20; reasons.push('Montant proche ou au-dessus du seuil max'); }
-  if (amount > maxAmount)       { score += 40; reasons.push('Montant dépasse le seuil max'); }
+  if (amount > maxAmount) { score += 40; reasons.push('Montant dépasse le seuil max'); }
 
   if (clientId) {
     const now = new Date().toISOString();
     const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
-    const oneDayAgo  = new Date(Date.now() - 86400_000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 86400_000).toISOString();
 
     const hourRes = await db.query(
       `SELECT COUNT(*) as c FROM transactions WHERE client_id = $1 AND initiated_at >= $2 AND initiated_at <= $3`,
@@ -62,7 +62,7 @@ async function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
     const txLastHour = parseInt(hourRes.rows[0].c);
     const maxPerHour = rules[RULE_TYPES.MAX_TX_PER_HOUR];
     if (txLastHour >= maxPerHour * 0.8) { score += 15; reasons.push(`${txLastHour} transactions cette heure`); }
-    if (txLastHour >= maxPerHour)        { score += 35; reasons.push(`Limite horaire dépassée (${txLastHour})`); }
+    if (txLastHour >= maxPerHour) { score += 35; reasons.push(`Limite horaire dépassée (${txLastHour})`); }
 
     const dayRes = await db.query(
       `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total
@@ -70,9 +70,9 @@ async function computeRiskScore({ amount, clientId, clientPhone, merchantId }) {
       [clientId, oneDayAgo, now]
     );
     const dayStats = { count: parseInt(dayRes.rows[0].count), total: parseFloat(dayRes.rows[0].total) };
-    const maxPerDay    = rules[RULE_TYPES.MAX_TX_PER_DAY];
+    const maxPerDay = rules[RULE_TYPES.MAX_TX_PER_DAY];
     const maxAmountDay = rules[RULE_TYPES.MAX_AMOUNT_PER_DAY];
-    if (dayStats.count >= maxPerDay)    { score += 25; reasons.push(`Limite quotidienne de transactions dépassée (${dayStats.count})`); }
+    if (dayStats.count >= maxPerDay) { score += 25; reasons.push(`Limite quotidienne de transactions dépassée (${dayStats.count})`); }
     if (dayStats.total >= maxAmountDay) { score += 25; reasons.push(`Volume journalier dépassé (${dayStats.total})`); }
 
     const failRes = await db.query(
@@ -118,7 +118,7 @@ function _alertFraudBlocked({ amount, currency, merchantName, clientPhone, reaso
   // Fire-and-forget: ne pas bloquer la réponse HTTP
   try {
     const { notifyFraudBlocked } = require('./notifications');
-    notifyFraudBlocked({ amount, currency: currency || 'XOF', merchantName, clientPhone, reason, riskScore }).catch(() => {});
+    notifyFraudBlocked({ amount, currency: currency || 'XOF', merchantName, clientPhone, reason, riskScore }).catch(() => { });
   } catch { /* pas critique */ }
 }
 
@@ -174,7 +174,7 @@ async function getBlockedPhones() {
 }
 
 /**
- * CDC §2.4.4 — Fraude avérée : retrait immédiat du statut de fidélité sans préavis
+ *— Fraude avérée : retrait immédiat du statut de fidélité sans préavis
  */
 async function revokeLoyaltyStatusForFraud(clientId, reason = 'fraud_detected') {
   const res = await db.query('SELECT loyalty_status FROM clients WHERE id = $1', [clientId]);
@@ -189,7 +189,7 @@ async function revokeLoyaltyStatusForFraud(clientId, reason = 'fraud_detected') 
     `INSERT INTO loyalty_status_history (id, client_id, old_status, new_status, changed_by, reason, changed_at)
      VALUES (gen_random_uuid(), $1, $2, 'OPEN', 'fraud_system', $3, NOW())`,
     [clientId, client.loyalty_status, reason]
-  ).catch(() => {});
+  ).catch(() => { });
 }
 
 module.exports = {

@@ -319,7 +319,7 @@ export default function AdminClients() {
                   </div>
                 )}
 
-                {/* Segment RFM (CDC §5.3) */}
+                {/* Segment RFM  */}
                 {clientDetail.rfmSegment && (
                   <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Segment RFM</div>
@@ -339,7 +339,7 @@ export default function AdminClients() {
                   </div>
                 )}
 
-                {/* Historique triggers (CDC §5.4) */}
+                {/* Historique triggers  */}
                 {clientDetail.triggerHistory?.length > 0 && (
                   <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Derniers triggers automatiques</div>

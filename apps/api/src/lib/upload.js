@@ -1,5 +1,5 @@
 /**
- * Configuration Multer pour l'upload de fichiers KYC (CDC §4.2.1)
+ * Configuration Multer pour l'upload de fichiers KYC 
  * Stockage sur disque local (ou S3 en production via STORAGE_TYPE=s3)
  *
  * Types de fichiers acceptés : PDF, JPEG, PNG, WEBP

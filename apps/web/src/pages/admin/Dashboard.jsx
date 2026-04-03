@@ -181,7 +181,7 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Funnel fidélité Open → Royal (CDC §6.2) */}
+      {/* Funnel fidélité Open → Royal  */}
       {conversionRates && (
         <Card title="Funnel de fidélité — Open → Royal" style={{ marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0, alignItems: 'stretch' }}>
@@ -205,7 +205,7 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* KPIs RFM globaux (CDC §6.2) */}
+      {/* KPIs RFM globaux  */}
       {rfmSummary && rfmSummary.totalScored > 0 && (
         <Card title={`Intelligence RFM — ${rfmSummary.totalScored} clients scorés`} style={{ marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* Success Fees + Abonnements + Triggers (CDC §3.5, §2.5, §5.4) */}
+      {/* Success Fees + Abonnements + Triggers , §2.5, §5.4) */}
       <OperationalMetrics period={period} />
 
       {/* Top Marchands */}
@@ -305,8 +305,8 @@ function OperationalMetrics({ period }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
 
-      {/* Success Fees (CDC §3.5) */}
-      <Card title="Success Fees (CDC §3.5)">
+      {/* Success Fees  */}
+      <Card title="Success Fees ">
         {sf ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
@@ -332,8 +332,8 @@ function OperationalMetrics({ period }) {
         ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Chargement...</div>}
       </Card>
 
-      {/* Abonnements MRR (CDC §2.5) */}
-      <Card title="Abonnements — MRR (CDC §2.5)">
+      {/* Abonnements MRR  */}
+      <Card title="Abonnements — MRR ">
         {subs ? (
           <div>
             <div style={{ background: '#0f172a', borderRadius: 8, padding: '12px 14px', marginBottom: 12, textAlign: 'center' }}>
@@ -366,8 +366,8 @@ function OperationalMetrics({ period }) {
         ) : <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Chargement...</div>}
       </Card>
 
-      {/* Triggers & Abandon (CDC §5.4, §5.5) */}
-      <Card title="Triggers & Abandon (CDC §5.4–5.5)">
+      {/* Triggers & Abandon , §5.5) */}
+      <Card title="Triggers & Abandon –5.5)">
         {triggers ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>

@@ -9,84 +9,116 @@ import {
 
 export const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
-// Tooltip : enveloppe un élément et affiche un texte explicatif au survol (ou au clic sur mobile)
-export function Tooltip({ text, children, position = 'top' }) {
-  const [visible, setVisible] = React.useState(false)
-  const posStyles = {
-    top:    { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    bottom: { top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    right:  { left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
-    left:   { right: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+const TOOLTIP_W = 240
+const TOOLTIP_GAP = 8
+
+// Calcule la position du tooltip en fixed pour rester dans le viewport
+function useSmartTooltip(anchorRef) {
+  const [pos, setPos] = React.useState(null)
+
+  const compute = React.useCallback(() => {
+    if (!anchorRef.current) return
+    const r = anchorRef.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const spaceTop    = r.top
+    const spaceBottom = vh - r.bottom
+    const spaceRight  = vw - r.right
+    const spaceLeft   = r.left
+
+    // Préférence : bas > haut > droite > gauche
+    let top, left
+
+    if (spaceBottom >= 80 || spaceBottom >= spaceTop) {
+      // En dessous
+      top = r.bottom + TOOLTIP_GAP
+    } else {
+      // Au dessus (on calculera avec transform)
+      top = r.top - TOOLTIP_GAP
+    }
+
+    // Centrage horizontal par défaut
+    left = r.left + r.width / 2 - TOOLTIP_W / 2
+    // Clamp dans le viewport avec marge de 8px
+    left = Math.max(8, Math.min(left, vw - TOOLTIP_W - 8))
+
+    const below = spaceBottom >= 80 || spaceBottom >= spaceTop
+    setPos({ top, left, below })
+  }, [anchorRef])
+
+  return { compute, pos }
+}
+
+function TooltipBox({ text, anchorRef }) {
+  const { compute, pos } = useSmartTooltip(anchorRef)
+
+  React.useEffect(() => { compute() }, [compute])
+
+  if (!pos) return null
+
+  const style = {
+    position: 'fixed',
+    top: pos.below ? pos.top : undefined,
+    bottom: pos.below ? undefined : window.innerHeight - pos.top + 'px',
+    left: pos.left,
+    transform: pos.below ? undefined : undefined,
+    background: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontSize: 12,
+    color: '#cbd5e1',
+    lineHeight: 1.5,
+    width: TOOLTIP_W,
+    zIndex: 99999,
+    pointerEvents: 'none',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+    whiteSpace: 'normal',
   }
+
+  if (!pos.below) {
+    // Au-dessus : ancrer par le bas
+    const r = anchorRef.current?.getBoundingClientRect()
+    if (r) style.top = r.top - TOOLTIP_GAP + 'px'
+    style.transform = 'translateY(-100%)'
+    delete style.bottom
+  }
+
+  return <span style={style}>{text}</span>
+}
+
+// Tooltip : enveloppe un élément et affiche un texte explicatif au survol (ou au clic sur mobile)
+export function Tooltip({ text, children }) {
+  const [visible, setVisible] = React.useState(false)
+  const ref = React.useRef(null)
   return (
     <span
+      ref={ref}
       style={{ position: 'relative', display: 'inline-block', cursor: 'help' }}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onClick={() => setVisible(v => !v)}
     >
       <span style={{ borderBottom: '1px dotted #64748b' }}>{children}</span>
-      {visible && (
-        <span style={{
-          position: 'absolute',
-          ...posStyles[position],
-          background: '#0f172a',
-          border: '1px solid #334155',
-          borderRadius: 8,
-          padding: '8px 12px',
-          fontSize: 12,
-          color: '#cbd5e1',
-          lineHeight: 1.5,
-          width: 240,
-          zIndex: 9999,
-          pointerEvents: 'none',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          whiteSpace: 'normal',
-        }}>
-          {text}
-        </span>
-      )}
+      {visible && <TooltipBox text={text} anchorRef={ref} />}
     </span>
   )
 }
 
 // InfoTooltip : petite icône ⓘ qui affiche un tooltip explicatif au survol
-export function InfoTooltip({ text, position = 'top' }) {
+export function InfoTooltip({ text }) {
   const [visible, setVisible] = React.useState(false)
-  const posStyles = {
-    top:    { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    bottom: { top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    right:  { left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
-    left:   { right: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
-  }
+  const ref = React.useRef(null)
   return (
     <span
+      ref={ref}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginLeft: 4, cursor: 'help' }}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onClick={e => { e.stopPropagation(); setVisible(v => !v) }}
     >
       <InformationCircleIcon style={{ width: 14, height: 14, color: '#475569' }} />
-      {visible && (
-        <span style={{
-          position: 'absolute',
-          ...posStyles[position],
-          background: '#0f172a',
-          border: '1px solid #334155',
-          borderRadius: 8,
-          padding: '8px 12px',
-          fontSize: 12,
-          color: '#cbd5e1',
-          lineHeight: 1.5,
-          width: 240,
-          zIndex: 9999,
-          pointerEvents: 'none',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          whiteSpace: 'normal',
-        }}>
-          {text}
-        </span>
-      )}
+      {visible && <TooltipBox text={text} anchorRef={ref} />}
     </span>
   )
 }
@@ -306,7 +338,7 @@ export function PeriodSelector({ value, onChange, options = ['7', '30', '90'] })
 }
 
 // Helper to export table data as PDF (print dialog → Save as PDF)
-// Ouvre une fenêtre dédiée avec le tableau formaté et déclenche l'impression (CDC §4.6.1)
+// Ouvre une fenêtre dédiée avec le tableau formaté et déclenche l'impression 
 export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
   const date = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
   const thead = columns.map(c => `<th>${c.label}</th>`).join('')

@@ -23,7 +23,7 @@ async function runCleanup() {
   `);
   const triggerCount = triggerRes.rowCount || 0;
 
-  // 3. Purger les rfm_transitions traitées > 90 jours (CDC §6.4 — éviter la croissance infinie)
+  // 3. Purger les rfm_transitions traitées > 90 jours — éviter la croissance infinie)
   const rfmRes = await pool.query(`
     DELETE FROM rfm_transitions
     WHERE processed_at IS NOT NULL AND processed_at < NOW() - INTERVAL '90 days'
