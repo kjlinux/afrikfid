@@ -5,18 +5,18 @@ import { TOOLTIPS } from '../../lib/tooltips.js'
 import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 const STATUS_CONFIG = {
-  pending:   { label: 'Non soumis',    color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  icon: ClockIcon },
-  submitted: { label: 'En cours d\'examen', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: ClockIcon },
+  pending:   { label: 'Non soumis',    color: 'var(--af-text-muted)', bg: 'rgba(156,163,175,0.1)',  icon: ClockIcon },
+  submitted: { label: 'En cours d\'examen', color: 'var(--af-accent)', bg: 'rgba(245,158,11,0.1)', icon: ClockIcon },
   approved:  { label: 'Approuvé',      color: '#10b981', bg: 'rgba(16,185,129,0.1)',   icon: CheckCircleIcon },
   rejected:  { label: 'Rejeté',        color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    icon: XCircleIcon },
 }
 
 const inp = {
-  width: '100%', padding: '10px 12px', background: '#0f172a',
-  border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9',
+  width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)',
+  border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
 }
-const lbl = { display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 5 }
+const lbl = { display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 5 }
 
 function FileDropZone({ label, accept, file, onChange, required }) {
   const ref = useRef()
@@ -38,9 +38,9 @@ function FileDropZone({ label, accept, file, onChange, required }) {
         onDragLeave={() => setDrag(false)}
         onDrop={handleDrop}
         style={{
-          border: `2px dashed ${drag ? '#f59e0b' : file ? '#10b981' : '#334155'}`,
+          border: `2px dashed ${drag ? 'var(--af-accent)' : file ? '#10b981' : 'var(--af-border)'}`,
           borderRadius: 10, padding: '20px 16px', textAlign: 'center', cursor: 'pointer',
-          background: file ? 'rgba(16,185,129,0.05)' : drag ? 'rgba(245,158,11,0.05)' : '#0f172a',
+          background: file ? 'rgba(16,185,129,0.05)' : drag ? 'rgba(245,158,11,0.05)' : 'var(--af-surface-3)',
           transition: 'all 0.2s',
         }}
       >
@@ -50,15 +50,15 @@ function FileDropZone({ label, accept, file, onChange, required }) {
           <div>
             <CheckCircleIcon style={{ width: 24, color: '#10b981', margin: '0 auto 6px' }} />
             <div style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>{file.name}</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2 }}>
               {(file.size / 1024 / 1024).toFixed(2)} Mo — Cliquer pour changer
             </div>
           </div>
         ) : (
           <div>
-            <DocumentArrowUpIcon style={{ width: 24, color: '#475569', margin: '0 auto 6px' }} />
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>Glisser-déposer ou cliquer</div>
-            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>PDF, JPEG, PNG — max 10 Mo</div>
+            <DocumentArrowUpIcon style={{ width: 24, color: 'var(--af-border-strong)', margin: '0 auto 6px' }} />
+            <div style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Glisser-déposer ou cliquer</div>
+            <div style={{ fontSize: 11, color: 'var(--af-border-strong)', marginTop: 2 }}>PDF, JPEG, PNG — max 10 Mo</div>
           </div>
         )}
       </div>
@@ -125,8 +125,8 @@ export default function MerchantKyc() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ maxWidth: 620 }}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Vérification KYC<InfoTooltip text={TOOLTIPS.KYC} /></h1>
-        <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>Vérification KYC<InfoTooltip text={TOOLTIPS.KYC} /></h1>
+        <p style={{ color: 'var(--af-text-muted)', fontSize: 14, marginTop: 4 }}>
           Soumettez vos documents pour activer votre compte et commencer à accepter des paiements.
         </p>
       </div>
@@ -141,17 +141,17 @@ export default function MerchantKyc() {
         <div>
           <div style={{ fontWeight: 700, color: cfg.color, fontSize: 15 }}>{cfg.label}</div>
           {status === 'pending' && (
-            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 2 }}>
               Soumettez votre dossier pour que notre équipe puisse l'examiner (24–48h).
             </div>
           )}
           {status === 'submitted' && (
-            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 2 }}>
               Votre dossier est en cours d'examen. Vous serez notifié par email/SMS.
             </div>
           )}
           {status === 'approved' && (
-            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 2 }}>
               Votre identité est vérifiée. Votre compte est pleinement actif.
             </div>
           )}
@@ -165,10 +165,10 @@ export default function MerchantKyc() {
 
       {/* Formulaire — visible si pending ou rejected */}
       {(status === 'pending' || status === 'rejected') && !success && (
-        <div style={{ background: '#1e293b', borderRadius: 14, padding: 28, border: '1px solid #334155' }}>
+        <div style={{ background: 'var(--af-surface)', borderRadius: 14, padding: 28, border: '1px solid var(--af-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            <ShieldCheckIcon style={{ width: 22, color: '#f59e0b' }} />
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
+            <ShieldCheckIcon style={{ width: 22, color: 'var(--af-accent)' }} />
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>
               Documents requis
             </h2>
           </div>
@@ -185,7 +185,7 @@ export default function MerchantKyc() {
                     placeholder="Prénom Nom" />
                 </div>
                 <div>
-                  <label style={lbl}>N° RCCM<InfoTooltip text={TOOLTIPS.RCCM} /> <span style={{ color: '#64748b', fontWeight: 400 }}>(optionnel)</span></label>
+                  <label style={lbl}>N° RCCM<InfoTooltip text={TOOLTIPS.RCCM} /> <span style={{ color: 'var(--af-text-muted)', fontWeight: 400 }}>(optionnel)</span></label>
                   <input style={inp} value={rccmNumber}
                     onChange={e => setRccmNumber(e.target.value)}
                     placeholder="Ex: CI-ABJ-2023-B-00123" />
@@ -210,7 +210,7 @@ export default function MerchantKyc() {
                 required
               />
 
-              <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#475569' }}>
+              <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--af-border-strong)' }}>
                 <LockClosedIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />Vos documents sont chiffrés et stockés de manière sécurisée. Ils ne seront utilisés que pour la vérification de votre identité conformément à notre politique RGPD.
               </div>
 
@@ -224,8 +224,8 @@ export default function MerchantKyc() {
               )}
 
               <button type="submit" disabled={submitting} style={{
-                width: '100%', padding: '13px', background: submitting ? '#334155' : 'linear-gradient(135deg, #f59e0b, #ef4444)',
-                border: 'none', borderRadius: 9, color: submitting ? '#64748b' : '#fff',
+                width: '100%', padding: '13px', background: submitting ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))',
+                border: 'none', borderRadius: 9, color: submitting ? 'var(--af-text-muted)' : '#fff',
                 fontWeight: 700, cursor: submitting ? 'default' : 'pointer', fontSize: 15,
               }}>
                 {submitting ? 'Envoi en cours…' : 'Soumettre mon dossier KYC'}
@@ -243,7 +243,7 @@ export default function MerchantKyc() {
         }}>
           <CheckCircleIcon style={{ width: 48, color: '#10b981', margin: '0 auto 14px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#10b981', marginBottom: 8 }}>Dossier soumis !</h3>
-          <p style={{ color: '#94a3b8', fontSize: 14 }}>
+          <p style={{ color: 'var(--af-text-muted)', fontSize: 14 }}>
             Notre équipe examinera votre dossier sous 24–48h.<br />
             Vous serez notifié par email et SMS dès validation.
           </p>
@@ -252,12 +252,12 @@ export default function MerchantKyc() {
 
       {/* Dossier en cours — pas de formulaire */}
       {status === 'submitted' && (
-        <div style={{ background: '#1e293b', borderRadius: 14, padding: 28, border: '1px solid #334155' }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', marginBottom: 16 }}>Votre dossier</h2>
-          <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ background: 'var(--af-surface)', borderRadius: 14, padding: 28, border: '1px solid var(--af-border)' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--af-text)', marginBottom: 16 }}>Votre dossier</h2>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 13, lineHeight: 1.7 }}>
             <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />RCCM déposé</div>
             <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />CNI du gérant déposée</div>
-            <div style={{ marginTop: 12, color: '#94a3b8' }}>
+            <div style={{ marginTop: 12, color: 'var(--af-text-muted)' }}>
               Si vous avez besoin de modifier votre dossier, contactez notre support.
             </div>
           </div>

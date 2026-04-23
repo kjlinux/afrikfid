@@ -12,7 +12,6 @@ export const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)
 const TOOLTIP_W = 240
 const TOOLTIP_GAP = 8
 
-// Calcule la position du tooltip en fixed pour rester dans le viewport
 function useSmartTooltip(anchorRef) {
   const [pos, setPos] = React.useState(null)
 
@@ -23,23 +22,15 @@ function useSmartTooltip(anchorRef) {
     const vh = window.innerHeight
     const spaceTop    = r.top
     const spaceBottom = vh - r.bottom
-    const spaceRight  = vw - r.right
-    const spaceLeft   = r.left
 
-    // Préférence : bas > haut > droite > gauche
     let top, left
-
     if (spaceBottom >= 80 || spaceBottom >= spaceTop) {
-      // En dessous
       top = r.bottom + TOOLTIP_GAP
     } else {
-      // Au dessus (on calculera avec transform)
       top = r.top - TOOLTIP_GAP
     }
 
-    // Centrage horizontal par défaut
     left = r.left + r.width / 2 - TOOLTIP_W / 2
-    // Clamp dans le viewport avec marge de 8px
     left = Math.max(8, Math.min(left, vw - TOOLTIP_W - 8))
 
     const below = spaceBottom >= 80 || spaceBottom >= spaceTop
@@ -61,23 +52,21 @@ function TooltipBox({ text, anchorRef }) {
     top: pos.below ? pos.top : undefined,
     bottom: pos.below ? undefined : window.innerHeight - pos.top + 'px',
     left: pos.left,
-    transform: pos.below ? undefined : undefined,
-    background: '#0f172a',
-    border: '1px solid #334155',
-    borderRadius: 8,
+    background: 'var(--af-topbar-bg)',
+    border: '1px solid var(--af-border)',
+    borderRadius: 'var(--af-radius)',
     padding: '8px 12px',
     fontSize: 12,
-    color: '#cbd5e1',
+    color: 'var(--af-text)',
     lineHeight: 1.5,
     width: TOOLTIP_W,
     zIndex: 99999,
     pointerEvents: 'none',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+    boxShadow: 'var(--af-shadow-elevated)',
     whiteSpace: 'normal',
   }
 
   if (!pos.below) {
-    // Au-dessus : ancrer par le bas
     const r = anchorRef.current?.getBoundingClientRect()
     if (r) style.top = r.top - TOOLTIP_GAP + 'px'
     style.transform = 'translateY(-100%)'
@@ -87,7 +76,6 @@ function TooltipBox({ text, anchorRef }) {
   return <span style={style}>{text}</span>
 }
 
-// Tooltip : enveloppe un élément et affiche un texte explicatif au survol (ou au clic sur mobile)
 export function Tooltip({ text, children }) {
   const [visible, setVisible] = React.useState(false)
   const ref = React.useRef(null)
@@ -99,13 +87,12 @@ export function Tooltip({ text, children }) {
       onMouseLeave={() => setVisible(false)}
       onClick={() => setVisible(v => !v)}
     >
-      <span style={{ borderBottom: '1px dotted #64748b' }}>{children}</span>
+      <span style={{ borderBottom: '1px dotted var(--af-text-muted)' }}>{children}</span>
       {visible && <TooltipBox text={text} anchorRef={ref} />}
     </span>
   )
 }
 
-// InfoTooltip : petite icône ⓘ qui affiche un tooltip explicatif au survol
 export function InfoTooltip({ text }) {
   const [visible, setVisible] = React.useState(false)
   const ref = React.useRef(null)
@@ -117,36 +104,50 @@ export function InfoTooltip({ text }) {
       onMouseLeave={() => setVisible(false)}
       onClick={e => { e.stopPropagation(); setVisible(v => !v) }}
     >
-      <InformationCircleIcon style={{ width: 14, height: 14, color: '#475569' }} />
+      <InformationCircleIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
       {visible && <TooltipBox text={text} anchorRef={ref} />}
     </span>
   )
 }
 
+// ─── Color maps (consommés par les pages — on garde la même clé/structure) ───
 export const STATUS_COLORS = {
-  completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  failed:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  pending:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  refunded:  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  active:    { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  suspended: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  delivered: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  completed: { color: 'var(--af-success)', bg: 'var(--af-success-soft)' },
+  failed:    { color: 'var(--af-danger)',  bg: 'var(--af-danger-soft)' },
+  pending:   { color: 'var(--af-warning)', bg: 'var(--af-warning-soft)' },
+  refunded:  { color: 'var(--af-kpi-violet)', bg: 'var(--af-kpi-violet-soft)' },
+  active:    { color: 'var(--af-success)', bg: 'var(--af-success-soft)' },
+  suspended: { color: 'var(--af-danger)',  bg: 'var(--af-danger-soft)' },
+  delivered: { color: 'var(--af-success)', bg: 'var(--af-success-soft)' },
 }
-export const LOYALTY_COLORS = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
+export const LOYALTY_COLORS = {
+  OPEN: '#9CA3AF',
+  LIVE: '#3B82F6',
+  GOLD: '#F59E0B',
+  ROYAL: '#8B5CF6',
+  ROYAL_ELITE: '#EC4899',
+}
 
 const COLOR_MAP = {
-  yellow: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  blue:   { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  green:  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  red:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  purple: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  gray:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
+  yellow: { color: 'var(--af-kpi-yellow)', bg: 'var(--af-kpi-yellow-soft)' },
+  blue:   { color: 'var(--af-kpi-blue)',   bg: 'var(--af-kpi-blue-soft)' },
+  green:  { color: 'var(--af-success)',    bg: 'var(--af-success-soft)' },
+  red:    { color: 'var(--af-danger)',     bg: 'var(--af-danger-soft)' },
+  purple: { color: 'var(--af-kpi-violet)', bg: 'var(--af-kpi-violet-soft)' },
+  gray:   { color: 'var(--af-text-muted)', bg: 'var(--af-surface-2)' },
+  orange: { color: 'var(--af-accent)',     bg: 'var(--af-accent-soft)' },
 }
 
 export function Badge({ status, label, color, children }) {
   const s = (color && COLOR_MAP[color]) || STATUS_COLORS[status] || COLOR_MAP.gray
   return (
-    <span style={{ background: s.bg, color: s.color, padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-block' }}>
+    <span style={{
+      background: s.bg, color: s.color,
+      padding: '4px 10px', borderRadius: 'var(--af-radius-pill)',
+      fontSize: 11, fontWeight: 600, display: 'inline-block',
+      border: '1px solid transparent',
+      letterSpacing: 0.2,
+    }}>
       {children || label || status}
     </span>
   )
@@ -161,8 +162,8 @@ const LOYALTY_TOOLTIPS = {
 }
 
 export function LoyaltyBadge({ status }) {
-  const color = LOYALTY_COLORS[status] || '#6B7280'
-  const Icon = status === 'ROYAL' ? TrophyIcon : status === 'GOLD' ? StarIcon : status === 'LIVE' ? SparklesIcon : null
+  const color = LOYALTY_COLORS[status] || LOYALTY_COLORS.OPEN
+  const Icon = status === 'ROYAL' || status === 'ROYAL_ELITE' ? TrophyIcon : status === 'GOLD' ? StarIcon : status === 'LIVE' ? SparklesIcon : null
   const tip = LOYALTY_TOOLTIPS[status]
   const badge = (
     <span style={{ color, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -174,34 +175,47 @@ export function LoyaltyBadge({ status }) {
   return <Tooltip text={tip}>{badge}</Tooltip>
 }
 
-export function KpiCard({ label, value, sub, color = '#f59e0b', icon, trend }) {
+// ─── KPI card ────────────────────────────────────────────────────────────────
+// Conserve la signature (label, value, sub, color, icon, trend) + ajoute un
+// rendu "card avec sparkline" côté Dashboard en passant `color` = une couleur
+// KPI (red/violet/yellow/green...). Les pages existantes continuent de passer
+// une var CSS, ce qui reste supporté.
+export function KpiCard({ label, value, sub, color = 'var(--af-accent)', icon, trend }) {
   return (
-    <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>{label}</span>
-        {icon && <span style={{ color, display: 'flex', alignItems: 'center' }}>{React.isValidElement(icon) ? React.cloneElement(icon, { style: { width: 22, height: 22, ...icon.props?.style } }) : icon}</span>}
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color, marginBottom: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: '#64748b' }}>{sub}</div>}
-      {trend !== undefined && (
-        <div style={{ fontSize: 11, color: trend >= 0 ? '#10b981' : '#ef4444', marginTop: 4 }}>
-          {trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}% vs période préc.
+    <div className="af-kpi">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4, position: 'relative', zIndex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="af-kpi__label">{label}</div>
+          <div className="af-kpi__value" style={{ color }}>{value}</div>
+          {sub && <div className="af-kpi__sub">{sub}</div>}
+          {trend !== undefined && (
+            <div style={{ fontSize: 11, color: trend >= 0 ? 'var(--af-success)' : 'var(--af-danger)', marginTop: 4, fontWeight: 600 }}>
+              {trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}% vs période préc.
+            </div>
+          )}
         </div>
-      )}
+        {icon && (
+          <span style={{ color, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            {React.isValidElement(icon)
+              ? React.cloneElement(icon, { style: { width: 24, height: 24, ...icon.props?.style } })
+              : icon}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
 
 export function Card({ children, title, action, style = {} }) {
   return (
-    <div style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: '1px solid #334155', ...style }}>
+    <div className="af-card" style={style}>
       {title && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', margin: 0 }}>{title}</h3>
+        <div className="af-card__header">
+          <h3 className="af-card__title">{title}</h3>
           {action}
         </div>
       )}
-      {children}
+      <div className="af-card__body">{children}</div>
     </div>
   )
 }
@@ -209,11 +223,28 @@ export function Card({ children, title, action, style = {} }) {
 export function Modal({ open, onClose, title, children, maxWidth = 540 }) {
   if (!open) return null
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-      <div style={{ background: '#1e293b', borderRadius: 16, padding: 28, width: '100%', maxWidth, border: '1px solid #334155', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(15, 17, 21, 0.65)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: 16,
+    }}>
+      <div style={{
+        background: 'var(--af-surface)',
+        borderRadius: 'var(--af-radius-xl)',
+        padding: 28, width: '100%', maxWidth,
+        border: '1px solid var(--af-border)',
+        maxHeight: '90vh', overflowY: 'auto',
+        boxShadow: 'var(--af-shadow-elevated)',
+        color: 'var(--af-text)',
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>{title}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>{title}</h2>
+          <button onClick={onClose}
+            style={{ background: 'transparent', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 4 }}>
+            ✕
+          </button>
         </div>
         {children}
       </div>
@@ -222,19 +253,21 @@ export function Modal({ open, onClose, title, children, maxWidth = 540 }) {
 }
 
 export function Input({ label, ...props }) {
+  const { style: propStyle, ...rest } = props
   return (
     <div style={{ marginBottom: 14 }}>
-      {label && <label style={{ display: 'block', fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{label}</label>}
-      <input {...props} style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box', ...props.style }} />
+      {label && <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>{label}</label>}
+      <input className="af-field" {...rest} style={propStyle} />
     </div>
   )
 }
 
 export function Select({ label, children, options, ...props }) {
+  const { style: propStyle, ...rest } = props
   return (
     <div style={{ marginBottom: 14 }}>
-      {label && <label style={{ display: 'block', fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{label}</label>}
-      <select {...props} style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box', ...props.style }}>
+      {label && <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>{label}</label>}
+      <select className="af-field" {...rest} style={propStyle}>
         {options ? options.map(o => <option key={o.value} value={o.value}>{o.label}</option>) : children}
       </select>
     </div>
@@ -242,17 +275,19 @@ export function Select({ label, children, options, ...props }) {
 }
 
 export function Button({ children, variant = 'primary', size = 'md', ...props }) {
-  const sizes = { sm: { padding: '6px 12px', fontSize: 12 }, md: { padding: '10px 18px', fontSize: 14 }, lg: { padding: '13px 24px', fontSize: 15 } }
-  const variants = {
-    primary: { background: '#f59e0b', color: '#0f172a', border: 'none' },
-    secondary: { background: 'transparent', color: '#94a3b8', border: '1px solid #334155' },
-    danger: { background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' },
-    success: { background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' },
+  const classMap = {
+    primary: 'af-btn af-btn--primary',
+    accent: 'af-btn af-btn--primary',
+    secondary: 'af-btn af-btn--ghost',
+    ghost: 'af-btn af-btn--ghost',
+    danger: 'af-btn af-btn--danger',
+    success: 'af-btn af-btn--success',
+    brand: 'af-btn af-btn--brand',
   }
-  const v = variants[variant] || variants.primary
-  const s = sizes[size] || sizes.md
+  const sizeMap = { sm: ' af-btn--sm', md: '', lg: ' af-btn--lg' }
+  const cls = (classMap[variant] || classMap.primary) + (sizeMap[size] || '')
   return (
-    <button {...props} style={{ ...s, ...v, borderRadius: 8, cursor: props.disabled ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: props.disabled ? 0.5 : 1, ...props.style }}>
+    <button className={cls} {...props}>
       {children}
     </button>
   )
@@ -261,37 +296,53 @@ export function Button({ children, variant = 'primary', size = 'md', ...props })
 export function Pagination({ page, total, limit, onPage }) {
   const pages = Math.ceil(total / limit)
   if (pages <= 1) return null
+  const navStyle = (disabled) => ({
+    padding: '6px 12px',
+    background: 'var(--af-surface)',
+    border: '1px solid var(--af-border)',
+    borderRadius: 'var(--af-radius-sm)',
+    color: disabled ? 'var(--af-text-faint)' : 'var(--af-text)',
+    cursor: disabled ? 'default' : 'pointer',
+    fontSize: 13,
+  })
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-      <span style={{ fontSize: 13, color: '#64748b' }}>{total} total</span>
-      <button disabled={page === 1} onClick={() => onPage(page - 1)}
-        style={{ padding: '5px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page === 1 ? '#334155' : '#94a3b8', cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
-      <span style={{ fontSize: 13, color: '#94a3b8' }}>{page}/{pages}</span>
-      <button disabled={page >= pages} onClick={() => onPage(page + 1)}
-        style={{ padding: '5px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page >= pages ? '#334155' : '#94a3b8', cursor: page >= pages ? 'default' : 'pointer' }}>→</button>
+      <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>{total} total</span>
+      <button disabled={page === 1} onClick={() => onPage(page - 1)} style={navStyle(page === 1)}>←</button>
+      <span style={{ fontSize: 13, color: 'var(--af-text)' }}>{page}/{pages}</span>
+      <button disabled={page >= pages} onClick={() => onPage(page + 1)} style={navStyle(page >= pages)}>→</button>
     </div>
   )
 }
 
 export function Spinner() {
   return (
-    <div style={{ padding: 40, color: '#64748b', textAlign: 'center', fontSize: 14 }}>
-      <div style={{ width: 28, height: 28, border: '3px solid #334155', borderTopColor: '#f59e0b', borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 12px' }} />
+    <div style={{ padding: 40, color: 'var(--af-text-muted)', textAlign: 'center', fontSize: 14 }}>
+      <div className="af-spinner" style={{ margin: '0 auto 12px' }} />
       Chargement...
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
 
 export function Alert({ type = 'error', children, onClose }) {
   const styles = {
-    error:   { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', color: '#ef4444' },
-    success: { bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', color: '#10b981' },
-    info:    { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.3)', color: '#3b82f6' },
+    error:   { bg: 'var(--af-danger-soft)',  color: 'var(--af-danger)' },
+    success: { bg: 'var(--af-success-soft)', color: 'var(--af-success)' },
+    info:    { bg: 'var(--af-info-soft)',    color: 'var(--af-info)' },
+    warning: { bg: 'var(--af-warning-soft)', color: 'var(--af-warning)' },
   }
   const s = styles[type] || styles.error
   return (
-    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: '10px 14px', color: s.color, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+    <div style={{
+      background: s.bg,
+      border: `1px solid ${s.color}33`,
+      borderRadius: 'var(--af-radius)',
+      padding: '10px 14px',
+      color: s.color,
+      fontSize: 13,
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginBottom: 12,
+    }}>
       <span>{children}</span>
       {onClose && <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16 }}>✕</button>}
     </div>
@@ -299,11 +350,11 @@ export function Alert({ type = 'error', children, onClose }) {
 }
 
 export function EmptyState({ icon, title, desc }) {
-  const DefaultIcon = <InboxIcon style={{ width: 40, height: 40, color: '#334155' }} />
+  const DefaultIcon = <InboxIcon className="af-empty-icon" />
   return (
-    <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--af-text-muted)' }}>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>{icon || DefaultIcon}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--af-text)', marginBottom: 6 }}>{title}</div>
       {desc && <div style={{ fontSize: 13 }}>{desc}</div>}
     </div>
   )
@@ -318,7 +369,17 @@ export function CopyButton({ text }) {
     })
   }
   return (
-    <button onClick={copy} title="Copier" style={{ background: 'none', border: '1px solid #334155', borderRadius: 6, color: copied ? '#10b981' : '#64748b', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontWeight: 600 }}>
+    <button onClick={copy} title="Copier"
+      style={{
+        background: 'var(--af-surface)',
+        border: '1px solid var(--af-border)',
+        borderRadius: 'var(--af-radius-sm)',
+        color: copied ? 'var(--af-success)' : 'var(--af-text-muted)',
+        cursor: 'pointer',
+        padding: '4px 10px',
+        fontSize: 11,
+        fontWeight: 600,
+      }}>
       {copied ? '✓ Copié' : 'Copier'}
     </button>
   )
@@ -326,19 +387,31 @@ export function CopyButton({ text }) {
 
 export function PeriodSelector({ value, onChange, options = ['7', '30', '90'] }) {
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {options.map(p => (
-        <button key={p} onClick={() => onChange(p)}
-          style={{ padding: '6px 14px', border: '1px solid #334155', borderRadius: 6, cursor: 'pointer', fontSize: 13, background: value === p ? '#f59e0b' : '#1e293b', color: value === p ? '#0f172a' : '#94a3b8', fontWeight: 600 }}>
-          {p}j
-        </button>
-      ))}
+    <div style={{ display: 'flex', gap: 4, background: 'var(--af-surface-2)', padding: 4, borderRadius: 'var(--af-radius-pill)', border: '1px solid var(--af-border)' }}>
+      {options.map(p => {
+        const active = value === p
+        return (
+          <button key={p} onClick={() => onChange(p)}
+            style={{
+              padding: '6px 14px',
+              border: 'none',
+              borderRadius: 'var(--af-radius-pill)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              background: active ? 'var(--af-accent)' : 'transparent',
+              color: active ? '#FFFFFF' : 'var(--af-text-muted)',
+              transition: 'background 0.15s, color 0.15s',
+            }}>
+            {p}j
+          </button>
+        )
+      })}
     </div>
   )
 }
 
 // Helper to export table data as PDF (print dialog → Save as PDF)
-// Ouvre une fenêtre dédiée avec le tableau formaté et déclenche l'impression 
 export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
   const date = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
   const thead = columns.map(c => `<th>${c.label}</th>`).join('')
@@ -357,15 +430,15 @@ export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
   <title>${title}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; padding: 24px; }
-    h1 { font-size: 18px; color: #f59e0b; margin-bottom: 4px; }
-    .subtitle { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-    .date { font-size: 11px; color: #94a3b8; margin-bottom: 20px; }
+    body { font-family: 'Poppins', Arial, sans-serif; font-size: 11px; color: #1F2937; padding: 24px; }
+    h1 { font-size: 18px; color: #E63946; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #6B7280; margin-bottom: 4px; }
+    .date { font-size: 11px; color: #6B7280; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; }
-    th { background: #1e293b; color: #f1f5f9; padding: 8px 10px; text-align: left; font-size: 11px; }
-    td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    .footer { margin-top: 20px; font-size: 10px; color: #94a3b8; text-align: right; }
+    th { background: #E63946; color: #FFFFFF; padding: 8px 10px; text-align: left; font-size: 11px; }
+    td { padding: 7px 10px; border-bottom: 1px solid #E5E7EB; font-size: 11px; }
+    tr:nth-child(even) td { background: #F9FAFB; }
+    .footer { margin-top: 20px; font-size: 10px; color: #6B7280; text-align: right; }
     @media print { body { padding: 12px; } }
   </style>
 </head>
@@ -387,7 +460,6 @@ export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
   w.document.close()
 }
 
-// Helper to export table data as CSV
 export function exportCsv(rows, columns, filename = 'export.csv') {
   const header = columns.map(c => c.label).join(',')
   const lines = rows.map(row => columns.map(c => {
@@ -395,7 +467,7 @@ export function exportCsv(rows, columns, filename = 'export.csv') {
     return `"${String(val ?? '').replace(/"/g, '""')}"`
   }).join(','))
   const csv = [header, ...lines].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)

@@ -315,7 +315,7 @@ if (process.env.NODE_ENV !== 'test') {
     }
   }, null, true, 'Africa/Abidjan');
 
-  // Expiration transactions pending: toutes les 30 secondes 
+  // Expiration transactions pending: toutes les 30 secondes
   new CronJob('*/30 * * * * *', async () => {
     try {
       await processExpiredTransactions();
@@ -323,6 +323,34 @@ if (process.env.NODE_ENV !== 'test') {
       console.error('[CRON] processExpiredTransactions error:', err.message);
     }
   }, null, true, 'Africa/Abidjan');
+
+  // Sync transactions afrikid → business-api (crédit points fidélité): toutes les 5 min
+  if ((process.env.AFRIKFID_UNIFIED_ID || 'true').toLowerCase() === 'true') {
+    const { syncPendingTransactions } = require('./workers/business-api-sync');
+    new CronJob('*/5 * * * *', async () => {
+      try {
+        const { scanned, ok, failed } = await syncPendingTransactions();
+        if (scanned > 0) console.log(`[CRON] business-api sync: ${ok} ok / ${failed} fail / ${scanned} scanned`);
+      } catch (err) {
+        console.error('[CRON] business-api sync error:', err.message);
+      }
+    }, null, true, 'Africa/Abidjan');
+
+    // Réconciliation quotidienne afrikid ↔ business-api à 04h15 (après rotation clés + refund monitor)
+    const { runDailyReconciliation } = require('./workers/business-api-reconciliation');
+    new CronJob('15 4 * * *', async () => {
+      try {
+        const report = await runDailyReconciliation();
+        if (report.alerted) {
+          console.warn(`[CRON] business-api reconciliation ALERT ${report.date} — count diff ${report.diff_count_ratio}, sum diff ${report.diff_sum_ratio}`);
+        } else {
+          console.log(`[CRON] business-api reconciliation OK ${report.date} (local ${report.local.count}, remote ${report.remote?.count ?? 'n/a'})`);
+        }
+      } catch (err) {
+        console.error('[CRON] business-api reconciliation error:', err.message);
+      }
+    }, null, true, 'Africa/Abidjan');
+  }
 
   // Rafraîchissement automatique des taux de change: toutes les heures (si fournisseur configuré)
   new CronJob('0 * * * *', async () => {

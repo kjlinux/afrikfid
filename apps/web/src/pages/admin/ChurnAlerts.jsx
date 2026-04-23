@@ -23,24 +23,24 @@ export default function AdminChurnAlerts() {
 
   useEffect(() => { load() }, [page])
 
-  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155', textAlign: 'left' }
-  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)', textAlign: 'left' }
+  const td = { padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)' }
 
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Alertes Churn</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Alertes Churn</h1>
         <button onClick={load} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Actualiser</button>
       </div>
 
-      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>
+      <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--af-border)', fontSize: 13, fontWeight: 600, color: 'var(--af-text-muted)' }}>
           Clients à risque de churn (segments A_RISQUE & HIBERNANTS)
         </div>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
         ) : data.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#64748b', padding: 40 }}>Aucune alerte de churn en ce moment</div>
+          <div style={{ textAlign: 'center', color: 'var(--af-text-muted)', padding: 40 }}>Aucune alerte de churn en ce moment</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -48,7 +48,7 @@ export default function AdminChurnAlerts() {
               <tbody>
                 {data.map((row, i) => (
                   <tr key={row.id || i}>
-                    <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>{row.client_name || row.full_name || row.client_id}</td>
+                    <td style={{ ...td, color: 'var(--af-text)', fontWeight: 600 }}>{row.client_name || row.full_name || row.client_id}</td>
                     <td style={td}>{row.merchant_name || row.merchant_id}</td>
                     <td style={td}><Badge color={SEGMENT_COLORS[row.segment] || 'gray'}>{row.segment}</Badge></td>
                     <td style={{ ...td, textAlign: 'center', fontFamily: 'monospace' }}>{row.r_score ?? '—'}</td>

@@ -90,8 +90,8 @@ export default function AdminFraud() {
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Détection de Fraude</h1>
-        <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>Règles configurables · Blacklist · Score de risque</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Détection de Fraude</h1>
+        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Règles configurables · Blacklist · Score de risque</p>
       </div>
 
       {alert && <Alert type={alert.type} onClose={() => setAlert(null)}>{alert.text}</Alert>}
@@ -103,18 +103,18 @@ export default function AdminFraud() {
             <Button size="sm" onClick={() => setShowRuleModal(true)}>+ Ajouter</Button>
           }>
             {rules.length === 0 ? (
-              <EmptyState icon={<ScaleIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Règles par défaut actives" desc="Ajoutez des règles pour surcharger les valeurs par défaut." />
+              <EmptyState icon={<ScaleIcon style={{ width: 40, height: 40, color: 'var(--af-border)' }} />} title="Règles par défaut actives" desc="Ajoutez des règles pour surcharger les valeurs par défaut." />
             ) : (
               <div>
                 {rules.map(r => (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #334155' }}>
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--af-border)' }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: r.is_active ? '#f1f5f9' : '#64748b' }}>{r.name}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{RULE_TYPE_LABELS[r.rule_type] || r.rule_type} · Valeur: {r.value}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: r.is_active ? 'var(--af-text)' : 'var(--af-text-muted)' }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{RULE_TYPE_LABELS[r.rule_type] || r.rule_type} · Valeur: {r.value}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <button onClick={() => toggleRule(r.id, r.is_active)}
-                        style={{ padding: '3px 10px', background: r.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)', border: `1px solid ${r.is_active ? 'rgba(16,185,129,0.3)' : '#334155'}`, borderRadius: 6, color: r.is_active ? '#10b981' : '#64748b', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                        style={{ padding: '3px 10px', background: r.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', border: `1px solid ${r.is_active ? 'rgba(16,185,129,0.3)' : 'var(--af-border)'}`, borderRadius: 6, color: r.is_active ? '#10b981' : 'var(--af-text-muted)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
                         {r.is_active ? 'Actif' : 'Inactif'}
                       </button>
                       <button onClick={() => deleteRule(r.id)}
@@ -128,8 +128,8 @@ export default function AdminFraud() {
             )}
 
             {/* Règles par défaut */}
-            <div style={{ marginTop: 16, background: '#0f172a', borderRadius: 8, padding: 12 }}>
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>Règles par défaut (si non surchargées)</div>
+            <div style={{ marginTop: 16, background: 'var(--af-surface-3)', borderRadius: 8, padding: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>Règles par défaut (si non surchargées)</div>
               {[
                 ['Montant max / tx', '5 000 000 XOF'],
                 ['Max tx / heure', '10'],
@@ -137,8 +137,8 @@ export default function AdminFraud() {
                 ['Volume max / jour', '10 000 000 XOF'],
                 ['Tentatives échouées', '5'],
               ].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>
-                  <span>{k}</span><span style={{ color: '#64748b' }}>{v}</span>
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 4 }}>
+                  <span>{k}</span><span style={{ color: 'var(--af-text-muted)' }}>{v}</span>
                 </div>
               ))}
             </div>
@@ -149,15 +149,15 @@ export default function AdminFraud() {
             <Button size="sm" variant="danger" onClick={() => setShowPhoneModal(true)}>+ Bloquer</Button>
           }>
             {phones.length === 0 ? (
-              <EmptyState icon={<NoSymbolIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun numéro bloqué" desc="Les numéros bloqués seront refusés à l'initiation de paiement." />
+              <EmptyState icon={<NoSymbolIcon style={{ width: 40, height: 40, color: 'var(--af-border)' }} />} title="Aucun numéro bloqué" desc="Les numéros bloqués seront refusés à l'initiation de paiement." />
             ) : (
               <div>
                 {phones.map(p => (
-                  <div key={p.phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #334155' }}>
+                  <div key={p.phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--af-border)' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#ef4444', fontFamily: 'monospace' }}>{p.phone}</div>
-                      {p.reason && <div style={{ fontSize: 11, color: '#64748b' }}>{p.reason}</div>}
-                      <div style={{ fontSize: 10, color: '#64748b' }}>{p.blocked_at?.split('T')[0]}</div>
+                      {p.reason && <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{p.reason}</div>}
+                      <div style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>{p.blocked_at?.split('T')[0]}</div>
                     </div>
                     <button onClick={() => unblockPhone(p.phone)}
                       style={{ padding: '4px 10px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, color: '#10b981', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
@@ -175,9 +175,9 @@ export default function AdminFraud() {
       <Modal open={showRuleModal} onClose={() => setShowRuleModal(false)} title="Nouvelle règle anti-fraude" maxWidth={440}>
         <Input label="Nom de la règle" value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Limite Orange CI" />
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>Type</label>
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Type</label>
           <select value={ruleForm.rule_type} onChange={e => setRuleForm(f => ({ ...f, rule_type: e.target.value }))}
-            style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}>
+            style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}>
             {Object.entries(RULE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>

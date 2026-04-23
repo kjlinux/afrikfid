@@ -591,4 +591,29 @@ router.get('/:merchantId/recommendations', requireAuth, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+/**
+ * GET /merchant-intelligence/:merchantId/loyalty
+ * Historique fidélité AfrikFid (business-api) pour un marchand afrikid.
+ * Utilise merchants.business_api_marchand_id pour le mapping.
+ */
+router.get('/:merchantId/loyalty', requireAuth, async (req, res, next) => {
+  try {
+    const merchantId = req.params.merchantId === 'me' ? req.merchant?.id : req.params.merchantId;
+    if (!req.admin && !req.merchant) return res.status(403).json({ error: 'Accès refusé' });
+    if (!merchantId) return res.status(403).json({ error: 'Accès réservé aux marchands' });
+    if (req.merchant && req.merchant.id !== merchantId) {
+      return res.status(403).json({ error: 'Accès refusé à ce marchand' });
+    }
+    const r = await pool.query('SELECT business_api_marchand_id FROM merchants WHERE id = $1', [merchantId]);
+    const mapped = r.rows[0]?.business_api_marchand_id;
+    if (!mapped) {
+      return res.json({ available: false, reason: 'merchant_not_linked_to_business_api' });
+    }
+    const afrikfidClient = require('../lib/afrikfid-client');
+    const summary = await afrikfidClient.getMerchantLoyaltySummary(mapped);
+    if (!summary) return res.json({ available: false, reason: 'upstream_unavailable' });
+    res.json({ available: true, summary });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

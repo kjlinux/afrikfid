@@ -12,8 +12,8 @@ import {
 } from '@heroicons/react/24/outline'
 
 const inp = {
-  width: '100%', padding: '9px 12px', background: '#0f172a',
-  border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9',
+  width: '100%', padding: '9px 12px', background: 'var(--af-surface-3)',
+  border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text)',
   fontSize: 13, outline: 'none', boxSizing: 'border-box',
 }
 
@@ -106,14 +106,14 @@ export default function AdminProfile() {
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 640 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Profil & Sécurité</h1>
-      <p style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Gérez la sécurité de votre compte administrateur</p>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Profil & Sécurité</h1>
+      <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 28 }}>Gérez la sécurité de votre compte administrateur</p>
 
       {/* ─── Infos compte ─────────────────────────────────────────────────── */}
-      <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155', marginBottom: 20 }}>
+      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <KeyIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Informations du compte</h2>
+          <KeyIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Informations du compte</h2>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
@@ -121,21 +121,21 @@ export default function AdminProfile() {
             ['Rôle', user?.role === 'admin' ? 'Administrateur' : user?.role],
             ['2FA', totpEnabled ? 'Activé' : 'Désactivé'],
           ].map(([k, v]) => (
-            <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{k}</div>
-              <div style={{ fontSize: 13, color: k === '2FA' ? (totpEnabled ? '#10b981' : '#ef4444') : '#f1f5f9', fontWeight: 500 }}>{v || '—'}</div>
+            <div key={k} style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 4 }}>{k}</div>
+              <div style={{ fontSize: 13, color: k === '2FA' ? (totpEnabled ? '#10b981' : '#ef4444') : 'var(--af-text)', fontWeight: 500 }}>{v || '—'}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* ─── 2FA ──────────────────────────────────────────────────────────── */}
-      <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
+      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <ShieldCheckIcon style={{ width: 18, height: 18, color: '#10b981' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Authentification à deux facteurs (2FA)</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Authentification à deux facteurs (2FA)</h2>
         </div>
-        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 20 }}>
+        <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 20 }}>
           Protégez votre compte avec une application TOTP (Google Authenticator, Authy, etc.).
         </p>
 
@@ -146,19 +146,19 @@ export default function AdminProfile() {
               <CheckCircleIcon style={{ width: 18, height: 18, color: '#10b981', flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>2FA activé</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>Votre compte est protégé par une double authentification.</div>
+                <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 1 }}>Votre compte est protégé par une double authentification.</div>
               </div>
             </div>
             <Msg msg={disableMsg} />
             {showDisable ? (
-              <div style={{ background: '#0f172a', borderRadius: 8, padding: 16 }}>
-                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 10 }}>Saisissez votre mot de passe pour désactiver le 2FA :</div>
+              <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: 16 }}>
+                <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 10 }}>Saisissez votre mot de passe pour désactiver le 2FA :</div>
                 <input type="password" value={disablePassword} onChange={e => setDisablePassword(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && disable2FA()}
                   placeholder="Mot de passe" autoFocus style={{ ...inp, marginBottom: 10 }} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => { setShowDisable(false); setDisablePassword(''); setDisableMsg(null) }}
-                    style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid #334155', borderRadius: 6, color: '#64748b', cursor: 'pointer', fontSize: 13 }}>
+                    style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13 }}>
                     Annuler
                   </button>
                   <button onClick={disable2FA} disabled={disableLoading || !disablePassword}
@@ -183,8 +183,8 @@ export default function AdminProfile() {
             {step === 'idle' && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-                  <ExclamationCircleIcon style={{ width: 18, height: 18, color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                  <ExclamationCircleIcon style={{ width: 18, height: 18, color: 'var(--af-accent)', flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
                     Le 2FA n'est pas activé. En tant qu'administrateur, il est fortement recommandé de l'activer pour sécuriser l'accès .
                   </div>
                 </div>
@@ -202,24 +202,24 @@ export default function AdminProfile() {
                   {/* QR Code */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                      <QrCodeIcon style={{ width: 14, height: 14, color: '#64748b' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Scanner le QR code</span>
+                      <QrCodeIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Scanner le QR code</span>
                     </div>
-                    {qrCode && <img src={qrCode} alt="QR Code 2FA" style={{ width: '100%', maxWidth: 180, borderRadius: 8, border: '1px solid #334155' }} />}
+                    {qrCode && <img src={qrCode} alt="QR Code 2FA" style={{ width: '100%', maxWidth: 180, borderRadius: 8, border: '1px solid var(--af-border)' }} />}
                   </div>
                   {/* Clé manuelle */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                      <KeyIcon style={{ width: 14, height: 14, color: '#64748b' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ou saisie manuelle</span>
+                      <KeyIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ou saisie manuelle</span>
                     </div>
-                    <code style={{ display: 'block', fontSize: 11, color: '#f59e0b', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, padding: '10px 12px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                    <code style={{ display: 'block', fontSize: 11, color: 'var(--af-accent)', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '10px 12px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
                       {secret}
                     </code>
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
                   <DevicePhoneMobileIcon style={{ width: 13, height: 13, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
                   2. Entrez le code généré par l'application
                 </div>
@@ -233,7 +233,7 @@ export default function AdminProfile() {
                     {setupLoading ? 'Vérification...' : 'Confirmer'}
                   </button>
                   <button onClick={() => { setStep('idle'); setQrCode(null); setSecret(null); setTotpCode(''); setSetupMsg(null) }}
-                    style={{ padding: '9px 14px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#64748b', cursor: 'pointer', fontSize: 13 }}>
+                    style={{ padding: '9px 14px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13 }}>
                     Annuler
                   </button>
                 </div>
@@ -244,11 +244,11 @@ export default function AdminProfile() {
               <div>
                 <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>2FA activé !</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Conservez ces codes de secours dans un endroit sûr. Chaque code ne peut être utilisé qu'une seule fois.</div>
+                  <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Conservez ces codes de secours dans un endroit sûr. Chaque code ne peut être utilisé qu'une seule fois.</div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, background: '#0f172a', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, background: 'var(--af-surface-3)', borderRadius: 8, padding: 16 }}>
                   {backupCodes.map(code => (
-                    <code key={code} style={{ fontSize: 12, color: '#f59e0b', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'rgba(245,158,11,0.08)', borderRadius: 4, textAlign: 'center' }}>
+                    <code key={code} style={{ fontSize: 12, color: 'var(--af-accent)', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'rgba(245,158,11,0.08)', borderRadius: 4, textAlign: 'center' }}>
                       {code}
                     </code>
                   ))}

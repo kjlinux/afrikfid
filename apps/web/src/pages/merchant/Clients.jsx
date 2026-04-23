@@ -5,7 +5,7 @@ import { TOOLTIPS } from '../../lib/tooltips.js'
 import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
-const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
 const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
 const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 
@@ -33,7 +33,7 @@ function RfmBadge({ segment }) {
 
 function AbandonBadge({ step, status }) {
   if (!step || status !== 'active') return null
-  const color = step >= 4 ? '#ef4444' : '#f59e0b'
+  const color = step >= 4 ? '#ef4444' : 'var(--af-accent)'
   return (
     <Tooltip text={TOOLTIPS.protocole_abandon}>
       <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
@@ -88,8 +88,8 @@ export default function MerchantClients() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Clients Fidélisés</h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Clients Afrik'Fid ayant effectué au moins une transaction chez vous</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Clients Fidélisés</h1>
+          <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>Clients Afrik'Fid ayant effectué au moins une transaction chez vous</p>
         </div>
         <button onClick={handleExport}
           style={{ padding: '8px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
@@ -107,15 +107,15 @@ export default function MerchantClients() {
             return (
               <button key={s} onClick={() => { setFilter(s === filter ? 'all' : s); setPage(1) }}
                 style={{
-                  background: filter === s ? `${color}22` : '#1e293b',
-                  border: `1px solid ${filter === s ? color : '#334155'}`,
+                  background: filter === s ? `${color}22` : 'var(--af-surface)',
+                  border: `1px solid ${filter === s ? color : 'var(--af-border)'}`,
                   borderRadius: 12, padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
                 }}>
                 <div style={{ marginBottom: 6, color }}>
                   {Icon ? <Icon style={{ width: 20, height: 20 }} /> : <span style={{ width: 14, height: 14, borderRadius: '50%', background: color, display: 'inline-block' }} />}
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color }}>{count}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{s}</div>
+                <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 2 }}>{s}</div>
               </button>
             )
           })}
@@ -125,22 +125,22 @@ export default function MerchantClients() {
       {/* Filtre actif */}
       {filter !== 'all' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>Filtré par :</span>
+          <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Filtré par :</span>
           <span style={{ background: `${LOYALTY_COLOR[filter]}22`, color: LOYALTY_COLOR[filter], padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{filter}</span>
           <button onClick={() => { setFilter('all'); setPage(1) }}
-            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 12 }}>✕ effacer</button>
+            style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12 }}>✕ effacer</button>
         </div>
       )}
 
       <Card title={`${total} client${total > 1 ? 's' : ''} fidélisé${total > 1 ? 's' : ''}`}>
         {loading ? <Spinner /> : clients.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b', fontSize: 14 }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--af-text-muted)', fontSize: 14 }}>
             Aucun client pour ce filtre.
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #334155' }}>
+              <tr style={{ borderBottom: '1px solid var(--af-border)' }}>
                 {[
                   { label: 'Client', tip: null },
                   { label: 'Statut fidélité', tip: null },
@@ -151,7 +151,7 @@ export default function MerchantClients() {
                   { label: 'Dernière visite', tip: null },
                   ...(isGrowthPlus ? [{ label: 'Abandon', tip: TOOLTIPS.protocole_abandon }] : []),
                 ].map(h => (
-                  <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: 11 }}>
+                  <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--af-text-muted)', fontWeight: 600, fontSize: 11 }}>
                     {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
                   </th>
                 ))}
@@ -159,10 +159,10 @@ export default function MerchantClients() {
             </thead>
             <tbody>
               {clients.map(c => (
-                <tr key={c.clientId} style={{ borderBottom: '1px solid #1e293b' }}>
+                <tr key={c.clientId} style={{ borderBottom: '1px solid var(--af-surface)' }}>
                   <td style={{ padding: '12px 12px' }}>
-                    <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.clientName || 'Client anonyme'}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{c.afrikfidId}</div>
+                    <div style={{ fontWeight: 600, color: 'var(--af-text)' }}>{c.clientName || 'Client anonyme'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2 }}>{c.afrikfidId}</div>
                   </td>
                   <td style={{ padding: '12px 12px' }}>
                     <LoyaltyBadge status={c.loyaltyStatus} />
@@ -172,10 +172,10 @@ export default function MerchantClients() {
                       <RfmBadge segment={c.rfmSegment} />
                     </td>
                   )}
-                  <td style={{ padding: '12px 12px', color: '#f1f5f9', fontWeight: 600 }}>{c.txCount}</td>
+                  <td style={{ padding: '12px 12px', color: 'var(--af-text)', fontWeight: 600 }}>{c.txCount}</td>
                   <td style={{ padding: '12px 12px', color: '#10b981', fontWeight: 600 }}>{fmt(c.totalVolume)} XOF</td>
                   <td style={{ padding: '12px 12px', color: '#3b82f6' }}>{fmt(c.totalRebates)} XOF</td>
-                  <td style={{ padding: '12px 12px', color: '#64748b', fontSize: 12 }}>
+                  <td style={{ padding: '12px 12px', color: 'var(--af-text-muted)', fontSize: 12 }}>
                     {c.lastTx ? new Date(c.lastTx).toLocaleDateString('fr-FR') : '—'}
                   </td>
                   {isGrowthPlus && (

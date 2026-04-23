@@ -1119,6 +1119,34 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_rfm_transitions_client ON rfm_transitions(client_id, transitioned_at DESC);
     `,
   },
+  {
+    version: 31,
+    name: '031_business_api_integration',
+    up: `
+      -- Pivot vers la carte fidélité historique AfrikFid (business-api).
+      -- afrikfid_id passe à un CHAR(12) format 2014xxxxxxx (source de vérité: carte_fidelites.numero).
+      -- L'ancien format AFD-XXXX-XXXX est conservé dans legacy_afrikfid_id pour transition.
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS legacy_afrikfid_id TEXT;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS business_api_consommateur_id INTEGER;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_business_api_consommateur
+        ON clients(business_api_consommateur_id) WHERE business_api_consommateur_id IS NOT NULL;
+
+      -- Mapping marchand afrikid ↔ business-api.
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_api_marchand_id INTEGER;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_merchants_business_api_marchand
+        ON merchants(business_api_marchand_id) WHERE business_api_marchand_id IS NOT NULL;
+
+      -- Traçabilité des transactions synchronisées vers business-api (points & wallet).
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_api_transaction_id INTEGER;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_api_points_awarded INTEGER;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_api_synced_at TIMESTAMPTZ;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_api_sync_attempts INTEGER DEFAULT 0;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_api_sync_error TEXT;
+      CREATE INDEX IF NOT EXISTS idx_tx_business_api_pending
+        ON transactions(status, business_api_synced_at)
+        WHERE status = 'completed' AND business_api_synced_at IS NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

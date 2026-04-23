@@ -3,12 +3,12 @@ import api from '../../api.js'
 import { Card, Spinner, Pagination, EmptyState, exportCsv, exportPdf } from '../../components/ui.jsx'
 import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 
-const ACTOR_COLORS = { admin: '#f59e0b', merchant: '#3b82f6', system: '#8b5cf6' }
-const ACTION_COLORS = { create: '#10b981', update: '#3b82f6', delete: '#ef4444', login: '#f59e0b', refund: '#8b5cf6' }
+const ACTOR_COLORS = { admin: 'var(--af-accent)', merchant: '#3b82f6', system: '#8b5cf6' }
+const ACTION_COLORS = { create: '#10b981', update: '#3b82f6', delete: '#ef4444', login: 'var(--af-accent)', refund: '#8b5cf6' }
 
 function actionColor(action = '') {
   const key = Object.keys(ACTION_COLORS).find(k => action.toLowerCase().includes(k))
-  return ACTION_COLORS[key] || '#94a3b8'
+  return ACTION_COLORS[key] || 'var(--af-text-muted)'
 }
 
 export default function AdminAuditLogs() {
@@ -42,15 +42,15 @@ export default function AdminAuditLogs() {
     { label: 'IP', key: 'ip_address' },
   ]
 
-  const inp = { padding: '9px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 13 }
+  const inp = { padding: '9px 12px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', fontSize: 13 }
 
   return (
     <div style={{ padding: '24px 20px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Journal d'audit</h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{total} entrée{total > 1 ? 's' : ''} — traçabilité complète</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Journal d'audit</h1>
+          <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>{total} entrée{total > 1 ? 's' : ''} — traçabilité complète</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => exportCsv(logs, COLS, 'audit-logs.csv')}
@@ -94,48 +94,48 @@ export default function AdminAuditLogs() {
 
       {/* Table */}
       {loading ? <Spinner /> : logs.length === 0 ? (
-        <EmptyState icon={<ClipboardDocumentListIcon style={{ width: 40, height: 40, color: '#64748b' }} />} title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
+        <EmptyState icon={<ClipboardDocumentListIcon style={{ width: 40, height: 40, color: 'var(--af-text-muted)' }} />} title="Aucune entrée" desc="Le journal d'audit est vide ou aucun résultat ne correspond aux filtres." />
       ) : (
         <Card>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#0f172a' }}>
+                <tr style={{ background: 'var(--af-surface-3)' }}>
                   {['Date', 'Acteur', 'Action', 'Ressource', 'IP', ''].map(h => (
-                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {logs.map(log => (
-                  <tr key={log.id} style={{ borderTop: '1px solid #334155', cursor: 'pointer' }}
+                  <tr key={log.id} style={{ borderTop: '1px solid var(--af-border)', cursor: 'pointer' }}
                     onClick={() => setSelected(log)}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--af-text-muted)', whiteSpace: 'nowrap' }}>
                       {log.created_at ? new Date(log.created_at).toLocaleString('fr-FR') : '—'}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: ACTOR_COLORS[log.actor_type] || '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 7px', borderRadius: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: ACTOR_COLORS[log.actor_type] || 'var(--af-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '2px 7px', borderRadius: 4 }}>
                         {log.actor_type}
                       </span>
-                      <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>{log.actor_id?.slice(0, 8)}…</span>
+                      <span style={{ fontSize: 11, color: 'var(--af-text-muted)', marginLeft: 6 }}>{log.actor_id?.slice(0, 8)}…</span>
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: actionColor(log.action) }}>
                         {log.action}
                       </span>
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--af-text-muted)' }}>
                       {log.resource_type && (
-                        <span>{log.resource_type}{log.resource_id ? <span style={{ color: '#64748b', marginLeft: 4, fontSize: 11 }}>{log.resource_id?.slice(0, 8)}…</span> : null}</span>
+                        <span>{log.resource_type}{log.resource_id ? <span style={{ color: 'var(--af-text-muted)', marginLeft: 4, fontSize: 11 }}>{log.resource_id?.slice(0, 8)}…</span> : null}</span>
                       )}
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--af-text-muted)', fontFamily: 'monospace' }}>
                       {log.ip_address || '—'}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <button style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>
+                      <button style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: 'var(--af-accent)', cursor: 'pointer', fontSize: 11 }}>
                         Détail
                       </button>
                     </td>
@@ -152,11 +152,11 @@ export default function AdminAuditLogs() {
       {selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setSelected(null)}>
-          <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 28, width: 600, maxHeight: '80vh', overflowY: 'auto' }}
+          <div style={{ background: 'var(--af-surface)', borderRadius: 12, border: '1px solid var(--af-border)', padding: 28, width: 600, maxHeight: '80vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 700 }}>Détail de l'entrée</h3>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20 }}>×</button>
+              <h3 style={{ color: 'var(--af-text)', fontSize: 16, fontWeight: 700 }}>Détail de l'entrée</h3>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
 
             {[
@@ -167,15 +167,15 @@ export default function AdminAuditLogs() {
               ['IP', selected.ip_address || '—'],
             ].map(([label, value]) => (
               <div key={label} style={{ display: 'flex', gap: 16, marginBottom: 14, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 12, color: '#64748b', width: 100, flexShrink: 0, fontWeight: 600 }}>{label}</span>
-                <span style={{ fontSize: 13, color: '#f1f5f9', wordBreak: 'break-all' }}>{value}</span>
+                <span style={{ fontSize: 12, color: 'var(--af-text-muted)', width: 100, flexShrink: 0, fontWeight: 600 }}>{label}</span>
+                <span style={{ fontSize: 13, color: 'var(--af-text)', wordBreak: 'break-all' }}>{value}</span>
               </div>
             ))}
 
             {selected.payload && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 8 }}>Payload</div>
-                <pre style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 14, fontSize: 11, color: '#94a3b8', overflowX: 'auto', maxHeight: 300, overflowY: 'auto' }}>
+                <div style={{ fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>Payload</div>
+                <pre style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: 14, fontSize: 11, color: 'var(--af-text-muted)', overflowX: 'auto', maxHeight: 300, overflowY: 'auto' }}>
                   {typeof selected.payload === 'string' ? selected.payload : JSON.stringify(selected.payload, null, 2)}
                 </pre>
               </div>

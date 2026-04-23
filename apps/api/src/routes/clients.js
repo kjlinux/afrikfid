@@ -137,16 +137,18 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
   const nextStatus = currentIdx < statusOrder.length - 1 ? statusOrder[currentIdx + 1] : null;
 
   // CDC v3 : éligibilité basée sur les points statut 12 mois glissants
+  const { LOYALTY_POINTS_THRESHOLDS } = require('../config/constants');
   const currentPoints12m = parseInt(client.status_points_12m) || 0;
   let nextStatusEligibility = null;
   if (nextStatus) {
     const nextConfig = loyaltyConfigs.find(c => c.status === nextStatus);
-    if (nextConfig) {
-      const requiredPoints = parseInt(nextConfig.min_status_points) || 0;
+    const requiredPoints = nextConfig
+      ? (parseInt(nextConfig.min_status_points) || LOYALTY_POINTS_THRESHOLDS[nextStatus] || 0)
+      : (LOYALTY_POINTS_THRESHOLDS[nextStatus] || 0);
+
+    if (requiredPoints > 0) {
       const pointsNeeded = Math.max(0, requiredPoints - currentPoints12m);
-      const pointsProgress = requiredPoints > 0
-        ? Math.min(100, Math.round((currentPoints12m / requiredPoints) * 100))
-        : 100;
+      const pointsProgress = Math.min(100, Math.round((currentPoints12m / requiredPoints) * 100));
 
       nextStatusEligibility = {
         targetStatus: nextStatus,
@@ -154,6 +156,8 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
         requiredStatusPoints: requiredPoints,
         pointsNeeded,
         pointsProgress,
+        overallProgress: pointsProgress,
+        evaluationMonths: 12,
         eligible: pointsNeeded === 0,
         // Pour ROYAL_ELITE : condition alternative
         ...(nextStatus === 'ROYAL_ELITE' ? {
@@ -593,5 +597,31 @@ function sanitizeClient(c) {
     createdAt: c.created_at,
   };
 }
+
+// ─── GET /api/v1/clients/me/afrikfid-profile ─────────────────────────────────
+// Profil fidélité historique (carte + wallet + carte cadeau) rapatrié depuis business-api.
+// Renvoie { available: false } si la carte n'est pas connue côté SI fidélité ou si
+// l'intégration est indisponible — l'espace client continue de fonctionner en mode dégradé.
+router.get('/me/afrikfid-profile', require('../middleware/auth').requireClient, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const numero = req.client?.afrikfid_id;
+  if (!afrikfidClient.isValidCardNumero(numero)) {
+    return res.json({ available: false, reason: 'card_format_not_unified' });
+  }
+  const [card, wallet] = await Promise.all([
+    afrikfidClient.lookupCard(numero).catch(() => null),
+    afrikfidClient.getWallet(numero).catch(() => null),
+  ]);
+  if (!card) return res.json({ available: false, reason: 'upstream_unavailable' });
+  res.json({
+    available: true,
+    card: {
+      numero: card.numero,
+      points: card.points_cumules,
+      reduction: card.reduction,
+    },
+    wallet: wallet || null,
+  });
+});
 
 module.exports = router;

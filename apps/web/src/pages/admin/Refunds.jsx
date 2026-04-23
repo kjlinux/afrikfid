@@ -32,57 +32,57 @@ function RefundModal({ refund, onClose }) {
     <Modal open title={`Remboursement — ${refund.transaction_reference || refund.transaction_id?.slice(0, 12)}`} onClose={onClose}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Montant remboursé</div>
-          <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 15 }}>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Montant remboursé</div>
+          <div style={{ color: 'var(--af-text)', fontWeight: 700, fontSize: 15 }}>
             {Number(refund.amount).toLocaleString('fr-FR')} {refund.currency || ''}
           </div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Statut</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Statut</div>
           <Badge color={STATUS_COLORS[refund.status] || 'gray'}>{STATUS_LABELS[refund.status] || refund.status}</Badge>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Type</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{refund.refund_type === 'full' ? 'Total' : 'Partiel'}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Type</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{refund.refund_type === 'full' ? 'Total' : 'Partiel'}</div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Ratio</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{refund.refund_ratio ? (refund.refund_ratio * 100).toFixed(1) + '%' : '—'}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Ratio</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{refund.refund_ratio ? (refund.refund_ratio * 100).toFixed(1) + '%' : '—'}</div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Remise marchand reversée</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{Number(refund.merchant_rebate_refunded || 0).toLocaleString('fr-FR')}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Remise marchand reversée</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{Number(refund.merchant_rebate_refunded || 0).toLocaleString('fr-FR')}</div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Cashback client annulé</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{Number(refund.client_rebate_refunded || 0).toLocaleString('fr-FR')}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Cashback client annulé</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{Number(refund.client_rebate_refunded || 0).toLocaleString('fr-FR')}</div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Commission reversée</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{Number(refund.platform_commission_refunded || 0).toLocaleString('fr-FR')}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Commission reversée</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{Number(refund.platform_commission_refunded || 0).toLocaleString('fr-FR')}</div>
         </div>
         <div>
-          <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Date</div>
-          <div style={{ color: '#f1f5f9', fontSize: 13 }}>{new Date(refund.created_at).toLocaleString('fr-FR')}</div>
+          <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Date</div>
+          <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{new Date(refund.created_at).toLocaleString('fr-FR')}</div>
         </div>
         {refund.reason && (
           <div style={{ gridColumn: '1 / -1' }}>
-            <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Motif</div>
-            <div style={{ color: '#94a3b8', fontSize: 12, background: '#0f172a', borderRadius: 6, padding: '7px 12px' }}>
+            <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Motif</div>
+            <div style={{ color: 'var(--af-text-muted)', fontSize: 12, background: 'var(--af-surface-3)', borderRadius: 6, padding: '7px 12px' }}>
               {REASON_LABELS[refund.reason] || refund.reason}
             </div>
           </div>
         )}
         {refund.merchant_name && (
           <div>
-            <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Marchand</div>
-            <div style={{ color: '#f1f5f9', fontSize: 13 }}>{refund.merchant_name}</div>
+            <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Marchand</div>
+            <div style={{ color: 'var(--af-text)', fontSize: 13 }}>{refund.merchant_name}</div>
           </div>
         )}
         {refund.initiated_by && (
           <div>
-            <div style={{ color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Initié par</div>
-            <div style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 12 }}>{refund.initiated_by}</div>
+            <div style={{ color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Initié par</div>
+            <div style={{ color: 'var(--af-text-muted)', fontFamily: 'monospace', fontSize: 12 }}>{refund.initiated_by}</div>
           </div>
         )}
       </div>
@@ -136,15 +136,15 @@ export default function AdminRefunds() {
   return (
     <div style={{ padding: '24px 20px' }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Remboursements</h1>
-        <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>Suivi des remboursements totaux et partiels</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>Remboursements</h1>
+        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Suivi des remboursements totaux et partiels</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <KpiCard label="Total" value={summary.total} />
         <KpiCard label="Montant remboursé" value={summary.totalAmount.toLocaleString('fr-FR') + ' XOF'} />
         <KpiCard label="Partiels" value={summary.partial} />
-        <KpiCard label="En attente" value={summary.pending} color={summary.pending > 0 ? '#f59e0b' : undefined} />
+        <KpiCard label="En attente" value={summary.pending} color={summary.pending > 0 ? 'var(--af-accent)' : undefined} />
       </div>
 
       <Card style={{ marginBottom: 16 }}>
@@ -186,27 +186,27 @@ export default function AdminRefunds() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 48 }}><Spinner /></div>
         ) : refunds.length === 0 ? (
-          <EmptyState icon={<ArrowUturnLeftIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
+          <EmptyState icon={<ArrowUturnLeftIcon style={{ width: 40, height: 40, color: 'var(--af-border)' }} />} title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                <tr style={{ borderBottom: '1px solid var(--af-surface)' }}>
                   {['Date', 'Référence', 'Montant', 'Type', 'Statut', 'Motif', 'Marchand', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--af-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {refunds.map(r => (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #0f172a' }}>
-                    <td style={{ padding: '11px 16px', color: '#64748b', fontSize: 12 }}>
+                  <tr key={r.id} style={{ borderBottom: '1px solid var(--af-surface-3)' }}>
+                    <td style={{ padding: '11px 16px', color: 'var(--af-text-muted)', fontSize: 12 }}>
                       {new Date(r.created_at).toLocaleDateString('fr-FR')}
                     </td>
-                    <td style={{ padding: '11px 16px', color: '#94a3b8', fontFamily: 'monospace', fontSize: 12 }}>
+                    <td style={{ padding: '11px 16px', color: 'var(--af-text-muted)', fontFamily: 'monospace', fontSize: 12 }}>
                       {r.transaction_reference || r.transaction_id?.slice(0, 12) + '…'}
                     </td>
-                    <td style={{ padding: '11px 16px', color: '#f1f5f9', fontWeight: 600, fontSize: 13 }}>
+                    <td style={{ padding: '11px 16px', color: 'var(--af-text)', fontWeight: 600, fontSize: 13 }}>
                       {Number(r.amount).toLocaleString('fr-FR')} {r.currency || ''}
                     </td>
                     <td style={{ padding: '11px 16px' }}>
@@ -217,10 +217,10 @@ export default function AdminRefunds() {
                     <td style={{ padding: '11px 16px' }}>
                       <Badge color={STATUS_COLORS[r.status] || 'gray'}>{STATUS_LABELS[r.status] || r.status}</Badge>
                     </td>
-                    <td style={{ padding: '11px 16px', color: '#64748b', fontSize: 12 }}>
+                    <td style={{ padding: '11px 16px', color: 'var(--af-text-muted)', fontSize: 12 }}>
                       {REASON_LABELS[r.reason] || r.reason || '—'}
                     </td>
-                    <td style={{ padding: '11px 16px', color: '#94a3b8', fontSize: 12 }}>
+                    <td style={{ padding: '11px 16px', color: 'var(--af-text-muted)', fontSize: 12 }}>
                       {r.merchant_name || '—'}
                     </td>
                     <td style={{ padding: '11px 16px' }}>

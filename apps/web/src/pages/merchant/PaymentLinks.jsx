@@ -44,11 +44,11 @@ export default function MerchantLinks() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Liens de Paiement</h1>
-          <p style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Partagez des liens de paiement sans intégration technique</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Liens de Paiement</h1>
+          <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 4 }}>Partagez des liens de paiement sans intégration technique</p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 20px', background: '#f59e0b', border: 'none', borderRadius: 8, color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
+          style={{ padding: '10px 20px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: 'var(--af-surface-3)', fontWeight: 700, cursor: 'pointer' }}>
           + Créer un lien
         </button>
       </div>
@@ -59,21 +59,21 @@ export default function MerchantLinks() {
       {newLink && (
         <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircleIcon style={{ width: 16, height: 16 }} />Lien créé avec succès !</div>
-          <div style={{ background: '#0f172a', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <code style={{ fontSize: 13, color: '#f59e0b', wordBreak: 'break-all' }}>{newLink.payUrl}</code>
+          <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <code style={{ fontSize: 13, color: 'var(--af-accent)', wordBreak: 'break-all' }}>{newLink.payUrl}</code>
             <button onClick={() => copyToClipboard(newLink.payUrl)}
-              style={{ padding: '6px 12px', background: '#f59e0b', border: 'none', borderRadius: 6, color: '#0f172a', cursor: 'pointer', fontSize: 12, fontWeight: 700, marginLeft: 12, flexShrink: 0 }}>
+              style={{ padding: '6px 12px', background: 'var(--af-accent)', border: 'none', borderRadius: 6, color: 'var(--af-surface-3)', cursor: 'pointer', fontSize: 12, fontWeight: 700, marginLeft: 12, flexShrink: 0 }}>
               Copier
             </button>
           </div>
-          <button onClick={() => setNewLink(null)} style={{ marginTop: 10, background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 12 }}>Fermer</button>
+          <button onClick={() => setNewLink(null)} style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12 }}>Fermer</button>
         </div>
       )}
 
       {/* Liste */}
       <div style={{ display: 'grid', gap: 12 }}>
         {links.length === 0 && (
-          <div style={{ background: '#1e293b', borderRadius: 12, padding: 40, textAlign: 'center', color: '#64748b', border: '1px solid #334155' }}>
+          <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 40, textAlign: 'center', color: 'var(--af-text-muted)', border: '1px solid var(--af-border)' }}>
             Aucun lien de paiement créé. Créez votre premier lien ci-dessus.
           </div>
         )}
@@ -84,34 +84,34 @@ export default function MerchantLinks() {
           const payUrl = `${window.location.origin}/pay/${link.code}`
 
           return (
-            <div key={link.id} style={{ background: '#1e293b', borderRadius: 12, padding: '20px 24px', border: `1px solid ${isActive ? '#334155' : '#1e293b'}`, opacity: isActive ? 1 : 0.6 }}>
+            <div key={link.id} style={{ background: 'var(--af-surface)', borderRadius: 12, padding: '20px 24px', border: `1px solid ${isActive ? 'var(--af-border)' : 'var(--af-surface)'}`, opacity: isActive ? 1 : 0.6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 14, color: '#f59e0b', fontWeight: 700 }}>{link.code}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--af-accent)', fontWeight: 700 }}>{link.code}</span>
                     <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: isActive ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', color: isActive ? '#10b981' : '#6B7280' }}>
                       {isExpired ? 'Expiré' : isUsed ? 'Utilisé' : link.status}
                     </span>
                   </div>
 
-                  {link.description && <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8 }}>{link.description}</div>}
+                  {link.description && <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 8 }}>{link.description}</div>}
 
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 700 }}>
+                    <span style={{ fontSize: 13, color: 'var(--af-text)', fontWeight: 700 }}>
                       {link.amount ? `${fmt(link.amount)} ${link.currency}` : 'Montant libre'}
                     </span>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                    <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
                       Utilisations: {link.uses_count} / {link.max_uses}
                     </span>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                    <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
                       Expire: {new Date(link.expires_at).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12, background: '#0f172a', borderRadius: 8, padding: '8px 12px', alignItems: 'center' }}>
-                    <code style={{ fontSize: 12, color: '#64748b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{payUrl}</code>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, background: 'var(--af-surface-3)', borderRadius: 8, padding: '8px 12px', alignItems: 'center' }}>
+                    <code style={{ fontSize: 12, color: 'var(--af-text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{payUrl}</code>
                     <button onClick={() => copyToClipboard(payUrl)}
-                      style={{ padding: '4px 10px', background: '#334155', border: 'none', borderRadius: 6, color: '#94a3b8', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+                      style={{ padding: '4px 10px', background: 'var(--af-border)', border: 'none', borderRadius: 6, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
                       Copier
                     </button>
                   </div>
@@ -132,27 +132,27 @@ export default function MerchantLinks() {
       {/* Create Modal */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', borderRadius: 16, padding: 32, width: '100%', maxWidth: 460, border: '1px solid #334155' }}>
+          <div style={{ background: 'var(--af-surface)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 460, border: '1px solid var(--af-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9' }}>Nouveau Lien de Paiement</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--af-text)' }}>Nouveau Lien de Paiement</h2>
+              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
             <form onSubmit={create}>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Montant (laisser vide = libre)</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Montant (laisser vide = libre)</label>
                 <input type="number" min="0" step="100" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Ex: 50000"
-                  style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Description</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Description</label>
                 <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Ex: Commande #123"
-                  style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Durée (heures)</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Durée (heures)</label>
                   <select value={form.expires_in_hours} onChange={e => setForm(f => ({ ...f, expires_in_hours: parseInt(e.target.value) }))}
-                    style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14 }}>
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14 }}>
                     <option value={1}>1 heure</option>
                     <option value={6}>6 heures</option>
                     <option value={24}>24 heures</option>
@@ -161,14 +161,14 @@ export default function MerchantLinks() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Nb utilisations</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Nb utilisations</label>
                   <input type="number" min="1" max="100" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: parseInt(e.target.value) }))}
-                    style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none' }} />
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
                 </div>
               </div>
               {msg && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{msg}</div>}
               <button type="submit" disabled={saving}
-                style={{ width: '100%', padding: '12px', background: '#f59e0b', border: 'none', borderRadius: 8, color: '#0f172a', fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
+                style={{ width: '100%', padding: '12px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: 'var(--af-surface-3)', fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
                 {saving ? 'Création...' : 'Créer le lien'}
               </button>
             </form>

@@ -74,9 +74,39 @@ router.post('/:code/identify-client', async (req, res) => {
   const { phone, afrikfid_id } = req.body;
   if (!phone && !afrikfid_id) return res.status(400).json({ found: false });
 
-  const client = afrikfid_id
+  let client = afrikfid_id
     ? (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [afrikfid_id])).rows[0]
     : (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(phone)])).rows[0];
+
+  // Fallback : carte fidélité historique AfrikFid (format 2014xxxxxxx) côté business-api.
+  // Provisioning lazy du client local si inconnu ici mais existant dans le SI fidélité.
+  if (!client && afrikfid_id) {
+    const afrikfidClient = require('../lib/afrikfid-client');
+    const { encrypt } = require('../lib/crypto');
+    if (afrikfidClient.isValidCardNumero(afrikfid_id)) {
+      let card = null;
+      try { card = await afrikfidClient.lookupCard(afrikfid_id); } catch { card = null; }
+      if (card && card.consommateur) {
+        const c = card.consommateur;
+        const fullName = [c.prenom, c.nom].filter(Boolean).join(' ').trim() || 'Client AfrikFid';
+        const encPhone = c.telephone ? encrypt(c.telephone) : null;
+        const phoneH = c.telephone ? hashField(c.telephone) : null;
+        const encEmail = c.email ? encrypt(c.email) : null;
+        const emailH = c.email ? hashField(c.email) : null;
+        const id = require('crypto').randomUUID();
+        try {
+          await db.query(
+            `INSERT INTO clients
+              (id, afrikfid_id, business_api_consommateur_id, full_name, phone, phone_hash, email, email_hash, loyalty_status, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'OPEN', TRUE)
+             ON CONFLICT (afrikfid_id) DO NOTHING`,
+            [id, afrikfid_id, c.id || null, fullName, encPhone, phoneH, encEmail, emailH]
+          );
+        } catch { /* race: we'll re-read below */ }
+        client = (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [afrikfid_id])).rows[0];
+      }
+    }
+  }
 
   if (!client) return res.json({ found: false });
 
@@ -92,6 +122,7 @@ router.post('/:code/identify-client', async (req, res) => {
       loyaltyStatus: client.loyalty_status,
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,
+      rewardPoints: parseInt(client.reward_points) || 0,
       currency: 'XOF',
     },
   });
@@ -117,8 +148,12 @@ router.post('/:code/pay', async (req, res) => {
   if (!amount) return res.status(400).json({ error: 'Montant requis' });
 
   const isCard = payment_method === 'card';
-  if (!isCard && (!phone || !payment_operator)) {
+  const isRewardPoints = payment_method === 'reward_points';
+  if (!isCard && !isRewardPoints && (!phone || !payment_operator)) {
     return res.status(400).json({ error: 'phone et payment_operator requis pour le paiement Mobile Money' });
+  }
+  if (isRewardPoints && !afrikfid_id) {
+    return res.status(400).json({ error: 'Identification Afrik\'Fid requise pour payer par points' });
   }
 
   // ── Vérification des seuils marchand ──────────────────────────────────────
@@ -167,6 +202,55 @@ router.post('/:code/pay', async (req, res) => {
   // Invité sans compte → Y% = 0 (pas de remise)
   const effectiveLoyaltyStatus = client ? loyaltyStatus : null;
   const distribution = await calculateDistribution(amount, link.rebate_percent, effectiveLoyaltyStatus || 'OPEN');
+
+  // Paiement par points récompense
+  if (isRewardPoints) {
+    const { POINTS_PER_REWARD_UNIT } = require('../config/constants');
+    const pointsRequired = Math.ceil(parseFloat(amount) / POINTS_PER_REWARD_UNIT);
+    const availablePoints = parseInt(client.reward_points) || 0;
+    if (availablePoints < pointsRequired) {
+      return res.status(400).json({
+        error: 'INSUFFICIENT_POINTS',
+        message: `Points insuffisants. Vous avez ${availablePoints} pts (${availablePoints * POINTS_PER_REWARD_UNIT} ${link.currency}) mais ${pointsRequired} pts sont requis.`,
+        required: pointsRequired,
+        available: availablePoints,
+      });
+    }
+    // Débiter les points et enregistrer la transaction
+    const txId = uuidv4();
+    const reference = `PLK-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
+    await db.query(`
+      UPDATE clients SET reward_points = reward_points - $1 WHERE id = $2
+    `, [pointsRequired, client.id]);
+    await db.query(`
+      INSERT INTO transactions (
+        id, reference, merchant_id, client_id,
+        gross_amount, net_client_amount,
+        merchant_rebate_percent, client_rebate_percent, platform_commission_percent,
+        merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
+        merchant_receives, client_loyalty_status, rebate_mode,
+        payment_method, currency, description, status, expires_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'completed',$19)
+    `, [
+      txId, reference, link.merchant_id, client.id,
+      amount, amount,
+      0, 0, 0, 0, 0, 0,
+      amount, client.loyalty_status, link.rebate_mode,
+      'REWARD_POINTS', link.currency, link.description,
+      new Date(Date.now() + 120000).toISOString(),
+    ]);
+    await db.query('UPDATE payment_links SET uses_count = uses_count + 1 WHERE id = $1', [link.id]);
+    if (link.uses_count + 1 >= link.max_uses) {
+      await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
+    }
+    return res.json({
+      transactionId: txId,
+      reference,
+      status: 'completed',
+      pointsUsed: pointsRequired,
+      message: `Paiement par points récompense validé. ${pointsRequired} pts déduits de votre compte.`,
+    });
+  }
 
   const txId = uuidv4();
   const reference = `PLK-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;

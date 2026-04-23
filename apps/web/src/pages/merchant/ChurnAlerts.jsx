@@ -18,18 +18,18 @@ const PKG_HIERARCHY = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 const LEVEL_CONFIG = {
   critical: { label: 'Critique', color: '#ef4444', bg: '#ef444422', border: '#ef444444' },
   high:     { label: 'Élevé',    color: '#f97316', bg: '#f9731622', border: '#f9731644' },
-  medium:   { label: 'Modéré',   color: '#f59e0b', bg: '#f59e0b22', border: '#f59e0b44' },
+  medium:   { label: 'Modéré',   color: 'var(--af-accent)', bg: 'var(--af-accent-soft)', border: 'var(--af-accent-soft)' },
   low:      { label: 'Faible',   color: '#6b7280', bg: '#6b728022', border: '#6b728044' },
 }
 
-const card = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 16 }
+const card = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 16 }
 
 function ScoreBar({ score }) {
   const pct = Math.round(score * 100)
-  const color = score >= 0.8 ? '#ef4444' : score >= 0.6 ? '#f97316' : score >= 0.3 ? '#f59e0b' : '#6b7280'
+  const color = score >= 0.8 ? '#ef4444' : score >= 0.6 ? '#f97316' : score >= 0.3 ? 'var(--af-accent)' : '#6b7280'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ width: 80, height: 6, background: '#0f172a', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ width: 80, height: 6, background: 'var(--af-surface-3)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3 }} />
       </div>
       <span style={{ fontSize: 13, fontWeight: 700, color, minWidth: 34 }}>{pct}%</span>
@@ -65,21 +65,21 @@ export default function MerchantChurnAlerts() {
 
   useEffect(() => { load() }, [load])
 
-  if (!merchantId) return <div style={{ padding: 32, color: '#64748b' }}>Session expirée.</div>
+  if (!merchantId) return <div style={{ padding: 32, color: 'var(--af-text-muted)' }}>Session expirée.</div>
 
   const minRequired = error?.upgrade ? (PKG_LABELS[error.msg] || error.msg) : null
   const upgradableTo = error?.upgrade ? PKG_HIERARCHY.slice(PKG_HIERARCHY.indexOf(error.msg)) : []
 
   if (error?.upgrade) return (
     <div style={{ padding: '28px 32px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 24 }}>Alertes Churn</h1>
-      <div style={{ background: '#1e293b', border: '1px dashed #8b5cf6', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 24 }}>Alertes Churn</h1>
+      <div style={{ background: 'var(--af-surface)', border: '1px dashed #8b5cf6', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
         <ChartBarIcon style={{ width: 48, height: 48, color: '#8b5cf6', margin: '0 auto 16px' }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: '#8b5cf6', marginBottom: 8 }}>Fonctionnalité non incluse dans votre package actuel</div>
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
-          Les alertes churn sont disponibles à partir du package <strong style={{ color: '#f1f5f9' }}>{minRequired}</strong>.
+        <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 8 }}>
+          Les alertes churn sont disponibles à partir du package <strong style={{ color: 'var(--af-text)' }}>{minRequired}</strong>.
         </p>
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+        <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 20 }}>
           Votre package actuel ne donne pas accès à cette fonctionnalité. Passez à un package supérieur pour identifier vos clients à risque avant qu'ils ne partent.
         </p>
         {upgradableTo.length > 0 && (
@@ -103,11 +103,11 @@ export default function MerchantChurnAlerts() {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /></h1>
-          <p style={{ fontSize: 12, color: '#64748b' }}>Clients susceptibles de partir — agissez avant qu'il ne soit trop tard</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /></h1>
+          <p style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Clients susceptibles de partir — agissez avant qu'il ne soit trop tard</p>
         </div>
         <button onClick={load} disabled={loading}
-          style={{ padding: '8px 16px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          style={{ padding: '8px 16px', background: 'var(--af-surface)', color: 'var(--af-text)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
           {loading ? <Spinner size="sm" /> : <ArrowPathIcon style={{ width: 16, height: 16 }} />} Actualiser
         </button>
       </div>
@@ -116,7 +116,7 @@ export default function MerchantChurnAlerts() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['medium', 'high', 'critical'].map(l => (
           <button key={l} onClick={() => setLevel(l)}
-            style={{ padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid', background: level === l ? LEVEL_CONFIG[l].bg : 'transparent', color: level === l ? LEVEL_CONFIG[l].color : '#64748b', borderColor: level === l ? LEVEL_CONFIG[l].border : '#334155' }}>
+            style={{ padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid', background: level === l ? LEVEL_CONFIG[l].bg : 'transparent', color: level === l ? LEVEL_CONFIG[l].color : 'var(--af-text-muted)', borderColor: level === l ? LEVEL_CONFIG[l].border : 'var(--af-border)' }}>
             {LEVEL_CONFIG[l].label}+
           </button>
         ))}
@@ -133,17 +133,17 @@ export default function MerchantChurnAlerts() {
           {/* Résumé */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Modérés+', value: data.summary?.total_at_risk ?? 0, color: '#f1f5f9', sub: `(${data.summary?.total_including_low ?? 0} avec faibles)`, tip: TOOLTIPS.churn },
+              { label: 'Modérés+', value: data.summary?.total_at_risk ?? 0, color: 'var(--af-text)', sub: `(${data.summary?.total_including_low ?? 0} avec faibles)`, tip: TOOLTIPS.churn },
               { label: 'Critiques', value: data.summary?.by_level?.critical ?? 0, color: '#ef4444', sub: 'score ≥ 80%', tip: null },
               { label: 'Élevés', value: data.summary?.by_level?.high ?? 0, color: '#f97316', sub: 'score 60-79%', tip: null },
-              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: '#f59e0b', sub: 'tous niveaux', tip: TOOLTIPS.score_churn },
+              { label: 'Score moyen', value: data.summary?.avg_churn_score ? Math.round(data.summary.avg_churn_score * 100) + '%' : '—', color: 'var(--af-accent)', sub: 'tous niveaux', tip: TOOLTIPS.score_churn },
             ].map(k => (
-              <div key={k.label} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '14px 18px' }}>
-                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
+              <div key={k.label} style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '14px 18px' }}>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
                   {k.label}{k.tip && <InfoTooltip text={k.tip} />}
                 </div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: k.color }}>{k.value}</div>
-                {k.sub && <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{k.sub}</div>}
+                {k.sub && <div style={{ fontSize: 10, color: 'var(--af-border-strong)', marginTop: 2 }}>{k.sub}</div>}
               </div>
             ))}
           </div>
@@ -153,18 +153,18 @@ export default function MerchantChurnAlerts() {
             <div style={{ ...card, textAlign: 'center', padding: '40px 32px' }}>
               <CheckCircleIcon style={{ width: 40, height: 40, color: '#10b981', margin: '0 auto 12px' }} />
               <div style={{ fontSize: 15, fontWeight: 600, color: '#10b981', marginBottom: 4 }}>Aucun client à risque détecté</div>
-              <p style={{ fontSize: 12, color: '#64748b' }}>Avec le filtre "{LEVEL_CONFIG[level].label}+" — essayez un filtre moins strict.</p>
+              <p style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Avec le filtre "{LEVEL_CONFIG[level].label}+" — essayez un filtre moins strict.</p>
             </div>
           ) : (
             <div style={card}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {data.predictions.length} client{data.predictions.length > 1 ? 's' : ''} à risque {LEVEL_CONFIG[level].label.toLowerCase()}+
-                <span style={{ fontSize: 11, color: '#475569', fontWeight: 400 }}>/ {data.summary?.total_at_risk ?? '?'} modérés+ au total</span>
+                <span style={{ fontSize: 11, color: 'var(--af-border-strong)', fontWeight: 400 }}>/ {data.summary?.total_at_risk ?? '?'} modérés+ au total</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #334155' }}>
+                    <tr style={{ borderBottom: '1px solid var(--af-border)' }}>
                       {[
                         { label: 'Client', tip: null },
                         { label: 'Risque', tip: TOOLTIPS.churn },
@@ -172,7 +172,7 @@ export default function MerchantChurnAlerts() {
                         { label: 'Segment RFM', tip: TOOLTIPS.RFM },
                         { label: 'Action recommandée', tip: null },
                       ].map(h => (
-                        <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                        <th key={h.label} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>
                           {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
                         </th>
                       ))}
@@ -184,14 +184,14 @@ export default function MerchantChurnAlerts() {
                       return (
                         <tr key={p.client_id}
                           onClick={() => setSelected(selected?.client_id === p.client_id ? null : p)}
-                          style={{ borderBottom: '1px solid #1e293b', cursor: 'pointer', background: selected?.client_id === p.client_id ? '#0f172a' : 'transparent' }}>
-                          <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 600 }}>{p.client_name || 'Anonyme'}</td>
+                          style={{ borderBottom: '1px solid var(--af-surface)', cursor: 'pointer', background: selected?.client_id === p.client_id ? 'var(--af-surface-3)' : 'transparent' }}>
+                          <td style={{ padding: '10px 12px', color: 'var(--af-text)', fontWeight: 600 }}>{p.client_name || 'Anonyme'}</td>
                           <td style={{ padding: '10px 12px' }}>
                             <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: lvl.bg, color: lvl.color, border: `1px solid ${lvl.border}` }}>{lvl.label}</span>
                           </td>
                           <td style={{ padding: '10px 12px' }}><ScoreBar score={p.churn_score} /></td>
-                          <td style={{ padding: '10px 12px', color: '#94a3b8' }}>{p.rfm_context?.segment || '—'}</td>
-                          <td style={{ padding: '10px 12px', color: '#64748b', maxWidth: 280, fontSize: 12 }}>{p.recommendation}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--af-text-muted)' }}>{p.rfm_context?.segment || '—'}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--af-text-muted)', maxWidth: 280, fontSize: 12 }}>{p.recommendation}</td>
                         </tr>
                       )
                     })}
@@ -203,17 +203,17 @@ export default function MerchantChurnAlerts() {
 
           {/* Détail client sélectionné */}
           {selected && (
-            <div style={{ ...card, borderColor: LEVEL_CONFIG[selected.churn_level]?.border || '#334155' }}>
+            <div style={{ ...card, borderColor: LEVEL_CONFIG[selected.churn_level]?.border || 'var(--af-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>{selected.client_name || 'Client anonyme'} — Détail des signaux</div>
-                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 20, cursor: 'pointer' }}>✕</button>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>{selected.client_name || 'Client anonyme'} — Détail des signaux</div>
+                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', fontSize: 20, cursor: 'pointer' }}>✕</button>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>Signaux détectés</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 8 }}>Signaux détectés</div>
                 {(selected.signals || []).map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < selected.signals.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < selected.signals.length - 1 ? '1px solid var(--af-surface)' : 'none' }}>
                     <ExclamationTriangleIcon style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
-                    <span style={{ fontSize: 12, color: '#cbd5e1' }}>{s}</span>
+                    <span style={{ fontSize: 12, color: 'var(--af-text)' }}>{s}</span>
                   </div>
                 ))}
               </div>
@@ -224,9 +224,9 @@ export default function MerchantChurnAlerts() {
                     { label: 'Fréquence', value: selected.rfm_context.f, max: 5, tip: 'Score de 1 à 5 : combien de fois ce client achète. 5 = très fréquent.' },
                     { label: 'Montant', value: selected.rfm_context.m, max: 5, tip: 'Score de 1 à 5 : combien ce client dépense au total. 5 = gros dépenseur.' },
                   ].map(s => (
-                    <div key={s.label} style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>{s.tip ? <Tooltip text={s.tip}>{s.label}</Tooltip> : s.label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: s.value >= 4 ? '#10b981' : s.value >= 3 ? '#f59e0b' : '#ef4444' }}>{s.value}<span style={{ fontSize: 12, color: '#64748b' }}>/5</span></div>
+                    <div key={s.label} style={{ flex: 1, background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginBottom: 4 }}>{s.tip ? <Tooltip text={s.tip}>{s.label}</Tooltip> : s.label}</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: s.value >= 4 ? '#10b981' : s.value >= 3 ? 'var(--af-accent)' : '#ef4444' }}>{s.value}<span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>/5</span></div>
                     </div>
                   ))}
                 </div>

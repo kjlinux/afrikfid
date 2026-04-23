@@ -190,7 +190,7 @@ function PhoneInput({ countryCode, localPhone, onChange }) {
       <select
         value={countryCode}
         onChange={e => onChange(e.target.value, localPhone)}
-        style={{ padding: '10px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, flexShrink: 0, outline: 'none' }}
+        style={{ padding: '10px 8px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 13, flexShrink: 0, outline: 'none' }}
       >
         {COUNTRIES.map(c => (
           <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
@@ -201,7 +201,7 @@ function PhoneInput({ countryCode, localPhone, onChange }) {
         value={localPhone}
         onChange={e => onChange(countryCode, e.target.value)}
         placeholder={`Ex: ${'0' + '7'.repeat(country.digits - 1)}`}
-        style={{ flex: 1, padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+        style={{ flex: 1, padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
       />
     </div>
   )
@@ -280,6 +280,21 @@ export default function PaymentPage() {
     } finally { setProcessing(false) }
   }
 
+  const payWithPoints = async () => {
+    if (!clientInfo?.rewardPoints) return
+    setProcessing(true); setPageError('')
+    try {
+      const { data } = await api.post('/payment-links/' + code + '/pay', {
+        payment_method: 'reward_points',
+        afrikfid_id: clientInfo.afrikfidId,
+        custom_amount: linkInfo?.amount ? undefined : parseFloat(form.custom_amount),
+      })
+      setResult(data); setStep('done')
+    } catch (err) {
+      setPageError(err.response?.data?.message || err.response?.data?.error || 'Erreur lors du paiement par points')
+    } finally { setProcessing(false) }
+  }
+
   const payCard = async () => {
     if (!amount) { setPageError('Montant invalide.'); return }
     setProcessing(true); setPageError('')
@@ -302,18 +317,18 @@ export default function PaymentPage() {
       <div style={{ textAlign: 'center' }}>
         <XCircleIcon style={{ width: 52, height: 52, color: '#ef4444', marginBottom: 16 }} />
         <h2 style={{ color: '#ef4444', fontSize: 18 }}>Lien invalide</h2>
-        <p style={{ color: '#64748b', fontSize: 14 }}>{error}</p>
+        <p style={{ color: 'var(--af-text-muted)', fontSize: 14 }}>{error}</p>
       </div>
     </Screen>
   )
 
   if (!linkInfo) return (
     <Screen>
-      <div style={{ textAlign: 'center', color: '#64748b', padding: 32 }}>Chargement...</div>
+      <div style={{ textAlign: 'center', color: 'var(--af-text-muted)', padding: 32 }}>Chargement...</div>
     </Screen>
   )
 
-  const stepIdx = { identify: 0, method: 1, mobile: 2, card: 2, done: 3 }[step] || 0
+  const stepIdx = { identify: 0, method: 1, mobile: 2, card: 2, points: 2, done: 3 }[step] || 0
   const stepLabels = ['Identification', 'Méthode', 'Paiement']
   const selectedOp = MM_OPERATORS.find(o => o.code === form.operator)
   const ussdInfo = form.operator ? getUssdInstructions(form.operator, countryCode) : null
@@ -323,9 +338,9 @@ export default function PaymentPage() {
       <div style={{ width: '100%', maxWidth: 440 }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, marginBottom: 10, color: '#fff' }}>A</div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9' }}>{linkInfo.merchantName}</h2>
-          {linkInfo.description && <p style={{ color: '#64748b', fontSize: 12, marginTop: 3 }}>{linkInfo.description}</p>}
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, marginBottom: 10, color: '#fff' }}>A</div>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--af-text)' }}>{linkInfo.merchantName}</h2>
+          {linkInfo.description && <p style={{ color: 'var(--af-text-muted)', fontSize: 12, marginTop: 3 }}>{linkInfo.description}</p>}
         </div>
 
         {/* Stepper */}
@@ -337,31 +352,31 @@ export default function PaymentPage() {
                   <div style={{
                     width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 10, fontWeight: 700,
-                    background: i < stepIdx ? '#10b981' : i === stepIdx ? '#f59e0b' : '#1e293b',
-                    color: i <= stepIdx ? '#0f172a' : '#64748b',
-                    border: '2px solid ' + (i === stepIdx ? '#f59e0b' : i < stepIdx ? '#10b981' : '#334155'),
+                    background: i < stepIdx ? '#10b981' : i === stepIdx ? 'var(--af-accent)' : 'var(--af-surface)',
+                    color: i <= stepIdx ? 'var(--af-surface-3)' : 'var(--af-text-muted)',
+                    border: '2px solid ' + (i === stepIdx ? 'var(--af-accent)' : i < stepIdx ? '#10b981' : 'var(--af-border)'),
                   }}>{i < stepIdx ? <CheckIcon style={{ width: 11, height: 11 }} /> : i + 1}</div>
-                  <span style={{ fontSize: 10, color: i === stepIdx ? '#f1f5f9' : '#64748b' }}>{s}</span>
+                  <span style={{ fontSize: 10, color: i === stepIdx ? 'var(--af-text)' : 'var(--af-text-muted)' }}>{s}</span>
                 </div>
-                {i < 2 && <div style={{ width: 14, height: 1, background: '#334155', margin: '0 2px' }} />}
+                {i < 2 && <div style={{ width: 14, height: 1, background: 'var(--af-border)', margin: '0 2px' }} />}
               </React.Fragment>
             ))}
           </div>
         )}
 
-        <div style={{ background: '#1e293b', borderRadius: 16, border: '1px solid #334155', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--af-surface)', borderRadius: 16, border: '1px solid var(--af-border)', overflow: 'hidden' }}>
           {/* Montant */}
-          <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid #334155', textAlign: 'center' }}>
+          <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid var(--af-border)', textAlign: 'center' }}>
             {linkInfo.amount ? (
-              <div style={{ fontSize: 32, fontWeight: 800, color: '#f59e0b' }}>
-                {fmt(linkInfo.amount)} <span style={{ fontSize: 15, color: '#64748b' }}>{linkInfo.currency}</span>
+              <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--af-accent)' }}>
+                {fmt(linkInfo.amount)} <span style={{ fontSize: 15, color: 'var(--af-text-muted)' }}>{linkInfo.currency}</span>
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 5 }}>Saisissez le montant</div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 5 }}>Saisissez le montant</div>
                 <input type="number" min="0" step="100" value={form.custom_amount}
                   onChange={e => setForm(f => ({ ...f, custom_amount: e.target.value }))} placeholder="0"
-                  style={{ width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f59e0b', fontSize: 24, fontWeight: 800, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '8px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-accent)', fontSize: 24, fontWeight: 800, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             )}
           </div>
@@ -371,7 +386,7 @@ export default function PaymentPage() {
             {/* ÉTAPE 1 : Identification */}
             {step === 'identify' && (
               <div>
-                <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>
+                <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 12 }}>
                   Identifiez-vous pour bénéficier de votre remise fidélité (optionnel)
                 </p>
                 <label style={labelStyle}>Numéro de téléphone</label>
@@ -388,34 +403,82 @@ export default function PaymentPage() {
               <div>
                 {clientInfo && (
                   <div style={{ background: LOYALTY_COLOR[clientInfo.loyaltyStatus] + '18', border: '1px solid ' + LOYALTY_COLOR[clientInfo.loyaltyStatus] + '44', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{clientInfo.fullName}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)' }}>{clientInfo.fullName}</div>
                     <div style={{ fontSize: 11, color: LOYALTY_COLOR[clientInfo.loyaltyStatus], fontWeight: 700 }}>
                       {LOYALTY_ICON[clientInfo.loyaltyStatus]} {clientInfo.loyaltyStatus} — {clientInfo.clientRebatePercent}% de remise
                     </div>
                   </div>
                 )}
                 {!clientInfo && form.phone && (
-                  <div style={{ background: 'rgba(100,116,139,0.1)', borderRadius: 8, padding: '7px 12px', marginBottom: 12, fontSize: 12, color: '#64748b' }}>
+                  <div style={{ background: 'rgba(107,114,128,0.1)', borderRadius: 8, padding: '7px 12px', marginBottom: 12, fontSize: 12, color: 'var(--af-text-muted)' }}>
                     Compte non trouvé — paiement en mode invité
                   </div>
                 )}
-                <p style={{ fontSize: 11, color: '#64748b', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase' }}>Méthode de paiement</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <p style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase' }}>Méthode de paiement</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: clientInfo?.rewardPoints > 0 ? 10 : 0 }}>
                   <button onClick={() => { setPaymentType('mobile_money'); setStep('mobile') }}
-                    style={{ padding: '14px 10px', border: '2px solid #334155', borderRadius: 12, background: '#0f172a', cursor: 'pointer', textAlign: 'center' }}>
-                    <DevicePhoneMobileIcon style={{ width: 28, height: 28, color: '#f1f5f9', margin: '0 auto 5px' }} />
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Mobile Money</div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Orange, MTN, Wave…</div>
+                    style={{ padding: '14px 10px', border: '2px solid var(--af-border)', borderRadius: 12, background: 'var(--af-surface-3)', cursor: 'pointer', textAlign: 'center' }}>
+                    <DevicePhoneMobileIcon style={{ width: 28, height: 28, color: 'var(--af-text)', margin: '0 auto 5px' }} />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)' }}>Mobile Money</div>
+                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Orange, MTN, Wave…</div>
                   </button>
                   <button onClick={() => { setPaymentType('card'); setStep('card') }}
-                    style={{ padding: '14px 10px', border: '2px solid #334155', borderRadius: 12, background: '#0f172a', cursor: 'pointer', textAlign: 'center' }}>
-                    <CreditCardIcon style={{ width: 28, height: 28, color: '#f1f5f9', margin: '0 auto 5px' }} />
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Carte bancaire</div>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Visa, Mastercard, GIM</div>
+                    style={{ padding: '14px 10px', border: '2px solid var(--af-border)', borderRadius: 12, background: 'var(--af-surface-3)', cursor: 'pointer', textAlign: 'center' }}>
+                    <CreditCardIcon style={{ width: 28, height: 28, color: 'var(--af-text)', margin: '0 auto 5px' }} />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)' }}>Carte bancaire</div>
+                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Visa, Mastercard, GIM</div>
                   </button>
                 </div>
+                {clientInfo?.rewardPoints > 0 && (() => {
+                  const POINT_VALUE = 100
+                  const pointsNeeded = Math.ceil(amount / POINT_VALUE)
+                  const canPay = clientInfo.rewardPoints >= pointsNeeded && amount > 0
+                  return (
+                    <button
+                      onClick={() => { if (canPay) { setPaymentType('reward_points'); setStep('points') } }}
+                      disabled={!canPay}
+                      style={{ width: '100%', padding: '13px 16px', border: '2px solid ' + (canPay ? '#10b981' : 'var(--af-border)'), borderRadius: 12, background: canPay ? 'rgba(16,185,129,0.08)' : 'var(--af-surface-3)', cursor: canPay ? 'pointer' : 'not-allowed', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, opacity: canPay ? 1 : 0.5 }}>
+                      <StarIcon style={{ width: 26, height: 26, color: canPay ? '#10b981' : 'var(--af-border-strong)', flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: canPay ? '#10b981' : 'var(--af-text-muted)' }}>Points récompense</div>
+                        <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 1 }}>
+                          {fmt(clientInfo.rewardPoints)} pts disponibles ({fmt(clientInfo.rewardPoints * POINT_VALUE)} {linkInfo.currency})
+                          {amount > 0 && ` · ${pointsNeeded} pts requis`}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })()}
               </div>
             )}
+
+            {/* ÉTAPE 3c : Points récompense */}
+            {step === 'points' && (() => {
+              const POINT_VALUE = 100
+              const pointsNeeded = Math.ceil(amount / POINT_VALUE)
+              return (
+                <div>
+                  <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                  <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>Paiement par points récompense</div>
+                    <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(pointsNeeded)} pts</span> seront déduits de votre solde
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>
+                      Solde après paiement : {fmt(clientInfo.rewardPoints - pointsNeeded)} pts
+                    </div>
+                  </div>
+                  {pageError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{pageError}</div>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
+                    <button onClick={payWithPoints} disabled={processing}
+                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #10b981, #059669)' }}>
+                      {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} (${fmt(pointsNeeded)} pts)`}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ÉTAPE 3a : Mobile Money */}
             {step === 'mobile' && (
@@ -428,11 +491,11 @@ export default function PaymentPage() {
                     const selected = form.operator === op.code
                     return (
                       <button key={op.code} onClick={() => setForm(f => ({ ...f, operator: op.code }))}
-                        style={{ padding: '8px 4px', border: '2px solid ' + (selected ? op.color : '#334155'), borderRadius: 9, background: selected ? op.color + '22' : '#0f172a', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
+                        style={{ padding: '8px 4px', border: '2px solid ' + (selected ? op.color : 'var(--af-border)'), borderRadius: 9, background: selected ? op.color + '22' : 'var(--af-surface-3)', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 3 }}>
                           <OperatorLogo code={op.code} size={36} />
                         </div>
-                        <div style={{ fontSize: 9, color: selected ? op.color : '#64748b', fontWeight: 600, lineHeight: 1.2 }}>{op.name.split(' ')[0]}</div>
+                        <div style={{ fontSize: 9, color: selected ? op.color : 'var(--af-text-muted)', fontWeight: 600, lineHeight: 1.2 }}>{op.name.split(' ')[0]}</div>
                       </button>
                     )
                   })}
@@ -448,17 +511,17 @@ export default function PaymentPage() {
                 {/* Instructions USSD */}
                 {ussdInfo && (
                   <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--af-accent)', marginBottom: 6 }}>
                       {ussdInfo.ussd ? `Composez ${ussdInfo.ussd} sur votre téléphone :` : 'Comment payer :'}
                     </div>
                     <ol style={{ margin: 0, paddingLeft: 16 }}>
                       {ussdInfo.steps.map((step, i) => (
-                        <li key={i} style={{ fontSize: 11, color: '#94a3b8', marginBottom: 3 }}>{step}</li>
+                        <li key={i} style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 3 }}>{step}</li>
                       ))}
                     </ol>
                     {ussdInfo.ussd && (
-                      <div style={{ marginTop: 8, background: '#0f172a', borderRadius: 6, padding: '6px 10px', display: 'inline-block' }}>
-                        <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'monospace', color: '#f59e0b', letterSpacing: 2 }}>{ussdInfo.ussd}</span>
+                      <div style={{ marginTop: 8, background: 'var(--af-surface-3)', borderRadius: 6, padding: '6px 10px', display: 'inline-block' }}>
+                        <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'monospace', color: 'var(--af-accent)', letterSpacing: 2 }}>{ussdInfo.ussd}</span>
                       </div>
                     )}
                   </div>
@@ -468,7 +531,7 @@ export default function PaymentPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payMobile} disabled={processing || !amount || !form.operator}
-                    style={{ ...btnPrimary, flex: 1, background: processing ? '#334155' : 'linear-gradient(135deg, #f59e0b, #ef4444)', opacity: (!amount || !form.operator) ? 0.5 : 1 }}>
+                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', opacity: (!amount || !form.operator) ? 0.5 : 1 }}>
                     {processing ? 'Traitement...' : 'Payer ' + fmt(toPay) + ' ' + linkInfo.currency}
                   </button>
                 </div>
@@ -481,7 +544,7 @@ export default function PaymentPage() {
                 <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
                 <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, padding: '11px 13px', marginBottom: 12 }}>
                   <div style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600, marginBottom: 3 }}>Paiement sécurisé 3DS</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>Vous serez redirigé vers CinetPay. Visa, Mastercard et GIM-UEMOA acceptés.</div>
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Vous serez redirigé vers CinetPay. Visa, Mastercard et GIM-UEMOA acceptés.</div>
                 </div>
                 {/* Logos cartes */}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
@@ -499,7 +562,7 @@ export default function PaymentPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payCard} disabled={processing || !amount}
-                    style={{ ...btnPrimary, flex: 1, background: processing ? '#334155' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)', opacity: !amount ? 0.5 : 1 }}>
+                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)', opacity: !amount ? 0.5 : 1 }}>
                     {processing ? 'Redirection...' : 'Payer ' + fmt(amount) + ' ' + linkInfo.currency + ' par carte'}
                   </button>
                 </div>
@@ -513,12 +576,12 @@ export default function PaymentPage() {
                 <h3 style={{ fontSize: 17, fontWeight: 700, color: '#10b981', marginBottom: 7 }}>
                   {paymentType === 'mobile_money' ? 'Paiement initié !' : 'Traitement en cours...'}
                 </h3>
-                <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12 }}>
+                <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginBottom: 12 }}>
                   {paymentType === 'mobile_money' ? 'Confirmez sur votre téléphone via le menu USSD ou OTP.' : 'Votre paiement est en cours de traitement.'}
                 </p>
-                <div style={{ background: '#0f172a', borderRadius: 10, padding: 12 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>Référence</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#f59e0b' }}>{result.reference || result.transaction?.reference}</div>
+                <div style={{ background: 'var(--af-surface-3)', borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 3 }}>Référence</div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--af-accent)' }}>{result.reference || result.transaction?.reference}</div>
                 </div>
               </div>
             )}
@@ -526,7 +589,7 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 11, color: '#334155', marginTop: 12 }}>
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--af-border)', marginTop: 12 }}>
           Paiement sécurisé · Afrik'Fid © 2026
         </p>
       </div>
@@ -555,7 +618,7 @@ function detectCountryFromPhone(phone) {
 // ─── Composants utilitaires ───────────────────────────────────────────────────
 function Screen({ children }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, var(--af-surface-3) 0%, var(--af-surface) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       {children}
     </div>
   )
@@ -564,20 +627,20 @@ function Screen({ children }) {
 function AmountRecap({ amount, rebateAmount, Y, toPay, rebateMode, currency }) {
   if (!amount) return null
   return (
-    <div style={{ background: '#0f172a', borderRadius: 9, padding: 11, marginBottom: 12 }}>
+    <div style={{ background: 'var(--af-surface-3)', borderRadius: 9, padding: 11, marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, color: '#64748b' }}>Montant brut</span>
-        <span style={{ fontSize: 12, color: '#f1f5f9' }}>{fmt(amount)} {currency}</span>
+        <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Montant brut</span>
+        <span style={{ fontSize: 12, color: 'var(--af-text)' }}>{fmt(amount)} {currency}</span>
       </div>
       {rebateAmount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: '#64748b' }}>Remise ({Y}%)</span>
+          <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Remise ({Y}%)</span>
           <span style={{ fontSize: 12, color: '#10b981' }}>- {fmt(rebateAmount)} {currency}</span>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #334155', paddingTop: 7 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Vous payez</span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{fmt(toPay)} {currency}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--af-border)', paddingTop: 7 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>Vous payez</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--af-accent)' }}>{fmt(toPay)} {currency}</span>
       </div>
       {rebateMode === 'cashback' && rebateAmount > 0 && (
         <div style={{ fontSize: 11, color: '#10b981', marginTop: 5, textAlign: 'center' }}>
@@ -589,8 +652,8 @@ function AmountRecap({ amount, rebateAmount, Y, toPay, rebateMode, currency }) {
 }
 
 // ─── Styles réutilisables ─────────────────────────────────────────────────────
-const labelStyle = { display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 5, textTransform: 'uppercase' }
-const inputStyle = { width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }
-const btnPrimary = { flex: 1, padding: '12px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', border: 'none', borderRadius: 9, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }
-const btnGhost = { padding: '12px 14px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#64748b', cursor: 'pointer', fontSize: 13 }
-const btnBack = { padding: '11px 14px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#64748b', cursor: 'pointer' }
+const labelStyle = { display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 5, textTransform: 'uppercase' }
+const inputStyle = { width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }
+const btnPrimary = { flex: 1, padding: '12px', background: 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', border: 'none', borderRadius: 9, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }
+const btnGhost = { padding: '12px 14px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13 }
+const btnBack = { padding: '11px 14px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer' }

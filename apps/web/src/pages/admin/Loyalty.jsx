@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
+import { Breadcrumb } from '../../App.jsx'
 import {
   GlobeAltIcon,
   WalletIcon,
@@ -37,7 +38,7 @@ function StatusDot({ status }) {
   return <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, display: 'inline-block', marginRight: 6, flexShrink: 0 }} />
 }
 
-const inp = { width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 14, outline: 'none' }
+const inp = { width: '100%', padding: '8px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text)', fontSize: 14, outline: 'none' }
 
 function SectionMsg({ msg }) {
   if (!msg) return null
@@ -155,16 +156,15 @@ export default function AdminLoyalty() {
   }
 
   return (
-    <div style={{ padding: '24px 20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Programme de Fidélité</h1>
-        <button onClick={runBatch}
-          style={{ padding: '10px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 8, color: '#8b5cf6', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
-          <ArrowPathIcon className="inline w-4 h-4 mr-1" /> Lancer le batch
+    <div style={{ padding: '24px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Fidélité" segments={[{ label: 'Configuration & statuts' }]} />
+        <button onClick={runBatch} className="af-btn af-btn--ghost" style={{ color: 'var(--af-kpi-violet)' }}>
+          <ArrowPathIcon style={{ width: 14, height: 14 }} /> Lancer le batch
         </button>
       </div>
 
-      {msg && <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: '10px 14px', color: '#10b981', marginBottom: 16, fontSize: 13 }}>{msg}</div>}
+      {msg && <div style={{ background: 'var(--af-success-soft)', border: '1px solid var(--af-success)33', borderRadius: 'var(--af-radius)', padding: '10px 14px', color: 'var(--af-success)', marginBottom: 16, fontSize: 13 }}>{msg}</div>}
 
       {/* Stats */}
       {stats && (
@@ -174,14 +174,14 @@ export default function AdminLoyalty() {
             const count = stats.byStatus.find(b => b.loyalty_status === s)?.count || 0
             const total = stats.summary?.total || 1
             return (
-              <div key={s} style={{ background: '#1e293b', borderRadius: 12, padding: '20px 20px', border: `1px solid ${m.color}33` }}>
+              <div key={s} style={{ background: 'var(--af-surface)', borderRadius: 12, padding: '20px 20px', border: `1px solid ${m.color}33` }}>
                 <div style={{ marginBottom: 8 }}><StatusDot status={s} /></div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: m.color }}>{count}</div>
-                <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{s}</div>
-                <div style={{ marginTop: 10, height: 4, background: '#334155', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 2 }}>{s}</div>
+                <div style={{ marginTop: 10, height: 4, background: 'var(--af-border)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${(count / total) * 100}%`, background: m.color, borderRadius: 4 }} />
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{Math.round((count / total) * 100)}%</div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 4 }}>{Math.round((count / total) * 100)}%</div>
               </div>
             )
           })}
@@ -195,15 +195,15 @@ export default function AdminLoyalty() {
           const isEditing = editing === config.status
 
           return (
-            <div key={config.status} style={{ background: '#1e293b', borderRadius: 14, padding: 24, border: `1px solid ${m.color}33` }}>
+            <div key={config.status} style={{ background: 'var(--af-surface)', borderRadius: 14, padding: 24, border: `1px solid ${m.color}33` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: `${m.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <StatusDot status={config.status} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{config.status}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{config.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--af-text)' }}>{config.status}</div>
+                    <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>{config.label}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: m.color }}>{config.client_rebate_percent}%</div>
@@ -213,38 +213,38 @@ export default function AdminLoyalty() {
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Remise Y% client</label>
+                      <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4 }}>Remise Y% client</label>
                       <input type="number" step="0.5" min="0" max="20" value={formData.client_rebate_percent}
                         onChange={e => setFormData(f => ({ ...f, client_rebate_percent: parseFloat(e.target.value) }))} style={inp} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Achats min. (passage)</label>
+                      <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4 }}>Achats min. (passage)</label>
                       <input type="number" min="0" value={formData.min_purchases}
                         onChange={e => setFormData(f => ({ ...f, min_purchases: parseInt(e.target.value) }))} style={inp} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Montant min. cumulé</label>
+                      <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4 }}>Montant min. cumulé</label>
                       <input type="number" min="0" value={formData.min_cumulative_amount}
                         onChange={e => setFormData(f => ({ ...f, min_cumulative_amount: parseFloat(e.target.value) }))} style={inp} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Mois évaluation</label>
+                      <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4 }}>Mois évaluation</label>
                       <input type="number" min="1" max="24" value={formData.evaluation_months}
                         onChange={e => setFormData(f => ({ ...f, evaluation_months: parseInt(e.target.value) }))} style={inp} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Inactivité (rétrogradation)</label>
+                      <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4 }}>Inactivité (rétrogradation)</label>
                       <input type="number" min="1" value={formData.inactivity_months}
                         onChange={e => setFormData(f => ({ ...f, inactivity_months: parseInt(e.target.value) }))} style={inp} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => save(config.status)} disabled={saving}
-                      style={{ flex: 1, padding: '8px', background: m.color, border: 'none', borderRadius: 8, color: '#0f172a', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                      style={{ flex: 1, padding: '8px', background: m.color, border: 'none', borderRadius: 8, color: 'var(--af-surface-3)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                       {saving ? 'Sauvegarde...' : 'Sauvegarder'}
                     </button>
                     <button onClick={() => setEditing(null)}
-                      style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #334155', borderRadius: 8, color: '#64748b', cursor: 'pointer', fontSize: 13 }}>
+                      style={{ padding: '8px 12px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13 }}>
                       Annuler
                     </button>
                   </div>
@@ -258,9 +258,9 @@ export default function AdminLoyalty() {
                       ['Période d\'éval.', `${config.evaluation_months} mois`],
                       ['Rétrogradation', `${config.inactivity_months} mois`],
                     ].map(([k, v]) => (
-                      <div key={k} style={{ background: '#0f172a', borderRadius: 6, padding: '8px 10px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{k}</div>
-                        <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{v}</div>
+                      <div key={k} style={{ background: 'var(--af-surface-3)', borderRadius: 6, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginBottom: 2 }}>{k}</div>
+                        <div style={{ fontSize: 13, color: 'var(--af-text-muted)', fontWeight: 500 }}>{v}</div>
                       </div>
                     ))}
                   </div>
@@ -276,23 +276,23 @@ export default function AdminLoyalty() {
       </div>
 
       {/* Formula */}
-      <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Règle Fondamentale</h3>
-        <div style={{ fontFamily: 'monospace', fontSize: 16, color: '#f59e0b', padding: '12px 16px', background: '#0f172a', borderRadius: 8, letterSpacing: '0.05em' }}>
+      <div style={{ marginTop: 24, background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 12 }}>Règle Fondamentale</h3>
+        <div style={{ fontFamily: 'monospace', fontSize: 16, color: 'var(--af-accent)', padding: '12px 16px', background: 'var(--af-surface-3)', borderRadius: 8, letterSpacing: '0.05em' }}>
           X% (remise marchand) = Y% (remise client) + Z% (commission Afrik'Fid)
         </div>
-        <p style={{ color: '#64748b', fontSize: 13, marginTop: 12 }}>
-          Z% est toujours calculé automatiquement : <strong style={{ color: '#94a3b8' }}>Z = X − Y</strong>. Le système rejette toute transaction où Y &gt; X.
+        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 12 }}>
+          Z% est toujours calculé automatiquement : <strong style={{ color: 'var(--af-text-muted)' }}>Z = X − Y</strong>. Le système rejette toute transaction où Y &gt; X.
         </p>
       </div>
 
       {/* ─── Taux Y% par pays ──────────────────────────────────────────────── */}
-      <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
+      <div style={{ marginTop: 24, background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <GlobeAltIcon style={{ width: 18, height: 18, color: '#3b82f6' }} />
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Surcharges Y% par pays </h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Surcharges Y% par pays </h3>
         </div>
-        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 16 }}>
           Ces taux remplacent le taux global pour les clients d'un pays spécifique. Priorité : catégorie marchand &gt; pays &gt; global.
         </p>
 
@@ -300,12 +300,12 @@ export default function AdminLoyalty() {
 
         {/* Tableau des surcharges existantes */}
         {countryOverrides.length > 0 ? (
-          <div style={{ background: '#0f172a', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+          <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#162032' }}>
+                <tr style={{ background: 'var(--af-surface-2)' }}>
                   {['Pays', 'Statut', 'Taux Y%', ''].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -313,8 +313,8 @@ export default function AdminLoyalty() {
                 {countryOverrides.map(o => {
                   const c = COUNTRIES.find(c => c.id === o.country_id)
                   return (
-                    <tr key={`${o.country_id}-${o.status}`} style={{ borderTop: '1px solid #1e293b' }}>
-                      <td style={{ padding: '8px 12px', color: '#f1f5f9' }}>{c?.flag} {o.country_name || o.country_id}</td>
+                    <tr key={`${o.country_id}-${o.status}`} style={{ borderTop: '1px solid var(--af-surface)' }}>
+                      <td style={{ padding: '8px 12px', color: 'var(--af-text)' }}>{c?.flag} {o.country_name || o.country_id}</td>
                       <td style={{ padding: '8px 12px' }}>
                         <span style={{ background: `${STATUS_META[o.status]?.color}22`, color: STATUS_META[o.status]?.color, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{o.status}</span>
                       </td>
@@ -332,7 +332,7 @@ export default function AdminLoyalty() {
             </table>
           </div>
         ) : (
-          <div style={{ background: '#0f172a', borderRadius: 8, padding: '14px', fontSize: 13, color: '#475569', textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '14px', fontSize: 13, color: 'var(--af-border-strong)', textAlign: 'center', marginBottom: 16 }}>
             Aucune surcharge — tous les pays utilisent les taux globaux.
           </div>
         )}
@@ -340,21 +340,21 @@ export default function AdminLoyalty() {
         {/* Formulaire ajout */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 2, minWidth: 140 }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Pays</label>
+            <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>Pays</label>
             <select value={newOverride.country_id} onChange={e => setNewOverride(f => ({ ...f, country_id: e.target.value }))}
               style={{ ...inp, fontSize: 13 }}>
               {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.name}</option>)}
             </select>
           </div>
           <div style={{ flex: 1, minWidth: 100 }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Statut</label>
+            <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>Statut</label>
             <select value={newOverride.status} onChange={e => setNewOverride(f => ({ ...f, status: e.target.value }))}
               style={{ ...inp, fontSize: 13 }}>
               {['OPEN', 'LIVE', 'GOLD', 'ROYAL'].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div style={{ flex: 1, minWidth: 80 }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Taux Y%</label>
+            <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>Taux Y%</label>
             <input type="number" step="0.5" min="0" max="20"
               value={newOverride.rate}
               onChange={e => setNewOverride(f => ({ ...f, rate: e.target.value }))}
@@ -370,12 +370,12 @@ export default function AdminLoyalty() {
       </div>
 
       {/* ─── Plafond wallet cashback ───────────────────────────────────────── */}
-      <div style={{ marginTop: 24, background: '#1e293b', borderRadius: 12, padding: 24, border: '1px solid #334155' }}>
+      <div style={{ marginTop: 24, background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <WalletIcon style={{ width: 18, height: 18, color: '#f59e0b' }} />
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Plafond du portefeuille cashback </h3>
+          <WalletIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Plafond du portefeuille cashback </h3>
         </div>
-        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 16 }}>
           Montant maximum qu'un client peut accumuler dans son portefeuille cashback. Laisser vide = illimité.
         </p>
 
@@ -383,7 +383,7 @@ export default function AdminLoyalty() {
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Plafond global (XOF)</label>
+            <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>Plafond global (XOF)</label>
             <input type="number" min="0"
               value={walletCap}
               onChange={e => setWalletCap(e.target.value)}
@@ -391,7 +391,7 @@ export default function AdminLoyalty() {
               style={inp} />
           </div>
           <button onClick={saveWalletCap} disabled={walletCapSaving}
-            style={{ padding: '9px 20px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, color: '#f59e0b', cursor: walletCapSaving ? 'default' : 'pointer', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+            style={{ padding: '9px 20px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, color: 'var(--af-accent)', cursor: walletCapSaving ? 'default' : 'pointer', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
             {walletCapSaving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
         </div>

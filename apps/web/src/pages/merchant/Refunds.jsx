@@ -8,7 +8,7 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit
 
 const STATUS_STYLE = {
   completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'Complété' },
-  pending:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  label: 'En attente' },
+  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',  label: 'En attente' },
   failed:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   label: 'Échoué' },
   overdue:   { color: '#f97316', bg: 'rgba(249,115,22,0.1)',  label: 'En retard' },
 }
@@ -37,18 +37,18 @@ export default function MerchantRefunds() {
 
   useEffect(() => { load() }, [page, status, refundType])
 
-  const sel = s => STATUS_STYLE[s] || { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', label: s }
+  const sel = s => STATUS_STYLE[s] || { color: 'var(--af-text-muted)', bg: 'rgba(156,163,175,0.1)', label: s }
 
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Mes Remboursements ({total})</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Mes Remboursements ({total})</h1>
       </div>
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-          style={{ padding: '8px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 13 }}>
+          style={{ padding: '8px 12px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text)', fontSize: 13 }}>
           <option value="">Tous les statuts</option>
           <option value="pending">En attente</option>
           <option value="completed">Complété</option>
@@ -56,7 +56,7 @@ export default function MerchantRefunds() {
           <option value="overdue">En retard</option>
         </select>
         <select value={refundType} onChange={e => { setRefundType(e.target.value); setPage(1) }}
-          style={{ padding: '8px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9', fontSize: 13 }}>
+          style={{ padding: '8px 12px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text)', fontSize: 13 }}>
           <option value="">Tous les types</option>
           <option value="full">Remboursement total</option>
           <option value="partial">Remboursement partiel</option>
@@ -64,14 +64,14 @@ export default function MerchantRefunds() {
       </div>
 
       {loading ? <Spinner /> : refunds.length === 0 ? (
-        <EmptyState icon={<ArrowUturnLeftIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
+        <EmptyState icon={<ArrowUturnLeftIcon style={{ width: 40, height: 40, color: 'var(--af-border)' }} />} title="Aucun remboursement" description="Aucun remboursement trouvé pour les filtres sélectionnés." />
       ) : (
         <Card>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #334155' }}>
+              <tr style={{ borderBottom: '1px solid var(--af-border)' }}>
                 {['Référence transaction', 'Type', 'Montant remboursé', 'Montant original', 'Client', 'Statut', 'Date', ''].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: 'var(--af-text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -79,40 +79,40 @@ export default function MerchantRefunds() {
               {refunds.map(r => {
                 const st = sel(r.status)
                 return (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #1e293b', cursor: 'pointer' }}
+                  <tr key={r.id} style={{ borderBottom: '1px solid var(--af-surface)', cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <td style={{ padding: '12px', color: '#94a3b8', fontFamily: 'monospace', fontSize: 12 }}>{r.transaction_reference}</td>
+                    <td style={{ padding: '12px', color: 'var(--af-text-muted)', fontFamily: 'monospace', fontSize: 12 }}>{r.transaction_reference}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
                         background: r.refund_type === 'full' ? 'rgba(139,92,246,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: r.refund_type === 'full' ? '#8b5cf6' : '#f59e0b' }}>
+                        color: r.refund_type === 'full' ? '#8b5cf6' : 'var(--af-accent)' }}>
                         {TYPE_LABEL[r.refund_type] || r.refund_type}
                       </span>
                     </td>
                     <td style={{ padding: '12px', color: '#ef4444', fontWeight: 600 }}>-{fmt(r.amount)} {r.currency}</td>
-                    <td style={{ padding: '12px', color: '#94a3b8' }}>{fmt(r.original_amount)} {r.currency}</td>
+                    <td style={{ padding: '12px', color: 'var(--af-text-muted)' }}>{fmt(r.original_amount)} {r.currency}</td>
                     <td style={{ padding: '12px' }}>
                       {r.client_name ? (
                         <span>
-                          <span style={{ color: '#f1f5f9' }}>{r.client_name}</span>
+                          <span style={{ color: 'var(--af-text)' }}>{r.client_name}</span>
                           {r.client_status && (
-                            <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: LOYALTY_COLOR[r.client_status] || '#94a3b8' }}>
+                            <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: LOYALTY_COLOR[r.client_status] || 'var(--af-text-muted)' }}>
                               {r.client_status}
                             </span>
                           )}
                         </span>
-                      ) : <span style={{ color: '#475569' }}>—</span>}
+                      ) : <span style={{ color: 'var(--af-border-strong)' }}>—</span>}
                     </td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: st.bg, color: st.color }}>
                         {st.label}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', color: '#64748b', fontSize: 12 }}>{fmtDate(r.created_at)}</td>
+                    <td style={{ padding: '12px', color: 'var(--af-text-muted)', fontSize: 12 }}>{fmtDate(r.created_at)}</td>
                     <td style={{ padding: '12px' }}>
                       <button onClick={() => setSelected(r)}
-                        style={{ padding: '4px 10px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 5, color: '#818cf8', cursor: 'pointer', fontSize: 12 }}>
+                        style={{ padding: '4px 10px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 5, color: '#818cf8', cursor: 'pointer', fontSize: 12 }}>
                         Détail
                       </button>
                     </td>
@@ -143,8 +143,8 @@ export default function MerchantRefunds() {
               ['Traité le', fmtDate(selected.processed_at)],
             ].map(([label, value]) => (
               <div key={label}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 13, color: '#f1f5f9', wordBreak: 'break-all' }}>{value}</div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 13, color: 'var(--af-text)', wordBreak: 'break-all' }}>{value}</div>
               </div>
             ))}
           </div>

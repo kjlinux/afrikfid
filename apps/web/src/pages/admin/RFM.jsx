@@ -46,14 +46,14 @@ export default function AdminRFM() {
     }).finally(() => setLoading(false))
   }
 
-  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155' }
-  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
-  const card = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)' }
+  const td = { padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)' }
+  const card = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }
 
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Segmentation RFM</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Segmentation RFM</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <Select value={selectedMerchant} onChange={e => { setSelectedMerchant(e.target.value); setPage(1) }}>
             <option value="">Choisir un marchand</option>
@@ -64,7 +64,7 @@ export default function AdminRFM() {
             {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
           {selectedMerchant && (
-            <button onClick={recalculate} style={{ padding: '8px 14px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={recalculate} style={{ padding: '8px 14px', background: 'var(--af-kpi-violet)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Recalculer
             </button>
           )}
@@ -75,14 +75,14 @@ export default function AdminRFM() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
           {[{ label: 'Clients scorés', value: stats.total_clients }, { label: 'Marchands', value: stats.total_merchants }].map(k => (
             <div key={k.label} style={card}>
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{k.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-text)' }}>{k.value}</div>
             </div>
           ))}
           {(stats.segments || []).slice(0, 2).map(s => (
             <div key={s.segment} style={card}>
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{s.segment}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{s.count}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>{s.segment}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-text)' }}>{s.count}</div>
             </div>
           ))}
         </div>
@@ -90,12 +90,12 @@ export default function AdminRFM() {
 
       {stats?.segments && (
         <div style={{ ...card, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Répartition globale</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--af-text)', marginBottom: 12 }}>Répartition globale</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {stats.segments.map(s => (
               <div key={s.segment} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Badge color={SEG_COLORS[s.segment]}>{s.segment}</Badge>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{s.count}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--af-text)' }}>{s.count}</span>
               </div>
             ))}
           </div>
@@ -105,7 +105,7 @@ export default function AdminRFM() {
       {loading && <Spinner />}
 
       {selectedMerchant && !loading && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
@@ -116,14 +116,14 @@ export default function AdminRFM() {
               <tbody>
                 {scores.map(s => (
                   <tr key={s.id}>
-                    <td style={{ ...td, color: '#f1f5f9', fontWeight: 600 }}>
+                    <td style={{ ...td, color: 'var(--af-text)', fontWeight: 600 }}>
                       {s.full_name}<br/>
-                      <span style={{ fontSize: 11, color: '#64748b' }}>{s.afrikfid_id}</span>
+                      <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{s.afrikfid_id}</span>
                     </td>
                     <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.r_score}</td>
                     <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.f_score}</td>
                     <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{s.m_score}</td>
-                    <td style={{ ...td, textAlign: 'center', fontWeight: 800, color: '#6366f1' }}>{s.rfm_total}</td>
+                    <td style={{ ...td, textAlign: 'center', fontWeight: 800, color: 'var(--af-kpi-violet)' }}>{s.rfm_total}</td>
                     <td style={td}><Badge color={SEG_COLORS[s.segment]}>{s.segment}</Badge></td>
                     <td style={{ ...td, textAlign: 'right' }}>{s.purchase_count}</td>
                     <td style={{ ...td, textAlign: 'right' }}>{Number(s.total_amount).toLocaleString()} FCFA</td>

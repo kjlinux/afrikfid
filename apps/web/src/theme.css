@@ -1,0 +1,723 @@
+/*
+ * Thème Afrik'Fid — refonte visuelle complète.
+ * Brand & accent = rouge logo afrik'fid (#E30613), dark + light via data-theme.
+ * Les variables historiques --afrikfid-* sont conservées (remappées) pour compatibilité ascendante
+ * avec les 38 pages existantes, et de nouvelles variables --af-* sont ajoutées pour la refonte.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Montserrat:wght@500;600;700&display=swap');
+
+/* ─── LIGHT (défaut) ───────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="light"] {
+  /* Brand — rouge du logo afrik'fid */
+  --af-brand: #E30613;
+  --af-brand-soft: rgba(227, 6, 19, 0.12);
+  --af-accent: #E30613;
+  --af-accent-soft: rgba(227, 6, 19, 0.12);
+  --af-accent-bright: #F52030;
+
+  /* Topbar / Nav */
+  --af-topbar-bg: #FFFFFF;
+  --af-topbar-fg: #1F2937;
+  --af-topbar-border: #E2E8F0;
+  --af-nav-bg: #FFFFFF;
+  --af-nav-fg: #475569;
+  --af-nav-fg-muted: #94A3B8;
+
+  /* Surfaces — fond plus teinté, moins "white page" */
+  --af-bg: #EDF0F5;
+  --af-surface: #FFFFFF;
+  --af-surface-2: #E2E8F0;
+  --af-surface-3: #F1F5F9;
+  --af-border: #D8DEE8;
+  --af-border-strong: #B8C0CE;
+
+  /* Texte */
+  --af-text: #1F2937;
+  --af-text-muted: #6B7280;
+  --af-text-faint: #9CA3AF;
+  --af-text-invert: #FFFFFF;
+
+  /* Sémantique */
+  --af-success: #059669;
+  --af-success-soft: rgba(5, 150, 105, 0.12);
+  --af-warning: #D97706;
+  --af-warning-soft: rgba(217, 119, 6, 0.12);
+  --af-danger: #DC2626;
+  --af-danger-soft: rgba(220, 38, 38, 0.12);
+  --af-info: #7C3AED;
+  --af-info-soft: rgba(124, 58, 237, 0.12);
+
+  /* KPI palette */
+  --af-kpi-red: #EF4444;
+  --af-kpi-red-soft: rgba(239, 68, 68, 0.15);
+  --af-kpi-violet: #A78BFA;
+  --af-kpi-violet-soft: rgba(167, 139, 250, 0.18);
+  --af-kpi-yellow: #EAB308;
+  --af-kpi-yellow-soft: rgba(234, 179, 8, 0.18);
+  --af-kpi-green: #10B981;
+  --af-kpi-green-soft: rgba(16, 185, 129, 0.15);
+  --af-kpi-blue: #3B82F6;
+  --af-kpi-blue-soft: rgba(59, 130, 246, 0.15);
+  --af-kpi-orange: #E30613;
+  --af-kpi-orange-soft: rgba(227, 6, 19, 0.15);
+
+  /* Nav accents — une couleur par section */
+  --af-nav-accent-dashboard: #3B82F6;
+  --af-nav-accent-partners: #E63946;
+  --af-nav-accent-consumers: #10B981;
+  --af-nav-accent-loyalty: #A78BFA;
+  --af-nav-accent-gift: #E30613;
+  --af-nav-accent-wallet: #10B981;
+  --af-nav-accent-transactions: #A78BFA;
+  --af-nav-accent-finance: #E63946;
+
+  /* Ombres */
+  --af-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --af-shadow-elevated: 0 8px 24px rgba(17, 24, 39, 0.08);
+  --af-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  /* Rayons */
+  --af-radius-xs: 4px;
+  --af-radius-sm: 6px;
+  --af-radius: 8px;
+  --af-radius-lg: 12px;
+  --af-radius-xl: 16px;
+  --af-radius-pill: 999px;
+
+  /* Focus ring */
+  --af-focus-ring: 0 0 0 3px rgba(230, 57, 70, 0.25);
+
+  /* ─── Rétro-compat : mapping des anciennes variables --afrikfid-* ─── */
+  --afrikfid-primary: var(--af-brand);
+  --afrikfid-primary-dark: #B82C37;
+  --afrikfid-secondary: #C11A27;
+  --afrikfid-accent: var(--af-accent);
+  --afrikfid-accent-bright: var(--af-accent-bright);
+  --afrikfid-gold: var(--af-kpi-yellow);
+  --afrikfid-bg: var(--af-bg);
+  --afrikfid-surface: var(--af-surface);
+  --afrikfid-surface-2: var(--af-surface-2);
+  --afrikfid-border: var(--af-border);
+  --afrikfid-text: var(--af-text);
+  --afrikfid-text-muted: var(--af-text-muted);
+  --afrikfid-muted: var(--af-text-muted);
+  --afrikfid-text-invert: var(--af-text-invert);
+  --afrikfid-success: var(--af-success);
+  --afrikfid-info: var(--af-info);
+  --afrikfid-warning: var(--af-warning);
+  --afrikfid-error: var(--af-danger);
+  --afrikfid-loyalty-open: #6B7280;
+  --afrikfid-loyalty-live: #3B82F6;
+  --afrikfid-loyalty-gold: #F59E0B;
+  --afrikfid-loyalty-royal: #8B5CF6;
+  --afrikfid-loyalty-elite: #EC4899;
+  --afrikfid-focus-ring: var(--af-focus-ring);
+  --afrikfid-radius-sm: var(--af-radius-sm);
+  --afrikfid-radius: var(--af-radius);
+  --afrikfid-radius-lg: var(--af-radius-lg);
+}
+
+/* ─── DARK ─────────────────────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  /* Brand — rouge du logo afrik'fid */
+  --af-brand: #E30613;
+  --af-brand-soft: rgba(227, 6, 19, 0.22);
+  --af-accent: #E30613;
+  --af-accent-soft: rgba(227, 6, 19, 0.22);
+  --af-accent-bright: #FF3040;
+
+  /* Topbar / Nav */
+  --af-topbar-bg: #0F1115;
+  --af-topbar-fg: #F3F4F6;
+  --af-topbar-border: #1F2228;
+  --af-nav-bg: #15181E;
+  --af-nav-fg: #D1D5DB;
+  --af-nav-fg-muted: #6B7280;
+
+  /* Surfaces */
+  --af-bg: #1A1D23;
+  --af-surface: #23272F;
+  --af-surface-2: #2D323C;
+  --af-surface-3: #1F232A;
+  --af-border: #353A45;
+  --af-border-strong: #4B5563;
+
+  /* Texte */
+  --af-text: #F3F4F6;
+  --af-text-muted: #9CA3AF;
+  --af-text-faint: #6B7280;
+  --af-text-invert: #FFFFFF;
+
+  /* Sémantique (adapté lumière) */
+  --af-success: #10B981;
+  --af-success-soft: rgba(16, 185, 129, 0.18);
+  --af-warning: #F59E0B;
+  --af-warning-soft: rgba(245, 158, 11, 0.18);
+  --af-danger: #EF4444;
+  --af-danger-soft: rgba(239, 68, 68, 0.18);
+  --af-info: #8B5CF6;
+  --af-info-soft: rgba(139, 92, 246, 0.18);
+
+  /* KPI palette */
+  --af-kpi-red: #EF4444;
+  --af-kpi-red-soft: rgba(239, 68, 68, 0.22);
+  --af-kpi-violet: #A78BFA;
+  --af-kpi-violet-soft: rgba(167, 139, 250, 0.22);
+  --af-kpi-yellow: #EAB308;
+  --af-kpi-yellow-soft: rgba(234, 179, 8, 0.22);
+  --af-kpi-green: #10B981;
+  --af-kpi-green-soft: rgba(16, 185, 129, 0.2);
+  --af-kpi-blue: #3B82F6;
+  --af-kpi-blue-soft: rgba(59, 130, 246, 0.2);
+  --af-kpi-orange: #E30613;
+  --af-kpi-orange-soft: rgba(227, 6, 19, 0.22);
+
+  /* Nav accents */
+  --af-nav-accent-dashboard: #60A5FA;
+  --af-nav-accent-partners: #E63946;
+  --af-nav-accent-consumers: #10B981;
+  --af-nav-accent-loyalty: #A78BFA;
+  --af-nav-accent-gift: #E30613;
+  --af-nav-accent-wallet: #10B981;
+  --af-nav-accent-transactions: #A78BFA;
+  --af-nav-accent-finance: #E63946;
+
+  /* Ombres (quasi-invisibles en dark mais on garde pour l'élévation) */
+  --af-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --af-shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --af-shadow-topbar: 0 1px 0 rgba(0, 0, 0, 0.4);
+
+  /* Focus ring */
+  --af-focus-ring: 0 0 0 3px rgba(230, 57, 70, 0.4);
+
+  /* Rétro-compat */
+  --afrikfid-primary: var(--af-brand);
+  --afrikfid-primary-dark: #B82C37;
+  --afrikfid-secondary: #FCA5A5;
+  --afrikfid-accent: var(--af-accent);
+  --afrikfid-accent-bright: var(--af-accent-bright);
+  --afrikfid-gold: var(--af-kpi-yellow);
+  --afrikfid-bg: var(--af-bg);
+  --afrikfid-surface: var(--af-surface);
+  --afrikfid-surface-2: var(--af-surface-2);
+  --afrikfid-border: var(--af-border);
+  --afrikfid-text: var(--af-text);
+  --afrikfid-text-muted: var(--af-text-muted);
+  --afrikfid-muted: var(--af-text-muted);
+  --afrikfid-text-invert: var(--af-text-invert);
+  --afrikfid-success: var(--af-success);
+  --afrikfid-info: var(--af-info);
+  --afrikfid-warning: var(--af-warning);
+  --afrikfid-error: var(--af-danger);
+  --afrikfid-loyalty-open: #9CA3AF;
+  --afrikfid-loyalty-live: #60A5FA;
+  --afrikfid-loyalty-gold: #FBBF24;
+  --afrikfid-loyalty-royal: #A78BFA;
+  --afrikfid-loyalty-elite: #F472B6;
+  --afrikfid-focus-ring: var(--af-focus-ring);
+}
+
+/* ─── Globals ──────────────────────────────────────────────────────────────── */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+html {
+  color-scheme: light;
+  background: var(--af-bg);
+}
+html[data-theme="dark"] { color-scheme: dark; }
+
+body {
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--af-bg);
+  color: var(--af-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', 'Poppins', sans-serif;
+  color: var(--af-text);
+  font-weight: 600;
+  margin: 0;
+}
+
+a { color: var(--af-accent); text-decoration: none; }
+a:hover { color: var(--af-accent-bright); }
+
+button, input, select, textarea { font-family: inherit; }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--af-focus-ring);
+  border-radius: var(--af-radius-sm);
+}
+
+/* Scrollbar (dark-mode friendly) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--af-bg); }
+::-webkit-scrollbar-thumb { background: var(--af-border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--af-border-strong); }
+
+/* ─── Utility classes (layout Afrik'Fid) ───────────────────────────────────── */
+
+/* Topbar */
+.af-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--af-topbar-bg);
+  color: var(--af-topbar-fg);
+  border-bottom: 1px solid var(--af-topbar-border);
+  padding: 10px 28px;
+  height: 60px;
+  box-shadow: var(--af-shadow-topbar);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.af-topbar__logo {
+  height: 36px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+.af-topbar__icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.af-topbar__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--af-radius);
+  background: transparent;
+  color: var(--af-topbar-fg);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.af-topbar__icon-btn:hover { background: var(--af-surface-2); }
+.af-topbar__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-radius: var(--af-radius-pill);
+  cursor: pointer;
+}
+.af-topbar__user:hover { background: var(--af-surface-2); }
+.af-topbar__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--af-kpi-blue-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--af-kpi-blue);
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+}
+.af-topbar__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.af-topbar__user-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.af-topbar__user-role { font-size: 11px; color: var(--af-text-muted); line-height: 1.2; }
+
+/* Navbar horizontale */
+.af-navbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--af-nav-bg);
+  border-bottom: 1px solid var(--af-border);
+  padding: 0 24px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.af-navbar::-webkit-scrollbar { height: 4px; }
+.af-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--af-nav-fg);
+  border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  position: relative;
+}
+.af-nav-item:hover { color: var(--af-text); background: var(--af-surface-2); }
+.af-nav-item.is-active {
+  color: var(--af-text);
+  background: var(--af-surface-2);
+  border-bottom-color: var(--af-nav-accent, var(--af-brand));
+}
+.af-nav-item .af-nav-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--af-nav-accent, var(--af-nav-fg-muted));
+  flex-shrink: 0;
+}
+.af-nav-item .af-nav-chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: -2px;
+  color: var(--af-nav-fg-muted);
+}
+
+/* Dropdown sous-menu */
+.af-nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  background: var(--af-surface);
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius);
+  box-shadow: var(--af-shadow-elevated);
+  padding: 6px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+.af-nav-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--af-radius-sm);
+  font-size: 13px;
+  color: var(--af-text);
+  text-decoration: none;
+  cursor: pointer;
+}
+.af-nav-dropdown__item:hover {
+  background: var(--af-surface-2);
+  color: var(--af-accent);
+}
+.af-nav-dropdown__arrow {
+  color: var(--af-accent);
+  font-weight: 700;
+  width: 14px;
+  display: inline-block;
+}
+
+/* Progress bar (top loading strip) */
+.af-progress {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--af-accent);
+  transition: width 0.3s ease;
+  z-index: 60;
+}
+
+/* Breadcrumb */
+.af-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--af-text);
+  margin-bottom: 20px;
+}
+.af-breadcrumb__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--af-text);
+  margin-right: 6px;
+}
+.af-breadcrumb__sep {
+  color: var(--af-accent);
+  font-weight: 700;
+}
+.af-breadcrumb__home {
+  width: 16px;
+  height: 16px;
+  color: var(--af-accent);
+}
+.af-breadcrumb__item {
+  color: var(--af-text-muted);
+  text-decoration: none;
+}
+.af-breadcrumb__item:hover { color: var(--af-accent); }
+.af-breadcrumb__item.is-current { color: var(--af-text); }
+
+/* Cards */
+.af-card {
+  background: var(--af-surface);
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius-lg);
+  box-shadow: var(--af-shadow-card);
+}
+.af-card__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--af-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.af-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--af-text);
+}
+.af-card__body { padding: 20px; }
+
+/* KPI card */
+.af-kpi {
+  position: relative;
+  background: var(--af-surface);
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius-xl);
+  padding: 18px 20px;
+  overflow: hidden;
+  box-shadow: var(--af-shadow-card);
+  min-height: 110px;
+}
+.af-kpi__label {
+  font-size: 13px;
+  color: var(--af-text-muted);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.af-kpi__value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Montserrat', 'Poppins', sans-serif;
+  color: var(--af-text);
+  line-height: 1.1;
+}
+.af-kpi__icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  color: var(--af-text-muted);
+  opacity: 0.5;
+}
+.af-kpi__spark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46px;
+  pointer-events: none;
+}
+.af-kpi__sub {
+  font-size: 11px;
+  color: var(--af-text-muted);
+  margin-top: 4px;
+}
+
+/* Tables */
+.af-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--af-text);
+}
+.af-table thead th {
+  text-align: left;
+  padding: 12px 16px;
+  background: var(--af-surface-2);
+  color: var(--af-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid var(--af-border);
+  white-space: nowrap;
+}
+.af-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--af-border);
+  vertical-align: middle;
+}
+.af-table tbody tr:hover td { background: var(--af-surface-2); }
+.af-table tbody tr:last-child td { border-bottom: none; }
+
+/* Pills (numériques / statut) */
+.af-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 4px 12px;
+  border-radius: var(--af-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+.af-pill--blue    { color: var(--af-kpi-blue);    border-color: var(--af-kpi-blue-soft);    background: var(--af-kpi-blue-soft); }
+.af-pill--violet  { color: var(--af-kpi-violet);  border-color: var(--af-kpi-violet-soft);  background: var(--af-kpi-violet-soft); }
+.af-pill--green   { color: var(--af-success);     border-color: var(--af-success-soft);     background: var(--af-success-soft); }
+.af-pill--orange  { color: var(--af-accent);      border-color: var(--af-accent-soft);      background: var(--af-accent-soft); }
+.af-pill--red     { color: var(--af-danger);      border-color: var(--af-danger-soft);      background: var(--af-danger-soft); }
+.af-pill--yellow  { color: #B45309;               border-color: var(--af-kpi-yellow-soft);  background: var(--af-kpi-yellow-soft); }
+.af-pill--gray    { color: var(--af-text-muted);  border-color: var(--af-border);           background: var(--af-surface-2); }
+
+/* Status badge (pill sombre, texte blanc) */
+.af-badge-status {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: var(--af-radius);
+  font-size: 11px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #1F2937;
+  letter-spacing: 0.3px;
+}
+:root[data-theme="light"] .af-badge-status { background: #111827; }
+.af-badge-status--success { background: var(--af-success); }
+.af-badge-status--danger  { background: var(--af-danger); }
+.af-badge-status--warning { background: var(--af-warning); color: #1F2937; }
+.af-badge-status--info    { background: var(--af-info); }
+.af-badge-status--loyalty { background: #1F2937; color: var(--af-kpi-violet); border: 1px solid var(--af-kpi-violet-soft); }
+
+/* Buttons */
+.af-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--af-radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.05s;
+  line-height: 1.2;
+}
+.af-btn:active { transform: translateY(1px); }
+.af-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.af-btn--primary {
+  background: var(--af-accent);
+  color: #FFFFFF;
+}
+.af-btn--primary:hover:not(:disabled) { background: var(--af-accent-bright); }
+.af-btn--brand {
+  background: var(--af-brand);
+  color: #FFFFFF;
+}
+.af-btn--brand:hover:not(:disabled) { background: #F05058; }
+.af-btn--ghost {
+  background: var(--af-surface);
+  color: var(--af-text);
+  border-color: var(--af-border);
+}
+.af-btn--ghost:hover:not(:disabled) { background: var(--af-surface-2); border-color: var(--af-border-strong); }
+.af-btn--danger {
+  background: var(--af-danger-soft);
+  color: var(--af-danger);
+  border-color: var(--af-danger-soft);
+}
+.af-btn--danger:hover:not(:disabled) { background: var(--af-danger); color: #FFFFFF; }
+.af-btn--success {
+  background: var(--af-success-soft);
+  color: var(--af-success);
+  border-color: var(--af-success-soft);
+}
+.af-btn--sm { padding: 6px 12px; font-size: 12px; }
+.af-btn--lg { padding: 13px 24px; font-size: 15px; }
+.af-btn--icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--af-radius);
+}
+
+/* Inputs / Selects */
+.af-field {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--af-surface);
+  color: var(--af-text);
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.af-field::placeholder { color: var(--af-text-faint); }
+.af-field:focus {
+  border-color: var(--af-accent);
+  box-shadow: var(--af-focus-ring);
+}
+.af-field--search {
+  background: var(--af-surface);
+  border-radius: var(--af-radius-pill);
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* Donut chart empty center (pour garder le centre vide visuellement) */
+.af-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Spinner animation */
+@keyframes af-spin {
+  to { transform: rotate(360deg); }
+}
+.af-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--af-border);
+  border-top-color: var(--af-accent);
+  border-radius: 50%;
+  animation: af-spin 0.7s linear infinite;
+}
+
+/* Slide-in (toast) */
+@keyframes af-slide-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Page de paiement publique — applique le nouveau thème (dark par défaut, override possible) */
+.pay-surface {
+  background: linear-gradient(180deg, var(--af-surface) 0%, var(--af-surface-2) 100%);
+}
+
+/* Empty state icon */
+.af-empty-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--af-border-strong);
+}
+
+/* Responsive helpers */
+@media (max-width: 768px) {
+  .af-topbar { padding: 8px 12px; }
+  .af-navbar { padding: 0 12px; }
+  .af-topbar__user-name, .af-topbar__user-role { display: none; }
+}

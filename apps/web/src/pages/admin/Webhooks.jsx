@@ -46,8 +46,8 @@ export default function AdminWebhooks() {
     <div style={{ padding: '24px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Webhooks</h1>
-          <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>Suivi des événements et livraisons</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Webhooks</h1>
+          <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Suivi des événements et livraisons</p>
         </div>
       </div>
 
@@ -57,10 +57,10 @@ export default function AdminWebhooks() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
           {stats.byStatus.map(s => (
-            <div key={s.status} style={{ background: '#1e293b', borderRadius: 10, padding: '14px 18px', border: '1px solid #334155' }}>
-              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>{STATUS_LABEL[s.status] || s.status}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.status === 'delivered' ? '#10b981' : s.status === 'failed' ? '#ef4444' : '#f59e0b' }}>{s.count}</div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Moy. {Math.round(s.avg_attempts * 10) / 10} tentatives</div>
+            <div key={s.status} style={{ background: 'var(--af-surface)', borderRadius: 10, padding: '14px 18px', border: '1px solid var(--af-border)' }}>
+              <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6 }}>{STATUS_LABEL[s.status] || s.status}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: s.status === 'delivered' ? '#10b981' : s.status === 'failed' ? '#ef4444' : 'var(--af-accent)' }}>{s.count}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Moy. {Math.round(s.avg_attempts * 10) / 10} tentatives</div>
             </div>
           ))}
         </div>
@@ -69,7 +69,7 @@ export default function AdminWebhooks() {
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <select value={filters.status} onChange={e => { setFilters(f => ({ ...f, status: e.target.value })); setPage(1) }}
-          style={{ padding: '9px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 13 }}>
+          style={{ padding: '9px 14px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', fontSize: 13 }}>
           <option value="">Tous les statuts</option>
           <option value="pending">En attente</option>
           <option value="delivered">Livrés</option>
@@ -81,24 +81,24 @@ export default function AdminWebhooks() {
       {loading ? <Spinner /> : (
         <Card>
           {events.length === 0 ? (
-            <EmptyState icon={<BellSlashIcon style={{ width: 40, height: 40, color: '#334155' }} />} title="Aucun événement" desc="Les webhooks apparaîtront ici après les transactions." />
+            <EmptyState icon={<BellSlashIcon style={{ width: 40, height: 40, color: 'var(--af-border)' }} />} title="Aucun événement" desc="Les webhooks apparaîtront ici après les transactions." />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#0f172a' }}>
+                <tr style={{ background: 'var(--af-surface-3)' }}>
                   {['Marchand', 'Type', 'Statut', 'Tentatives', 'Créé', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {events.map(e => (
-                  <tr key={e.id} style={{ borderTop: '1px solid #334155' }}>
-                    <td style={{ padding: '11px 14px', fontSize: 13, color: '#f1f5f9' }}>{e.merchant_name}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: '#94a3b8', fontFamily: 'monospace' }}>{e.event_type}</td>
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--af-border)' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--af-text)' }}>{e.merchant_name}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--af-text-muted)', fontFamily: 'monospace' }}>{e.event_type}</td>
                     <td style={{ padding: '11px 14px' }}><Badge status={e.status} label={STATUS_LABEL[e.status] || e.status} /></td>
-                    <td style={{ padding: '11px 14px', fontSize: 13, color: '#64748b' }}>{e.attempts} / 4</td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#64748b' }}>{e.created_at?.split('T')[0]}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--af-text-muted)' }}>{e.attempts} / 4</td>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--af-text-muted)' }}>{e.created_at?.split('T')[0]}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => setSelected(e)}
@@ -107,7 +107,7 @@ export default function AdminWebhooks() {
                         </button>
                         {(e.status === 'failed') && (
                           <button onClick={() => retry(e.id)}
-                            style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: '#f59e0b', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                            style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: 'var(--af-accent)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
                             Retry
                           </button>
                         )}
@@ -118,7 +118,7 @@ export default function AdminWebhooks() {
               </tbody>
             </table>
           )}
-          <div style={{ padding: '12px 0 0', borderTop: '1px solid #334155', marginTop: 8 }}>
+          <div style={{ padding: '12px 0 0', borderTop: '1px solid var(--af-border)', marginTop: 8 }}>
             <Pagination page={page} total={total} limit={25} onPage={setPage} />
           </div>
         </Card>
@@ -137,9 +137,9 @@ export default function AdminWebhooks() {
                 ['Créé', selected.created_at],
                 ['Dernier essai', selected.last_attempted_at || '—'],
               ].map(([k, v]) => (
-                <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, color: '#f1f5f9', fontFamily: k === 'Type' ? 'monospace' : 'inherit' }}>{v}</div>
+                <div key={k} style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 2 }}>{k}</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-text)', fontFamily: k === 'Type' ? 'monospace' : 'inherit' }}>{v}</div>
                 </div>
               ))}
             </div>
@@ -151,11 +151,11 @@ export default function AdminWebhooks() {
             )}
             {selected.parsedPayload || selected.payload ? (
               <div>
-                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
                   PAYLOAD
                   <CopyButton text={selected.payload || JSON.stringify(selected.parsedPayload, null, 2)} />
                 </div>
-                <pre style={{ background: '#0f172a', borderRadius: 8, padding: 12, fontSize: 11, color: '#10b981', margin: 0, overflowX: 'auto', maxHeight: 200, whiteSpace: 'pre-wrap' }}>
+                <pre style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: 12, fontSize: 11, color: '#10b981', margin: 0, overflowX: 'auto', maxHeight: 200, whiteSpace: 'pre-wrap' }}>
                   {JSON.stringify(selected.parsedPayload || JSON.parse(selected.payload || '{}'), null, 2)}
                 </pre>
               </div>

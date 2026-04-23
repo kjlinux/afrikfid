@@ -92,20 +92,20 @@ export default function AdminCampaigns() {
     } catch { /* ignore */ }
   }
 
-  const th = { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155' }
-  const td = { padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b' }
-  const tdBold = { ...td, color: '#f1f5f9', fontWeight: 600 }
+  const th = { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)' }
+  const td = { padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)' }
+  const tdBold = { ...td, color: 'var(--af-text)', fontWeight: 600 }
 
   if (loading) return <Spinner />
 
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Campagnes & Triggers</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Campagnes & Triggers</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           {['campaigns', 'triggers'].map(t => (
             <button key={t} onClick={() => { setTab(t); setPage(1) }}
-              style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? '#6366f1' : '#1e293b', color: tab === t ? '#fff' : '#94a3b8' }}>
+              style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? 'var(--af-kpi-violet)' : 'var(--af-surface)', color: tab === t ? '#fff' : 'var(--af-text-muted)' }}>
               {t === 'campaigns' ? 'Campagnes' : 'Triggers'}
             </button>
           ))}
@@ -117,7 +117,7 @@ export default function AdminCampaigns() {
       </div>
 
       {tab === 'campaigns' && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Nom', 'Marchand', 'Segment', 'Canal', 'Cibles', 'Envoyés', 'Statut', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -147,7 +147,7 @@ export default function AdminCampaigns() {
       )}
 
       {tab === 'triggers' && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Type', 'Marchand', 'Segment cible', 'Canal', 'Cooldown', 'Actif', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -212,9 +212,9 @@ export default function AdminCampaigns() {
               placeholder="Message template (ex: Bonjour {{prenom}}, profitez de -{{remise}}% chez {{marchand}} !)"
               value={form.message_template}
               onChange={e => setForm({ ...form, message_template: e.target.value })}
-              style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
-            {formError && <div style={{ color: '#f87171', fontSize: 12, padding: '6px 10px', background: '#450a0a', borderRadius: 6 }}>{formError}</div>}
+            {formError && <div style={{ color: 'var(--af-danger)', fontSize: 12, padding: '6px 10px', background: 'var(--af-danger-soft)', borderRadius: 6 }}>{formError}</div>}
             <Button onClick={tab === 'campaigns' ? createCampaign : createTrigger} disabled={submitting}>
               {submitting ? 'Création...' : 'Créer'}
             </Button>

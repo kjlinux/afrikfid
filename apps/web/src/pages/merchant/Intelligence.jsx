@@ -14,7 +14,7 @@ import { useAuth } from '../../App.jsx'
 import { Badge, Spinner, InfoTooltip, Tooltip } from '../../components/ui.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
-const SEG_COLOR = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#f59e0b', A_RISQUE: '#f97316', HIBERNANTS: '#6b7280', PERDUS: '#ef4444' }
+const SEG_COLOR = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: 'var(--af-accent)', A_RISQUE: '#f97316', HIBERNANTS: '#6b7280', PERDUS: '#ef4444' }
 
 //— Actions recommandées par segment
 const SEG_ACTIONS = {
@@ -43,7 +43,7 @@ const SEG_ACTIONS = {
   PROMETTEURS: {
     label: 'Prometteurs',
     priority: 'HAUTE',
-    priorityColor: '#f59e0b',
+    priorityColor: 'var(--af-accent)',
     actions: [
       'Offres "revenez vite" : points bonus si retour < 15 jours',
       'Stimuler la fréquence avec des promotions flash',
@@ -92,9 +92,9 @@ function SegmentActionsPanel({ rfmDetails }) {
   if (segments.length === 0) return null
 
   return (
-    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Actions Recommandées par Segment</div>
-      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>— Playbook opérationnel pour chaque segment RFM</div>
+    <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Actions Recommandées par Segment</div>
+      <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 16 }}>— Playbook opérationnel pour chaque segment RFM</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {segments.sort((a, b) => {
           const prio = { URGENTE: 0, VIP: 0, HAUTE: 1, MOYENNE: 2, FAIBLE: 3 }
@@ -104,25 +104,25 @@ function SegmentActionsPanel({ rfmDetails }) {
           if (!info) return null
           const isOpen = open === d.segment
           return (
-            <div key={d.segment} style={{ background: '#0f172a', border: `1px solid ${info.priorityColor}33`, borderRadius: 10 }}>
+            <div key={d.segment} style={{ background: 'var(--af-surface-3)', border: `1px solid ${info.priorityColor}33`, borderRadius: 10 }}>
               <button
                 onClick={() => setOpen(isOpen ? null : d.segment)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', gap: 12 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: SEG_COLOR[d.segment] + '22', color: SEG_COLOR[d.segment] }}>{info.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{d.count} client{d.count > 1 ? 's' : ''}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{d.count} client{d.count > 1 ? 's' : ''}</span>
                   <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: info.priorityColor + '22', color: info.priorityColor, border: `1px solid ${info.priorityColor}44` }}>{info.priority}</span>
                 </div>
-                {isOpen ? <ChevronUpIcon style={{ width: 16, height: 16, color: '#64748b' }} /> : <ChevronDownIcon style={{ width: 16, height: 16, color: '#64748b' }} />}
+                {isOpen ? <ChevronUpIcon style={{ width: 16, height: 16, color: 'var(--af-text-muted)' }} /> : <ChevronDownIcon style={{ width: 16, height: 16, color: 'var(--af-text-muted)' }} />}
               </button>
               {isOpen && (
                 <div style={{ padding: '0 16px 16px' }}>
                   <div style={{ marginBottom: 10 }}>
                     {info.actions.map((action, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < info.actions.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: i < info.actions.length - 1 ? '1px solid var(--af-surface)' : 'none' }}>
                         <ArrowRightIcon style={{ width: 14, height: 14, color: info.priorityColor, flexShrink: 0, marginTop: 1 }} />
-                        <span style={{ fontSize: 12, color: '#cbd5e1' }}>{action}</span>
+                        <span style={{ fontSize: 12, color: 'var(--af-text)' }}>{action}</span>
                       </div>
                     ))}
                   </div>
@@ -140,10 +140,10 @@ function SegmentActionsPanel({ rfmDetails }) {
   )
 }
 const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth', PREMIUM: 'Premium' }
-const PKG_COLOR = { STARTER_BOOST: '#64748b', STARTER_PLUS: '#3b82f6', GROWTH: '#8b5cf6', PREMIUM: '#f59e0b' }
-const PRIO_COLOR = { haute: '#ef4444', moyenne: '#f59e0b', faible: '#6b7280' }
+const PKG_COLOR = { STARTER_BOOST: 'var(--af-text-muted)', STARTER_PLUS: '#3b82f6', GROWTH: '#8b5cf6', PREMIUM: 'var(--af-accent)' }
+const PRIO_COLOR = { haute: '#ef4444', moyenne: 'var(--af-accent)', faible: '#6b7280' }
 
-const card = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }
+const card = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }
 const upgCard = { ...card, borderStyle: 'dashed', borderColor: '#8b5cf6', background: 'rgba(139,92,246,0.06)', textAlign: 'center', padding: '32px 24px' }
 
 function AiInsightsSection() {
@@ -166,12 +166,12 @@ function AiInsightsSection() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <CpuChipIcon style={{ width: 28, height: 28, color: '#8b5cf6' }} />
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Recommandations IA</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Recommandations IA</div>
             <div style={{ fontSize: 11, color: '#8b5cf6' }}>Powered by Claude · Exclusif PREMIUM</div>
           </div>
         </div>
         <button onClick={loadInsights} disabled={loading}
-          style={{ padding: '8px 16px', background: loading ? '#334155' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          style={{ padding: '8px 16px', background: loading ? 'var(--af-border)' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
           {loading ? <Spinner size="sm" /> : <SparklesIcon style={{ width: 16, height: 16 }} />}
           {loading ? 'Analyse...' : insights ? 'Régénérer' : 'Générer les insights'}
         </button>
@@ -182,36 +182,108 @@ function AiInsightsSection() {
       {!insights && !loading && !error && (
         <div style={{ textAlign: 'center', padding: '24px 0', color: '#8b5cf6' }}>
           <CpuChipIcon style={{ width: 40, height: 40, color: '#8b5cf6', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 13, color: '#64748b' }}>Cliquez sur "Générer les insights" pour obtenir des recommandations personnalisées basées sur vos données RFM.</p>
+          <p style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Cliquez sur "Générer les insights" pour obtenir des recommandations personnalisées basées sur vos données RFM.</p>
         </div>
       )}
 
       {insights && (
         <div>
           {insights.resume && (
-            <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#c4b5fd', fontStyle: 'italic', marginBottom: 14 }}>{insights.resume}</div>
+            <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--af-kpi-violet)', fontStyle: 'italic', marginBottom: 14 }}>{insights.resume}</div>
           )}
           {insights.alerte && (
-            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{insights.alerte}</div>
+            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--af-accent)', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{insights.alerte}</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(insights.recommandations || []).map((rec, i) => (
-              <div key={i} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '14px 16px' }}>
+              <div key={i} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{rec.titre}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{rec.titre}</span>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (SEG_COLOR[rec.segment] || '#6b7280') + '22', color: SEG_COLOR[rec.segment] || '#6b7280', border: '1px solid ' + (SEG_COLOR[rec.segment] || '#6b7280') + '44' }}>{rec.segment}</span>
                     <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (PRIO_COLOR[rec.priorite] || '#6b7280') + '22', color: PRIO_COLOR[rec.priorite] || '#6b7280', border: '1px solid ' + (PRIO_COLOR[rec.priorite] || '#6b7280') + '44' }}>{rec.priorite}</span>
                   </div>
                 </div>
-                <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 6 }}><ClipboardDocumentListIcon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />{rec.action}</p>
+                <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 6 }}><ClipboardDocumentListIcon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />{rec.action}</p>
                 <p style={{ fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'flex-start', gap: 6 }}><BoltIcon style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{rec.objectif}</p>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#475569' }}>
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--af-border-strong)' }}>
             <span>Généré le {new Date(insights.generated_at).toLocaleString('fr-FR')}</span>
             <span>{insights.context_snapshot?.total_clients_segmented || 0} clients analysés</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AfrikFidLoyaltySection({ merchantId }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!merchantId) { setLoading(false); return }
+    api.get(`/merchant-intelligence/${merchantId}/loyalty`)
+      .then(r => setData(r.data))
+      .catch(() => setData({ available: false, reason: 'fetch_error' }))
+      .finally(() => setLoading(false))
+  }, [merchantId])
+
+  if (loading) return null
+  if (!data || !data.available) {
+    return (
+      <div style={{ ...card, background: 'var(--af-surface-3)', borderStyle: 'dashed' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Historique fidélité AfrikFid</div>
+        <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
+          {data?.reason === 'merchant_not_linked'
+            ? 'Ce marchand n\'est pas encore lié au SI fidélité AfrikFid. Contactez le support pour activer l\'historique 360°.'
+            : 'Historique fidélité temporairement indisponible.'}
+        </div>
+      </div>
+    )
+  }
+  const s = data.summary || {}
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ width: 28, height: 28, borderRadius: 6, background: 'linear-gradient(135deg, var(--af-brand), var(--af-accent))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 13 }}>A</span>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Historique fidélité Afrik'Fid</div>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--af-accent-soft)', color: 'var(--af-accent)', fontWeight: 700, letterSpacing: 0.5 }}>30 JOURS</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Clients fidélisés</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#3b82f6' }}>{Number(s.total_consommateurs_fidelises || 0).toLocaleString('fr-FR')}</div>
+        </div>
+        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Points distribués</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-kpi-yellow)' }}>{Number(s.points_distribues_30j || 0).toLocaleString('fr-FR')}</div>
+        </div>
+        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Transactions caisse</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>{Number(s.transactions_30j || 0).toLocaleString('fr-FR')}</div>
+        </div>
+        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>CA cumulé (caisse)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-accent)' }}>{Number(s.ca_30j || 0).toLocaleString('fr-FR')} <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>XOF</span></div>
+        </div>
+      </div>
+
+      {Array.isArray(s.top_clients) && s.top_clients.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Top clients fidèles</div>
+          <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden' }}>
+            {s.top_clients.slice(0, 5).map((c, i) => (
+              <div key={c.numero || i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto auto', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i > 0 ? '1px solid var(--af-surface)' : 'none', fontSize: 13 }}>
+                <span style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 700 }}>#{i + 1}</span>
+                <span style={{ color: 'var(--af-text)', fontFamily: 'monospace', fontSize: 12 }}>{c.numero || '—'}</span>
+                <span style={{ color: 'var(--af-kpi-yellow)', fontWeight: 700 }}>{Number(c.points || 0).toLocaleString('fr-FR')} pts</span>
+                <span style={{ color: '#10b981', fontWeight: 700, fontSize: 12 }}>{Number(c.montant || 0).toLocaleString('fr-FR')} XOF</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -246,8 +318,8 @@ export default function MerchantIntelligence() {
     <div style={{ padding: '40px 32px' }}>
       <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '16px 20px', color: '#ef4444', fontSize: 14 }}>
         <strong>Erreur :</strong> {error}
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>merchantId utilisé : {merchantId || '(non défini)'}</div>
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 6 }}>merchantId utilisé : {merchantId || '(non défini)'}</div>
+        <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 4 }}>
           Token merchant présent : {localStorage.getItem('afrikfid_token_merchant') ? 'OUI' : 'NON'} |
           User role : {user?.role || '(non défini)'}
         </div>
@@ -258,29 +330,29 @@ export default function MerchantIntelligence() {
       </div>
     </div>
   )
-  if (!data) return <div style={{ textAlign: 'center', color: '#64748b', padding: 32 }}>Aucune donnée disponible — merchantId : {merchantId || '(non défini)'}</div>
+  if (!data) return <div style={{ textAlign: 'center', color: 'var(--af-text-muted)', padding: 32 }}>Aucune donnée disponible — merchantId : {merchantId || '(non défini)'}</div>
 
   const m = data.modules
   const pkg = data.package
-  const pkgColor = PKG_COLOR[pkg] || '#64748b'
+  const pkgColor = PKG_COLOR[pkg] || 'var(--af-text-muted)'
 
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Dashboard Intelligence</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Dashboard Intelligence</h1>
         <span style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: pkgColor + '22', color: pkgColor, border: '1px solid ' + pkgColor + '44' }}>{PKG_LABELS[pkg] || pkg}</span>
       </div>
 
       {/* KPIs — tous packages */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'Transactions', value: Number(data.kpis?.total_transactions || 0).toLocaleString(), color: '#f1f5f9', tip: null },
+          { label: 'Transactions', value: Number(data.kpis?.total_transactions || 0).toLocaleString(), color: 'var(--af-text)', tip: null },
           { label: "Chiffre d'affaires", value: Number(data.kpis?.total_revenue || 0).toLocaleString() + ' FCFA', color: '#10b981', tip: TOOLTIPS.chiffre_affaires },
-          { label: 'Panier moyen', value: Math.round(Number(data.kpis?.avg_basket || 0)).toLocaleString() + ' FCFA', color: '#f59e0b', tip: TOOLTIPS.panier_moyen },
+          { label: 'Panier moyen', value: Math.round(Number(data.kpis?.avg_basket || 0)).toLocaleString() + ' FCFA', color: 'var(--af-accent)', tip: TOOLTIPS.panier_moyen },
           { label: 'Clients uniques', value: Number(data.kpis?.unique_clients || 0).toLocaleString(), color: '#3b82f6', tip: null },
         ].map(k => (
-          <div key={k.label} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>
+          <div key={k.label} style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>
               {k.label}{k.tip && <InfoTooltip text={k.tip} />}
             </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
@@ -291,12 +363,12 @@ export default function MerchantIntelligence() {
       {/* Segmentation RFM — STARTER_PLUS+ */}
       {m.rfm_simple && data.rfm_stats && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>Segmentation RFM<InfoTooltip text={TOOLTIPS.RFM} /></div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 14 }}>Segmentation RFM<InfoTooltip text={TOOLTIPS.RFM} /></div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {(data.rfm_stats.segments || []).map(s => (
-              <div key={s.segment} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+              <div key={s.segment} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--af-surface-3)', borderRadius: 8, border: '1px solid var(--af-border)' }}>
                 <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (SEG_COLOR[s.segment] || '#6b7280') + '22', color: SEG_COLOR[s.segment] || '#6b7280' }}>{s.segment}</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>{s.count}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--af-text)' }}>{s.count}</span>
               </div>
             ))}
           </div>
@@ -307,7 +379,7 @@ export default function MerchantIntelligence() {
       {!m.rfm_simple && (
         <div style={upgCard}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Segmentation RFM</div>
-          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Disponible à partir du package Starter Plus — inclus dans Growth Intelligent et Premium.</p>
+          <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 12 }}>Disponible à partir du package Starter Plus — inclus dans Growth Intelligent et Premium.</p>
           <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <ArrowUpCircleIcon style={{ width: 16, height: 16 }} />Upgrade
           </a>
@@ -318,26 +390,26 @@ export default function MerchantIntelligence() {
       {m.rfm_detailed && data.rfm_details && (
         <>
           <div style={card}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>Détail par segment</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 14 }}>Détail par segment</div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155' }}>
+                  <tr style={{ borderBottom: '1px solid var(--af-border)' }}>
                     {['Segment', 'Clients', 'Montant moyen', 'Achats moy.', 'Action recommandée'].map((h, i) => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: i > 0 && i < 4 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 12px', textAlign: i > 0 && i < 4 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {data.rfm_details.map(d => (
-                    <tr key={d.segment} style={{ borderBottom: '1px solid #1e293b' }}>
+                    <tr key={d.segment} style={{ borderBottom: '1px solid var(--af-surface)' }}>
                       <td style={{ padding: '8px 12px' }}>
                         <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (SEG_COLOR[d.segment] || '#6b7280') + '22', color: SEG_COLOR[d.segment] || '#6b7280' }}>{d.segment}</span>
                       </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#f1f5f9' }}>{d.count}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8' }}>{Number(d.avg_amount).toLocaleString()} FCFA</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8' }}>{d.avg_purchases}</td>
-                      <td style={{ padding: '8px 12px', color: '#64748b', fontSize: 12 }}>{data.recommended_actions?.[d.segment] || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--af-text)' }}>{d.count}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--af-text-muted)' }}>{Number(d.avg_amount).toLocaleString()} FCFA</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--af-text-muted)' }}>{d.avg_purchases}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--af-text-muted)', fontSize: 12 }}>{data.recommended_actions?.[d.segment] || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -349,14 +421,14 @@ export default function MerchantIntelligence() {
 
           {data.recent_campaigns && data.recent_campaigns.length > 0 && (
             <div style={card}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>Campagnes récentes</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 14 }}>Campagnes récentes</div>
               {data.recent_campaigns.map((c, i) => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.recent_campaigns.length - 1 ? '1px solid #334155' : 'none' }}>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.recent_campaigns.length - 1 ? '1px solid var(--af-border)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{c.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)' }}>{c.name}</span>
                     <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#3b82f622', color: '#3b82f6' }}>{c.target_segment}</span>
                   </div>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>{c.total_sent} envoyés / {c.total_converted} convertis</span>
+                  <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>{c.total_sent} envoyés / {c.total_converted} convertis</span>
                 </div>
               ))}
             </div>
@@ -367,26 +439,26 @@ export default function MerchantIntelligence() {
       {/* Taux de retour + Top clients — STARTER_PLUS+ */}
       {m.return_rate && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+          <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px' }}>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
               Taux de retour clients<InfoTooltip text={TOOLTIPS.taux_retour} />
             </div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: data.return_rate >= 50 ? '#10b981' : data.return_rate >= 25 ? '#f59e0b' : '#ef4444' }}>{data.return_rate ?? '—'}%</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>% clients avec ≥2 achats (12 mois)</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: data.return_rate >= 50 ? '#10b981' : data.return_rate >= 25 ? 'var(--af-accent)' : '#ef4444' }}>{data.return_rate ?? '—'}%</div>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 4 }}>% clients avec ≥2 achats (12 mois)</div>
           </div>
           {data.top_clients && data.top_clients.length > 0 && (
-            <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Top 5 clients fidèles</div>
+            <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)', marginBottom: 12 }}>Top 5 clients fidèles</div>
               {data.top_clients.map((c, i) => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < data.top_clients.length - 1 ? '1px solid #334155' : 'none' }}>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < data.top_clients.length - 1 ? '1px solid var(--af-border)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: '#64748b', width: 18 }}>#{i + 1}</span>
-                    <span style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600 }}>{c.full_name || 'Client anonyme'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--af-text-muted)', width: 18 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 13, color: 'var(--af-text)', fontWeight: 600 }}>{c.full_name || 'Client anonyme'}</span>
                     <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#3b82f622', color: '#3b82f6', fontWeight: 700 }}>{c.loyalty_status}</span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>{Number(c.total_spent).toLocaleString()} FCFA</div>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>{c.tx_count} achats</div>
+                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>{c.tx_count} achats</div>
                   </div>
                 </div>
               ))}
@@ -397,13 +469,13 @@ export default function MerchantIntelligence() {
 
       {/* Alertes churn — STARTER_PLUS+ */}
       {m.churn_alerts && data.churn_alerts && (data.churn_alerts.critical > 0 || data.churn_alerts.high > 0 || data.churn_alerts.medium > 0) && (
-        <div style={{ background: '#1e293b', border: '1px solid #f9731633', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+        <div style={{ background: 'var(--af-surface)', border: '1px solid #f9731633', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>
                 Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /> — {data.churn_alerts.total_at_risk} clients à risque
               </div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Clients susceptibles de partir — action recommandée</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Clients susceptibles de partir — action recommandée</div>
             </div>
             <a href="/merchant/churn-alerts" style={{ padding: '6px 14px', background: '#f97316', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Voir détails</a>
           </div>
@@ -416,9 +488,9 @@ export default function MerchantIntelligence() {
               <div style={{ fontSize: 24, fontWeight: 800, color: '#f97316' }}>{data.churn_alerts.high}</div>
               <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>ÉLEVÉ</div>
             </div>}
-            {data.churn_alerts.medium > 0 && <div style={{ flex: 1, padding: '10px 14px', background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#f59e0b' }}>{data.churn_alerts.medium}</div>
-              <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>MODÉRÉ</div>
+            {data.churn_alerts.medium > 0 && <div style={{ flex: 1, padding: '10px 14px', background: 'var(--af-accent-soft)', border: '1px solid var(--af-accent-soft)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--af-accent)' }}>{data.churn_alerts.medium}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-accent)', fontWeight: 600 }}>MODÉRÉ</div>
             </div>}
           </div>
         </div>
@@ -427,20 +499,20 @@ export default function MerchantIntelligence() {
       {/* Churn Predictions détaillées — GROWTH+ */}
       {m.churn_prediction && data.churn_predictions && data.churn_predictions.length > 0 && (
         <div style={{ ...card, borderColor: '#f9731633' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Prédiction Churn<InfoTooltip text={TOOLTIPS.churn} /> — Top clients à risque</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM —Growth+</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Prédiction Churn<InfoTooltip text={TOOLTIPS.churn} /> — Top clients à risque</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM —Growth+</div>
           {data.churn_predictions.slice(0, 5).map((p, i) => (
-            <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid #1e293b' : 'none' }}>
+            <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid var(--af-surface)' : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{p.client_name || 'Client anonyme'}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)' }}>{p.client_name || 'Client anonyme'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 80, height: 6, background: '#1e293b', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ width: `${p.churn_score * 100}%`, height: '100%', background: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : '#f59e0b', borderRadius: 3 }} />
+                  <div style={{ width: 80, height: 6, background: 'var(--af-surface)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${p.churn_score * 100}%`, height: '100%', background: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : 'var(--af-accent)', borderRadius: 3 }} />
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : '#f59e0b' }}>{Math.round(p.churn_score * 100)}%</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: p.churn_level === 'critical' ? '#ef4444' : p.churn_level === 'high' ? '#f97316' : 'var(--af-accent)' }}>{Math.round(p.churn_score * 100)}%</span>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>{p.recommendation}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{p.recommendation}</div>
             </div>
           ))}
           <a href="/merchant/churn-alerts" style={{ display: 'inline-block', marginTop: 12, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>Voir tous les clients à risque →</a>
@@ -452,26 +524,26 @@ export default function MerchantIntelligence() {
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 2 }}>Recommandations IA — Semaine du {recommendations.week}</div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>{recommendations.recommendations.length} actions prioritaires · {recommendations.context?.total_rfm_clients} clients analysés</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 2 }}>Recommandations IA — Semaine du {recommendations.week}</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{recommendations.recommendations.length} actions prioritaires · {recommendations.context?.total_rfm_clients} clients analysés</div>
             </div>
             <span style={{ padding: '3px 10px', background: '#8b5cf622', color: '#8b5cf6', border: '1px solid #8b5cf644', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>IA</span>
           </div>
           {recommendations.recommendations.map((r, i) => {
-            const impactColor = r.impact === 'HIGH' ? '#ef4444' : r.impact === 'MEDIUM' ? '#f59e0b' : '#6b7280'
+            const impactColor = r.impact === 'HIGH' ? '#ef4444' : r.impact === 'MEDIUM' ? 'var(--af-accent)' : '#6b7280'
             return (
-              <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < recommendations.recommendations.length - 1 ? '1px solid #1e293b' : 'none' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#0f172a', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#64748b', flexShrink: 0 }}>{r.priority}</div>
+              <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < recommendations.recommendations.length - 1 ? '1px solid var(--af-surface)' : 'none' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--af-text-muted)', flexShrink: 0 }}>{r.priority}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginBottom: 3 }}>{r.title}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>{r.action}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)', marginBottom: 3 }}>{r.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 4 }}>{r.action}</div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     {r.segment && <span style={{ fontSize: 10, fontWeight: 700, color: SEG_COLOR[r.segment] || '#6b7280', background: (SEG_COLOR[r.segment] || '#6b7280') + '22', padding: '1px 6px', borderRadius: 10 }}>{r.segment}</span>}
                     <span style={{ fontSize: 10, fontWeight: 700, color: impactColor, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: impactColor, display: 'inline-block' }} />
                       {r.impact === 'HIGH' ? 'Critique' : r.impact === 'MEDIUM' ? 'Modéré' : 'Faible'}
                     </span>
-                    {r.deadline && <span style={{ fontSize: 10, color: '#64748b' }}>Avant le {r.deadline}</span>}
+                    {r.deadline && <span style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>Avant le {r.deadline}</span>}
                   </div>
                 </div>
               </div>
@@ -483,13 +555,13 @@ export default function MerchantIntelligence() {
       {/* Analytics avancés LTV — PREMIUM */}
       {m.analytics_advanced && data.ltv_by_segment && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 14 }}>LTV par segment<InfoTooltip text={TOOLTIPS.LTV} /></div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 14 }}>LTV par segment<InfoTooltip text={TOOLTIPS.LTV} /></div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {data.ltv_by_segment.map(l => (
-              <div key={l.segment} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '14px 16px' }}>
+              <div key={l.segment} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '14px 16px' }}>
                 <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (SEG_COLOR[l.segment] || '#6b7280') + '22', color: SEG_COLOR[l.segment] || '#6b7280' }}>{l.segment}</span>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#f1f5f9', marginTop: 8 }}>{Number(l.avg_ltv).toLocaleString()} FCFA</div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>{l.avg_frequency} achats moy.</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text)', marginTop: 8 }}>{Number(l.avg_ltv).toLocaleString()} FCFA</div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{l.avg_frequency} achats moy.</div>
               </div>
             ))}
           </div>
@@ -499,23 +571,23 @@ export default function MerchantIntelligence() {
       {/* Élasticité-prix — PREMIUM */}
       {m.analytics_advanced && data.price_elasticity && !data.price_elasticity.insufficient_data && !data.price_elasticity.error && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Élasticité-Prix<InfoTooltip text={TOOLTIPS.elasticite_prix} /></div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Sensibilité de vos clients aux remises —Premium</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Élasticité-Prix<InfoTooltip text={TOOLTIPS.elasticite_prix} /></div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 16 }}>Sensibilité de vos clients aux remises —Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             {[
-              { label: 'Panier moyen', value: Number(data.price_elasticity.avg_basket).toLocaleString() + ' FCFA', color: '#f1f5f9' },
-              { label: 'Sensibilité prix', value: data.price_elasticity.sensitivity_label, color: data.price_elasticity.price_sensitivity_score >= 70 ? '#ef4444' : data.price_elasticity.price_sensitivity_score >= 40 ? '#f59e0b' : '#10b981' },
+              { label: 'Panier moyen', value: Number(data.price_elasticity.avg_basket).toLocaleString() + ' FCFA', color: 'var(--af-text)' },
+              { label: 'Sensibilité prix', value: data.price_elasticity.sensitivity_label, color: data.price_elasticity.price_sensitivity_score >= 70 ? '#ef4444' : data.price_elasticity.price_sensitivity_score >= 40 ? 'var(--af-accent)' : '#10b981' },
               { label: 'Remise optimale', value: data.price_elasticity.optimal_discount_pct + '%', color: '#8b5cf6' },
-              { label: 'Transactions analysées', value: Number(data.price_elasticity.total_transactions).toLocaleString(), color: '#94a3b8' },
+              { label: 'Transactions analysées', value: Number(data.price_elasticity.total_transactions).toLocaleString(), color: 'var(--af-text-muted)' },
             ].map(k => (
-              <div key={k.label} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+              <div key={k.label} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: k.color }}>{k.value}</div>
               </div>
             ))}
           </div>
           {data.price_elasticity.recommendation && (
-            <div style={{ padding: '10px 14px', background: '#8b5cf611', border: '1px solid #8b5cf633', borderRadius: 8, fontSize: 12, color: '#c4b5fd' }}>{data.price_elasticity.recommendation}</div>
+            <div style={{ padding: '10px 14px', background: '#8b5cf611', border: '1px solid #8b5cf633', borderRadius: 8, fontSize: 12, color: 'var(--af-kpi-violet)' }}>{data.price_elasticity.recommendation}</div>
           )}
         </div>
       )}
@@ -523,27 +595,27 @@ export default function MerchantIntelligence() {
       {/* Zones chalandise — PREMIUM */}
       {m.analytics_advanced && data.trade_zones && data.trade_zones.total_zones > 0 && (
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Zones de Chalandise<InfoTooltip text={TOOLTIPS.zones_chalandise} /></div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>Répartition géographique de votre clientèle —Premium</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Zones de Chalandise<InfoTooltip text={TOOLTIPS.zones_chalandise} /></div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 16 }}>Répartition géographique de votre clientèle —Premium</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Zones mappées', value: data.trade_zones.total_zones },
               { label: 'Clients cartographiés', value: Number(data.trade_zones.total_clients_mapped).toLocaleString() },
               { label: 'CA cartographié', value: Number(data.trade_zones.total_revenue_mapped).toLocaleString() + ' FCFA' },
             ].map(k => (
-              <div key={k.label} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#f1f5f9' }}>{k.value}</div>
+              <div key={k.label} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text)' }}>{k.value}</div>
               </div>
             ))}
           </div>
           {/* Top zones CA */}
           {data.trade_zones.insights?.top_revenue_zones?.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>Top zones par CA</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 8 }}>Top zones par CA</div>
               {data.trade_zones.insights.top_revenue_zones.map((z, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1e293b' }}>
-                  <span style={{ fontSize: 13, color: '#f1f5f9' }}>{z.city}{z.district ? ` — ${z.district}` : ''}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--af-surface)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--af-text)' }}>{z.city}{z.district ? ` — ${z.district}` : ''}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>{Number(z.revenue).toLocaleString()} FCFA</span>
                 </div>
               ))}
@@ -552,9 +624,9 @@ export default function MerchantIntelligence() {
           {/* Zones à fort potentiel */}
           {data.trade_zones.insights?.high_potential_zones?.length > 0 && (
             <div style={{ padding: '10px 14px', background: '#f59e0b11', border: '1px solid #f59e0b33', borderRadius: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 6 }}>Zones à fort potentiel non exploité</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-accent)', marginBottom: 6 }}>Zones à fort potentiel non exploité</div>
               {data.trade_zones.insights.high_potential_zones.map((z, i) => (
-                <div key={i} style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>• {z.recommendation}</div>
+                <div key={i} style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 4 }}>• {z.recommendation}</div>
               ))}
             </div>
           )}
@@ -564,10 +636,13 @@ export default function MerchantIntelligence() {
       {!m.analytics_advanced && m.rfm_detailed && (
         <div style={upgCard}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Analytics Avancés (LTV, Élasticité, Zones)</div>
-          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Disponible avec le package Premium</p>
+          <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 12 }}>Disponible avec le package Premium</p>
           <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Upgrade</a>
         </div>
       )}
+
+      {/* Historique fidélité AfrikFid (via business-api) — tous packages */}
+      <AfrikFidLoyaltySection merchantId={merchantId} />
 
       {/* Recommandations IA — PREMIUM */}
       {m.analytics_advanced && <AiInsightsSection />}
@@ -576,7 +651,7 @@ export default function MerchantIntelligence() {
         <div style={upgCard}>
           <CpuChipIcon style={{ width: 32, height: 32, color: '#8b5cf6', margin: '0 auto 12px' }} />
           <div style={{ fontSize: 15, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>Recommandations IA</div>
-          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>Analyse IA de votre portefeuille client — disponible à partir du package Growth Intelligent.</p>
+          <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 12 }}>Analyse IA de votre portefeuille client — disponible à partir du package Growth Intelligent.</p>
           <a href="/merchant/settings" style={{ padding: '8px 18px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <ArrowUpCircleIcon style={{ width: 16, height: 16 }} />Upgrade
           </a>

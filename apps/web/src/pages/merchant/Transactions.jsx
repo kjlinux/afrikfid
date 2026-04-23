@@ -5,9 +5,9 @@ import { exportCsv, InfoTooltip, Tooltip } from '../../components/ui.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
-const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
+const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
-const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
+const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
 const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: '⚠ À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
 
 export default function MerchantTransactions() {
@@ -67,7 +67,7 @@ export default function MerchantTransactions() {
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Mes Transactions ({total})</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Mes Transactions ({total})</h1>
         {transactions.length > 0 && (
           <button onClick={() => exportCsv(transactions, [
             { label: 'Référence', key: 'reference' },
@@ -88,7 +88,7 @@ export default function MerchantTransactions() {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-          style={{ padding: '10px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 14 }}>
+          style={{ padding: '10px 14px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', fontSize: 14 }}>
           <option value="">Tous</option>
           <option value="completed">Complétées</option>
           <option value="pending">En attente</option>
@@ -96,10 +96,10 @@ export default function MerchantTransactions() {
         </select>
       </div>
 
-      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', overflowX: 'auto' }}>
+      <div style={{ background: 'var(--af-surface)', borderRadius: 12, border: '1px solid var(--af-border)', overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: '#0f172a' }}>
+            <tr style={{ background: 'var(--af-surface-3)' }}>
               {[
                 { label: 'Référence', tip: null },
                 { label: 'Client', tip: null },
@@ -112,7 +112,7 @@ export default function MerchantTransactions() {
                 { label: 'Date', tip: null },
                 { label: '', tip: null },
               ].map(h => (
-                <th key={h.label} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                <th key={h.label} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
                   {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
                 </th>
               ))}
@@ -122,12 +122,12 @@ export default function MerchantTransactions() {
             {transactions.map(tx => {
               const s = S_STYLE[tx.status] || S_STYLE.pending
               return (
-                <tr key={tx.id} style={{ borderTop: '1px solid #334155', cursor: 'pointer' }} onClick={() => setSelected(tx)}>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{tx.reference?.slice(0, 16)}...</td>
+                <tr key={tx.id} style={{ borderTop: '1px solid var(--af-border)', cursor: 'pointer' }} onClick={() => setSelected(tx)}>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: 'var(--af-text-muted)', fontFamily: 'monospace' }}>{tx.reference?.slice(0, 16)}...</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <div style={{ fontSize: 13, color: '#f1f5f9' }}>{tx.client_name || 'Invité'}</div>
+                    <div style={{ fontSize: 13, color: 'var(--af-text)' }}>{tx.client_name || 'Invité'}</div>
                     {tx.client_loyalty_status && (
-                      <div style={{ fontSize: 11, color: LOYALTY_COLOR[tx.client_loyalty_status] || '#64748b', marginTop: 2 }}>{tx.client_loyalty_status}</div>
+                      <div style={{ fontSize: 11, color: LOYALTY_COLOR[tx.client_loyalty_status] || 'var(--af-text-muted)', marginTop: 2 }}>{tx.client_loyalty_status}</div>
                     )}
                     {tx.client_rfm_segment && (
                       <div style={{ fontSize: 10, color: RFM_COLORS[tx.client_rfm_segment] || '#6B7280', marginTop: 2, fontWeight: 600 }}>{RFM_SHORT[tx.client_rfm_segment] || tx.client_rfm_segment}</div>
@@ -136,16 +136,16 @@ export default function MerchantTransactions() {
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ background: s.bg, color: s.color, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{tx.status}</span>
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>{fmt(tx.gross_amount)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: 'var(--af-accent)' }}>{fmt(tx.gross_amount)}</td>
                   <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#10b981' }}>{fmt(tx.merchant_receives)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: LOYALTY_COLOR[tx.client_loyalty_status] || '#94a3b8' }}>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: LOYALTY_COLOR[tx.client_loyalty_status] || 'var(--af-text-muted)' }}>
                     {tx.client_rebate_percent}% ({fmt(tx.client_rebate_amount)})
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--af-text-muted)' }}>
                     {tx.platform_commission_percent}% ({fmt(tx.platform_commission_amount)})
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>{tx.payment_operator || '—'}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b' }}>{tx.initiated_at?.split('T')[0]}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--af-text-muted)' }}>{tx.payment_operator || '—'}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: 'var(--af-text-muted)' }}>{tx.initiated_at?.split('T')[0]}</td>
                   <td style={{ padding: '12px 14px' }}>
                     {tx.status === 'completed' && (
                       <button onClick={e => { e.stopPropagation(); setRefundModal(tx); setRefundReason(''); setRefundType('full'); setRefundMsg('') }}
@@ -159,38 +159,38 @@ export default function MerchantTransactions() {
             })}
           </tbody>
         </table>
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>{total} transactions</span>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--af-border)', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>{total} transactions</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '6px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page === 1 ? '#334155' : '#94a3b8', cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
-            <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} style={{ padding: '6px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page * 20 >= total ? '#334155' : '#94a3b8', cursor: page * 20 >= total ? 'default' : 'pointer' }}>→</button>
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '6px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, color: page === 1 ? 'var(--af-border)' : 'var(--af-text-muted)', cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
+            <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} style={{ padding: '6px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, color: page * 20 >= total ? 'var(--af-border)' : 'var(--af-text-muted)', cursor: page * 20 >= total ? 'default' : 'pointer' }}>→</button>
           </div>
         </div>
       </div>
 
       {/* Demandes de remboursement clients en attente */}
       {pendingRefunds.length > 0 && (
-        <div style={{ marginTop: 28, background: '#1e293b', borderRadius: 12, border: '1px solid rgba(245,158,11,0.3)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b' }}>Demandes de remboursement en attente ({pendingRefunds.length})</div>
+        <div style={{ marginTop: 28, background: 'var(--af-surface)', borderRadius: 12, border: '1px solid rgba(245,158,11,0.3)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--af-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--af-accent)' }} />
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--af-accent)' }}>Demandes de remboursement en attente ({pendingRefunds.length})</div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#0f172a' }}>
+              <tr style={{ background: 'var(--af-surface-3)' }}>
                 {['Transaction', 'Client', 'Montant', 'Motif', 'Date demande', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {pendingRefunds.map(r => (
-                <tr key={r.id} style={{ borderTop: '1px solid #334155' }}>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{r.transaction_reference?.slice(0, 20)}...</td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, color: '#f1f5f9' }}>{r.client_name || '—'}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>{fmt(r.original_amount)} {r.currency || 'XOF'}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8', maxWidth: 200 }}>{r.reason}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b' }}>{r.created_at?.split('T')[0]}</td>
+                <tr key={r.id} style={{ borderTop: '1px solid var(--af-border)' }}>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: 'var(--af-text-muted)', fontFamily: 'monospace' }}>{r.transaction_reference?.slice(0, 20)}...</td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, color: 'var(--af-text)' }}>{r.client_name || '—'}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: 'var(--af-accent)' }}>{fmt(r.original_amount)} {r.currency || 'XOF'}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--af-text-muted)', maxWidth: 200 }}>{r.reason}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: 'var(--af-text-muted)' }}>{r.created_at?.split('T')[0]}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => reviewRefund(r.id, 'approve')} disabled={reviewLoading === r.id}
@@ -213,24 +213,24 @@ export default function MerchantTransactions() {
       {/* Modale remboursement */}
       {refundModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ background: '#1e293b', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420, border: '1px solid #334155' }}>
+          <div style={{ background: 'var(--af-surface)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420, border: '1px solid var(--af-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Demander un remboursement</h3>
-              <button onClick={() => setRefundModal(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Demander un remboursement</h3>
+              <button onClick={() => setRefundModal(null)} style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer' }}>
                 <XMarkIcon style={{ width: 20, height: 20 }} />
               </button>
             </div>
-            <div style={{ background: '#0f172a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-              <div style={{ color: '#64748b', marginBottom: 2 }}>Transaction</div>
-              <div style={{ color: '#f59e0b', fontFamily: 'monospace', fontSize: 11 }}>{refundModal.reference}</div>
-              <div style={{ color: '#f1f5f9', fontWeight: 700, marginTop: 6 }}>{fmt(refundModal.gross_amount)} {refundModal.currency || 'XOF'}</div>
+            <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: 'var(--af-text-muted)', marginBottom: 2 }}>Transaction</div>
+              <div style={{ color: 'var(--af-accent)', fontFamily: 'monospace', fontSize: 11 }}>{refundModal.reference}</div>
+              <div style={{ color: 'var(--af-text)', fontWeight: 700, marginTop: 6 }}>{fmt(refundModal.gross_amount)} {refundModal.currency || 'XOF'}</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Type de remboursement</label>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Type de remboursement</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[['full', 'Remboursement total'], ['partial', 'Partiel']].map(([val, label]) => (
                   <button key={val} onClick={() => setRefundType(val)}
-                    style={{ flex: 1, padding: '8px', border: `2px solid ${refundType === val ? '#f59e0b' : '#334155'}`, borderRadius: 8, background: refundType === val ? 'rgba(245,158,11,0.1)' : '#0f172a', color: refundType === val ? '#f59e0b' : '#64748b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    style={{ flex: 1, padding: '8px', border: `2px solid ${refundType === val ? 'var(--af-accent)' : 'var(--af-border)'}`, borderRadius: 8, background: refundType === val ? 'rgba(245,158,11,0.1)' : 'var(--af-surface-3)', color: refundType === val ? 'var(--af-accent)' : 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                     {label}
                   </button>
                 ))}
@@ -238,17 +238,17 @@ export default function MerchantTransactions() {
             </div>
             {refundType === 'partial' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Montant à rembourser</label>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Montant à rembourser</label>
                 <input type="number" value={refundPartialAmount} onChange={e => setRefundPartialAmount(e.target.value)}
                   placeholder={`Max: ${fmt(refundModal.gross_amount)}`}
-                  style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
               </div>
             )}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Motif *</label>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Motif *</label>
               <textarea value={refundReason} onChange={e => setRefundReason(e.target.value)} rows={3}
                 placeholder="Ex: Client n'a pas reçu la commande, erreur de facturation..."
-                style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
             {refundMsg && (
               <div style={{ padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13, fontWeight: 600,
@@ -259,7 +259,7 @@ export default function MerchantTransactions() {
               </div>
             )}
             <button onClick={submitRefund} disabled={refundLoading}
-              style={{ width: '100%', padding: '11px', background: refundLoading ? '#334155' : 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              style={{ width: '100%', padding: '11px', background: refundLoading ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-danger), #B91C1C)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <ArrowUturnLeftIcon style={{ width: 16, height: 16 }} />
               {refundLoading ? 'Traitement...' : 'Confirmer le remboursement'}
             </button>
@@ -269,39 +269,39 @@ export default function MerchantTransactions() {
 
       {selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, border: '1px solid #334155' }}>
+          <div style={{ background: 'var(--af-surface)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, border: '1px solid var(--af-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Détail de la transaction</h3>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Détail de la transaction</h3>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
-            <div style={{ background: '#0f172a', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <div style={{ background: 'var(--af-surface-3)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#ef4444' }}>X={selected.merchant_rebate_percent}%</div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Remise accordée</div>
+                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Remise accordée</div>
                   <div style={{ fontSize: 13, color: '#ef4444', marginTop: 4 }}>{fmt(selected.merchant_rebate_amount)} XOF</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: LOYALTY_COLOR[selected.client_loyalty_status] || '#94a3b8' }}>Y={selected.client_rebate_percent}%</div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Remise client</div>
-                  <div style={{ fontSize: 13, color: '#f59e0b', marginTop: 4 }}>{fmt(selected.client_rebate_amount)} XOF</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: LOYALTY_COLOR[selected.client_loyalty_status] || 'var(--af-text-muted)' }}>Y={selected.client_rebate_percent}%</div>
+                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Remise client</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-accent)', marginTop: 4 }}>{fmt(selected.client_rebate_amount)} XOF</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>Z={selected.platform_commission_percent}%</div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Commission</div>
+                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Commission</div>
                   <div style={{ fontSize: 13, color: '#10b981', marginTop: 4 }}>{fmt(selected.platform_commission_amount)} XOF</div>
                 </div>
               </div>
-              <div style={{ borderTop: '1px solid #334155', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, color: '#64748b' }}>Vous recevez</span>
+              <div style={{ borderTop: '1px solid var(--af-border)', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Vous recevez</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{fmt(selected.merchant_receives)} XOF</span>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[['Statut', selected.status], ['Mode', selected.rebate_mode], ['Client', selected.client_name || 'Invité'], ['Statut client', selected.client_loyalty_status || '—'], ['Opérateur', selected.payment_operator || '—'], ['Date', selected.initiated_at?.split('T')[0]]].map(([k, v]) => (
-                <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '8px 12px' }}>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, color: '#f1f5f9' }}>{v}</div>
+                <div key={k} style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 2 }}>{k}</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-text)' }}>{v}</div>
                 </div>
               ))}
             </div>

@@ -534,4 +534,78 @@ router.delete('/client/2fa/disable', require('../middleware/auth').requireClient
   res.json({ message: '2FA client désactivé' });
 });
 
+// ─── POST /api/v1/auth/client/resolve-card ───────────────────────────────────
+// Résolution d'une carte fidélité AfrikFid (12-chars, 2014xxxxxxx) par la gateway.
+// Flux: la page /pay demande le numéro → cet endpoint interroge business-api →
+// si connu, provisionne (lazy) le client local et renvoie un profil masqué.
+// Aucun token n'est émis ici : le login complet passe par /client/login.
+router.post('/client/resolve-card', loginLimiter, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { hashField, encrypt } = require('../lib/crypto');
+  const { randomUUID } = require('crypto');
+
+  const numero = (req.body?.numero || '').trim();
+  if (!afrikfidClient.isValidCardNumero(numero)) {
+    return res.status(400).json({ error: 'INVALID_CARD_FORMAT', message: 'Numéro attendu: 12 chiffres au format 2014xxxxxxx.' });
+  }
+
+  // 1) Client déjà connu localement ?
+  let local = (await db.query('SELECT * FROM clients WHERE afrikfid_id = $1', [numero])).rows[0];
+
+  // 2) Sinon on interroge business-api (fail-open : null si indisponible)
+  let card = null;
+  if (!local) {
+    try {
+      card = await afrikfidClient.lookupCard(numero);
+    } catch (e) {
+      if (e.code === 'INTEGRATION_DISABLED' || e.code === 'CONFIG_MISSING') {
+        return res.status(503).json({ error: 'INTEGRATION_UNAVAILABLE', message: 'Intégration AfrikFid indisponible.' });
+      }
+      card = null;
+    }
+    if (!card) return res.json({ known: false });
+
+    // Provisioning lazy : on n'écrit que les champs disponibles chez business-api.
+    const consommateur = card.consommateur || {};
+    const fullName = [consommateur.prenom, consommateur.nom].filter(Boolean).join(' ').trim() || 'Client AfrikFid';
+    const encPhone = consommateur.telephone ? encrypt(consommateur.telephone) : null;
+    const phoneHash = consommateur.telephone ? hashField(consommateur.telephone) : null;
+    const encEmail = consommateur.email ? encrypt(consommateur.email) : null;
+    const emailHash = consommateur.email ? hashField(consommateur.email) : null;
+
+    const id = randomUUID();
+    try {
+      await db.query(
+        `INSERT INTO clients
+          (id, afrikfid_id, business_api_consommateur_id, full_name, phone, phone_hash, email, email_hash, loyalty_status, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'OPEN', TRUE)
+         ON CONFLICT (afrikfid_id) DO NOTHING`,
+        [id, numero, consommateur.id || null, fullName, encPhone, phoneHash, encEmail, emailHash]
+      );
+    } catch (e) {
+      // Concurrent insert : on relit simplement la ligne.
+    }
+    local = (await db.query('SELECT * FROM clients WHERE afrikfid_id = $1', [numero])).rows[0];
+  }
+
+  if (!local) return res.json({ known: false });
+
+  // Réponse masquée : pas de PII complète, juste de quoi confirmer l'identité à l'utilisateur.
+  const { decrypt } = require('../lib/crypto');
+  const clearPhone = local.phone ? decrypt(local.phone) : null;
+  const maskedPhone = clearPhone ? clearPhone.replace(/\d(?=\d{2})/g, '•') : null;
+  const firstName = (local.full_name || '').split(' ')[0] || '';
+
+  res.json({
+    known: true,
+    masked: {
+      firstName,
+      phoneMask: maskedPhone,
+      loyaltyStatus: local.loyalty_status || 'OPEN',
+      points: card?.points_cumules ?? null,
+      hasPassword: !!local.password_hash,
+    },
+  });
+});
+
 module.exports = router;

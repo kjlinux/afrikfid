@@ -1,12 +1,26 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { exportCsv, exportPdf } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
+import { CreditCardIcon, GiftIcon, WalletIcon, ArrowTrendingUpIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
-const STATUS_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
+const STATUS_STYLE = {
+  completed: { color: '#4caf50', bg: 'rgba(16,185,129,0.1)' },
+  failed:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  refunded:  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+}
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
-const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#f59e0b', PERDUS: '#6B7280' }
-const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: '⚠ À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
+const RFM_COLORS = { CHAMPIONS: '#4caf50', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
+const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
+
+const S = {
+  sel: { padding: '10px 14px', background: 'var(--afrikfid-surface)', border: '1px solid var(--afrikfid-border)', borderRadius: 8, color: 'var(--afrikfid-muted)', fontSize: 14, outline: 'none' },
+  th: { padding: '11px 10px', textAlign: 'left', fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' },
+  td: { padding: '12px 10px' },
+  infoCell: { background: 'var(--afrikfid-surface-2)', borderRadius: 8, padding: '10px 12px' },
+}
 
 export default function AdminTransactions() {
   const [transactions, setTransactions] = useState([])
@@ -41,131 +55,170 @@ export default function AdminTransactions() {
     { label: 'Date', value: r => r.initiated_at ? new Date(r.initiated_at).toLocaleDateString('fr-FR') : '' },
   ]
 
+  // Compteurs par type de transaction (match capture 8 : 4 cards à gauche)
+  const txCounts = {
+    loyaltyCard: transactions.filter(t => t.status === 'completed').length,
+    giftCard: transactions.filter(t => t.status === 'refunded').length,
+    walletDebit: transactions.filter(t => t.payment_operator === 'wallet').length,
+    walletCredit: total,
+  }
+
+  const typeCards = [
+    { label: 'Carte fidélité', sub: 'Transactions totales', icon: CreditCardIcon, color: 'var(--af-kpi-green)', count: txCounts.loyaltyCard },
+    { label: 'Débit Carte cadeau', sub: 'Transactions totales', icon: GiftIcon, color: 'var(--af-kpi-blue)', count: txCounts.giftCard },
+    { label: 'Débit Wallet', sub: 'Transactions totales', icon: WalletIcon, color: 'var(--af-kpi-red)', count: txCounts.walletDebit },
+    { label: 'Crédit wallet', sub: 'Transactions totales', icon: ArrowTrendingUpIcon, color: 'var(--af-kpi-yellow)', count: txCounts.walletCredit },
+  ]
+
   return (
-    <div style={{ padding: '24px 20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>Transactions ({total})</h1>
+    <div style={{ padding: '24px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Transactions" segments={[{ label: 'Journal des transactions' }]} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => exportCsv(transactions, TX_COLS, 'transactions.csv')}
-            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            ↓ CSV
+          <button onClick={() => exportCsv(transactions, TX_COLS, 'transactions.csv')} className="af-btn af-btn--ghost af-btn--sm">
+            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> CSV
           </button>
-          <button onClick={() => exportPdf(transactions, TX_COLS, 'Rapport Transactions', `${total} transactions`)}
-            style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            ↓ PDF
+          <button onClick={() => exportPdf(transactions, TX_COLS, 'Rapport Transactions', `${total} transactions`)} className="af-btn af-btn--ghost af-btn--sm">
+            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> PDF
           </button>
-          <button onClick={() => { const params = new URLSearchParams(filters); window.location.href = `/api/v1/reports/transactions/excel?${params}` }}
-            style={{ padding: '7px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#22c55e', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            ↓ Excel
+          <button onClick={() => { const params = new URLSearchParams(filters); window.location.href = `/api/v1/reports/transactions/excel?${params}` }} className="af-btn af-btn--ghost af-btn--sm">
+            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> Excel
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-          style={{ padding: '10px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 14 }}>
-          <option value="">Tous les statuts</option>
-          <option value="completed">Complétées</option>
-          <option value="pending">En attente</option>
-          <option value="failed">Échouées</option>
-          <option value="refunded">Remboursées</option>
-        </select>
-        <select value={filters.loyalty_status} onChange={e => setFilters(f => ({ ...f, loyalty_status: e.target.value }))}
-          style={{ padding: '10px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', fontSize: 14 }}>
-          <option value="">Tous statuts client</option>
-          <option value="OPEN">Open</option>
-          <option value="LIVE">Live</option>
-          <option value="GOLD">Gold</option>
-          <option value="ROYAL">Royal</option>
-        </select>
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, marginBottom: 20 }}>
+        {/* 4 cards types à gauche */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {typeCards.map(c => (
+            <div key={c.label} className="af-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--af-text)' }}>{c.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--af-kpi-green)', marginTop: 2 }}>▲ {c.sub}</div>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--af-radius)', background: `${c.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <c.icon style={{ width: 20, height: 20, color: c.color }} />
+              </div>
+            </div>
+          ))}
+        </div>
 
-      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', overflowX: 'auto' }}>
+        {/* Zone filtres + table à droite */}
+        <div>
+          <div className="af-card" style={{ marginBottom: 12, padding: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>Opération</div>
+            <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="af-field" style={{ width: 'auto', marginBottom: 0 }}>
+              <option value="">Peu importe</option>
+              <option value="completed">Complétées</option>
+              <option value="pending">En attente</option>
+              <option value="failed">Échouées</option>
+              <option value="refunded">Remboursées</option>
+            </select>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>Statut client</div>
+            <select value={filters.loyalty_status} onChange={e => setFilters(f => ({ ...f, loyalty_status: e.target.value }))} className="af-field" style={{ width: 'auto', marginBottom: 0 }}>
+              <option value="">Peu importe</option>
+              <option value="OPEN">Open</option>
+              <option value="LIVE">Live</option>
+              <option value="GOLD">Gold</option>
+              <option value="ROYAL">Royal</option>
+            </select>
+            <button onClick={load} className="af-btn af-btn--primary af-btn--sm" style={{ marginLeft: 'auto' }}>
+              ↻ Filtrer
+            </button>
+            <button onClick={() => setFilters({ status: '', loyalty_status: '' })} className="af-btn af-btn--ghost af-btn--sm af-btn--icon" title="Effacer">
+              🗑
+            </button>
+          </div>
+
+          <div className="af-card" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: '#0f172a' }}>
+            <tr style={{ background: 'var(--afrikfid-surface-2)', borderBottom: '2px solid var(--afrikfid-border)' }}>
               {['Référence', 'Marchand', 'Client', 'Montant', 'X%', 'Y%', 'Z%', 'Statut', 'Opérateur', 'Date'].map(h => (
-                <th key={h} style={{ padding: '11px 10px', textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                <th key={h} style={S.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {transactions.map(tx => {
+            {transactions.map((tx, i) => {
               const s = STATUS_STYLE[tx.status] || STATUS_STYLE.pending
               const lc = LOYALTY_COLOR[tx.client_loyalty_status] || '#6B7280'
               return (
-                <tr key={tx.id} style={{ borderTop: '1px solid #334155', cursor: 'pointer' }} onClick={() => setSelected(tx)}>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{tx.reference}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, color: '#f1f5f9' }}>{tx.merchant_name}</td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <div style={{ fontSize: 13, color: '#94a3b8' }}>{tx.client_name || '—'}</div>
+                <tr key={tx.id} style={{ borderTop: '1px solid var(--afrikfid-border)', cursor: 'pointer', background: i % 2 === 1 ? 'var(--afrikfid-surface-2)' : 'transparent' }}
+                  onClick={() => setSelected(tx)}>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--afrikfid-muted)', fontFamily: 'monospace' }}>{tx.reference}</td>
+                  <td style={{ ...S.td, fontSize: 13, color: 'var(--afrikfid-text)', fontWeight: 500 }}>{tx.merchant_name}</td>
+                  <td style={S.td}>
+                    <div style={{ fontSize: 13, color: 'var(--afrikfid-muted)' }}>{tx.client_name || '—'}</div>
                     {tx.client_rfm_segment && (
                       <div style={{ fontSize: 10, color: RFM_COLORS[tx.client_rfm_segment] || '#6B7280', marginTop: 2, fontWeight: 600 }}>{RFM_SHORT[tx.client_rfm_segment] || tx.client_rfm_segment}</div>
                     )}
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>{fmt(tx.gross_amount)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#ef4444' }}>{tx.merchant_rebate_percent}%</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: lc }}>{tx.client_rebate_percent}%</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#10b981' }}>{tx.platform_commission_percent}%</td>
-                  <td style={{ padding: '12px 14px' }}>
+                  <td style={{ ...S.td, fontSize: 13, fontWeight: 700, color: 'var(--afrikfid-accent)' }}>{fmt(tx.gross_amount)}</td>
+                  <td style={{ ...S.td, fontSize: 12, color: '#ef4444' }}>{tx.merchant_rebate_percent}%</td>
+                  <td style={{ ...S.td, fontSize: 12, color: lc }}>{tx.client_rebate_percent}%</td>
+                  <td style={{ ...S.td, fontSize: 12, color: 'var(--afrikfid-success)' }}>{tx.platform_commission_percent}%</td>
+                  <td style={S.td}>
                     <span style={{ background: s.bg, color: s.color, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{tx.status}</span>
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>{tx.payment_operator || '—'}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: '#64748b' }}>{tx.initiated_at?.split('T')[0]}</td>
+                  <td style={{ ...S.td, fontSize: 12, color: 'var(--afrikfid-muted)' }}>{tx.payment_operator || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--afrikfid-muted)' }}>{tx.initiated_at?.split('T')[0]}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>{total} transactions</span>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--af-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--af-surface-2)' }}>
+          <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>{total} transactions</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '6px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page === 1 ? '#334155' : '#94a3b8', cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
-            <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} style={{ padding: '6px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: page * 20 >= total ? '#334155' : '#94a3b8', cursor: page * 20 >= total ? 'default' : 'pointer' }}>→</button>
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="af-btn af-btn--ghost af-btn--sm">←</button>
+            <span style={{ fontSize: 13, color: 'var(--af-text)', padding: '0 8px', alignSelf: 'center' }}>{page}</span>
+            <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} className="af-btn af-btn--ghost af-btn--sm">→</button>
+          </div>
+        </div>
           </div>
         </div>
       </div>
 
       {/* Detail Modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', borderRadius: 16, padding: 32, width: '100%', maxWidth: 540, border: '1px solid #334155' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 17, 21,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--afrikfid-surface)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 540, border: '1px solid var(--afrikfid-border)', boxShadow: '0 8px 32px rgba(15, 17, 21,0.15)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>Détail Transaction</h2>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--af-text)', fontFamily: 'Montserrat, sans-serif' }}>Détail Transaction</h2>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--afrikfid-muted)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
 
-            <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#f59e0b', marginBottom: 16, background: '#0f172a', padding: 10, borderRadius: 8 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--afrikfid-accent)', marginBottom: 16, background: 'var(--afrikfid-surface-2)', padding: 10, borderRadius: 8, border: '1px solid var(--afrikfid-border)' }}>
               {selected.reference}
             </div>
 
-            {/* Distribution visuelle X/Y/Z */}
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: 20, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, fontWeight: 600 }}>RÉPARTITION X/Y/Z</div>
+            <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid var(--afrikfid-border)' }}>
+              <div style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 16, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>RÉPARTITION X/Y/Z</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 12, border: '1px solid rgba(239,68,68,0.3)' }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#ef4444' }}>X = {selected.merchant_rebate_percent}%</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Remise marchand</div>
+                <div style={{ textAlign: 'center', background: 'var(--afrikfid-surface)', borderRadius: 8, padding: 12, border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#ef4444' }}>X = {selected.merchant_rebate_percent}%</div>
+                  <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>Remise marchand</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#ef4444', marginTop: 6 }}>{fmt(selected.merchant_rebate_amount)} XOF</div>
                 </div>
-                <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 12, border: `1px solid ${LOYALTY_COLOR[selected.client_loyalty_status]}44` }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: LOYALTY_COLOR[selected.client_loyalty_status] || '#94a3b8' }}>Y = {selected.client_rebate_percent}%</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Remise client ({selected.client_loyalty_status})</div>
+                <div style={{ textAlign: 'center', background: 'var(--afrikfid-surface)', borderRadius: 8, padding: 12, border: `1px solid ${LOYALTY_COLOR[selected.client_loyalty_status] || '#6B7280'}40` }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: LOYALTY_COLOR[selected.client_loyalty_status] || 'var(--af-text-muted)' }}>Y = {selected.client_rebate_percent}%</div>
+                  <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>Remise client ({selected.client_loyalty_status})</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: LOYALTY_COLOR[selected.client_loyalty_status], marginTop: 6 }}>{fmt(selected.client_rebate_amount)} XOF</div>
                 </div>
-                <div style={{ textAlign: 'center', background: '#1e293b', borderRadius: 8, padding: 12, border: '1px solid rgba(16,185,129,0.3)' }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>Z = {selected.platform_commission_percent}%</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Commission Afrik'Fid</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#10b981', marginTop: 6 }}>{fmt(selected.platform_commission_amount)} XOF</div>
+                <div style={{ textAlign: 'center', background: 'var(--afrikfid-surface)', borderRadius: 8, padding: 12, border: '1px solid rgba(16,185,129,0.25)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--afrikfid-success)' }}>Z = {selected.platform_commission_percent}%</div>
+                  <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>Commission Afrik'Fid</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--afrikfid-success)', marginTop: 6 }}>{fmt(selected.platform_commission_amount)} XOF</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #334155' }}>
-                <span style={{ color: '#64748b', fontSize: 13 }}>Montant brut</span>
-                <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 16 }}>{fmt(selected.gross_amount)} XOF</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--afrikfid-border)' }}>
+                <span style={{ color: 'var(--afrikfid-muted)', fontSize: 13 }}>Montant brut</span>
+                <span style={{ color: 'var(--afrikfid-accent)', fontWeight: 700, fontSize: 16 }}>{fmt(selected.gross_amount)} XOF</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                <span style={{ color: '#64748b', fontSize: 13 }}>Marchand reçoit</span>
-                <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 15 }}>{fmt(selected.merchant_receives)} XOF</span>
+                <span style={{ color: 'var(--afrikfid-muted)', fontSize: 13 }}>Marchand reçoit</span>
+                <span style={{ color: 'var(--afrikfid-text)', fontWeight: 600, fontSize: 15 }}>{fmt(selected.merchant_receives)} XOF</span>
               </div>
             </div>
 
@@ -177,9 +230,9 @@ export default function AdminTransactions() {
                 ['Mode remise', selected.rebate_mode],
                 ['Date', selected.initiated_at?.split('T')[0]],
               ].map(([k, v]) => (
-                <div key={k} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500 }}>{v}</div>
+                <div key={k} style={S.infoCell}>
+                  <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginBottom: 2 }}>{k}</div>
+                  <div style={{ fontSize: 13, color: 'var(--afrikfid-text)', fontWeight: 500 }}>{v}</div>
                 </div>
               ))}
             </div>

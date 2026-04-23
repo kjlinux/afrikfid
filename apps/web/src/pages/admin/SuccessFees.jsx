@@ -28,9 +28,9 @@ export default function AdminSuccessFees() {
     } catch { /* ignore */ }
   }
 
-  const th = (align = 'left') => ({ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #334155', textAlign: align })
-  const td = (align = 'left') => ({ padding: '10px 14px', fontSize: 13, color: '#94a3b8', borderBottom: '1px solid #1e293b', textAlign: align })
-  const kpiCard = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '16px 20px' }
+  const th = (align = 'left') => ({ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)', textAlign: align })
+  const td = (align = 'left') => ({ padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)', textAlign: align })
+  const kpiCard = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '16px 20px' }
 
   if (loading) return <Spinner />
 
@@ -39,24 +39,24 @@ export default function AdminSuccessFees() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 24 }}>Success Fees</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 24 }}>Success Fees</h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         <div style={kpiCard}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>Total Fees (page)</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Total Fees (page)</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>{totalFees.toLocaleString()} FCFA</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>Croissance cumulée (page)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{totalGrowth.toLocaleString()} FCFA</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Croissance cumulée (page)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-text)' }}>{totalGrowth.toLocaleString()} FCFA</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>Nombre de fees</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{total}</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Nombre de fees</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-text)' }}>{total}</div>
         </div>
       </div>
 
-      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
@@ -73,13 +73,13 @@ export default function AdminSuccessFees() {
             <tbody>
               {fees.map(f => (
                 <tr key={f.id}>
-                  <td style={{ ...td(), color: '#f1f5f9', fontWeight: 600 }}>{f.merchant_name}</td>
+                  <td style={{ ...td(), color: 'var(--af-text)', fontWeight: 600 }}>{f.merchant_name}</td>
                   <td style={td()}>{new Date(f.period_start).toLocaleDateString('fr-FR')} – {new Date(f.period_end).toLocaleDateString('fr-FR')}</td>
                   <td style={td('right')}>{Number(f.reference_avg_basket).toLocaleString()}</td>
                   <td style={td('right')}>{Number(f.current_avg_basket).toLocaleString()}</td>
                   <td style={{ ...td('right'), color: '#10b981', fontWeight: 600 }}>+{Number(f.growth_amount).toLocaleString()}</td>
                   <td style={td('right')}>{f.fee_percent}%</td>
-                  <td style={{ ...td('right'), fontWeight: 700, color: '#f1f5f9' }}>{Number(f.fee_amount).toLocaleString()} FCFA</td>
+                  <td style={{ ...td('right'), fontWeight: 700, color: 'var(--af-text)' }}>{Number(f.fee_amount).toLocaleString()} FCFA</td>
                   <td style={td()}><Badge color={STATUS_COLORS[f.status]}>{f.status}</Badge></td>
                   <td style={td()}>
                     {f.status === 'calculated' && (

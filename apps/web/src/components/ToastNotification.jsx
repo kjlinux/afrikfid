@@ -39,10 +39,10 @@ export function ToastProvider({ children }) {
 // ─── Container ───────────────────────────────────────────────────────────────
 
 const TYPE_STYLES = {
-  success: { bg: '#16a34a', icon: '✓' },
-  error:   { bg: '#dc2626', icon: '✕' },
-  warning: { bg: '#d97706', icon: '!' },
-  info:    { bg: '#2563eb', icon: 'i' },
+  success: { bg: 'var(--af-success)', icon: '✓' },
+  error:   { bg: 'var(--af-danger)',  icon: '✕' },
+  warning: { bg: 'var(--af-warning)', icon: '!' },
+  info:    { bg: 'var(--af-info)',    icon: 'i' },
 };
 
 function ToastContainer({ toasts, onDismiss }) {
@@ -67,10 +67,10 @@ function ToastItem({ toast, onDismiss }) {
     <div style={{
       display: 'flex', alignItems: 'flex-start', gap: 10,
       background: bg, color: '#fff',
-      padding: '12px 16px', borderRadius: 8,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+      padding: '12px 16px', borderRadius: 'var(--af-radius)',
+      boxShadow: 'var(--af-shadow-elevated)',
       fontSize: 14, lineHeight: 1.4,
-      animation: 'slideIn 0.2s ease-out',
+      animation: 'af-slide-in 0.2s ease-out',
     }}>
       <span style={{
         flexShrink: 0, width: 20, height: 20, borderRadius: '50%',

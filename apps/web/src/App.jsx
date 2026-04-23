@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { ToastProvider } from './components/ToastNotification.jsx'
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
+import { ThemeProvider, useTheme } from './theme.js'
+import { BrowserRouter, Routes, Route, Navigate, Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   ChartBarIcon,
   BuildingStorefrontIcon,
@@ -17,6 +18,11 @@ import {
   Cog6ToothIcon,
   UserCircleIcon,
   BellAlertIcon,
+  ChevronDownIcon,
+  HomeIcon,
+  SunIcon,
+  MoonIcon,
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline'
 
 // Pages
@@ -67,13 +73,11 @@ function AuthProvider({ children }) {
   const activeRole = roleFromPath(location.pathname)
 
   const [user, setUser] = useState(() => {
-    // Lit le bon token selon l'URL courante au moment du chargement initial
     const role = roleFromPath(window.location.pathname)
     const key = role ? userKey(role) : null
     if (key) {
       try { const u = JSON.parse(localStorage.getItem(key)); if (u) return u } catch { /* ignore */ }
     }
-    // Fallback : premier rôle trouvé (pour /login etc.)
     for (const r of ['admin', 'merchant', 'client']) {
       try { const u = JSON.parse(localStorage.getItem(userKey(r))); if (u) return u } catch { /* ignore */ }
     }
@@ -108,7 +112,6 @@ function AuthProvider({ children }) {
   return <AuthContext.Provider value={{ user, login, logout, updateUser }}>{children}</AuthContext.Provider>
 }
 
-// ─── Protected Route ──────────────────────────────────────────────────────────
 function Protected({ children, role }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
@@ -116,91 +119,137 @@ function Protected({ children, role }) {
   return children
 }
 
-// ─── Admin Sidebar Layout ────────────────────────────────────────────────────
+// ─── Theme toggle button ─────────────────────────────────────────────────────
+function ThemeToggle() {
+  const { theme, toggle } = useTheme()
+  const Icon = theme === 'dark' ? SunIcon : MoonIcon
+  return (
+    <button
+      className="af-topbar__icon-btn"
+      onClick={toggle}
+      title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+      aria-label="Basculer le thème">
+      <Icon style={{ width: 20, height: 20 }} />
+    </button>
+  )
+}
+
+// ─── Topbar (partagé admin/merchant/client) ──────────────────────────────────
+function Topbar({ user, onLogout, onHome }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  const initials = (user?.name || user?.email || 'U')
+    .split(/[@\s.]/)[0]
+    .slice(0, 2)
+    .toUpperCase()
+
+  return (
+    <header className="af-topbar">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20, flex: '0 0 auto' }}>
+        <button
+          onClick={onHome}
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          title="Accueil">
+          <img src="/afrikfid-logo.png" alt="Afrik'Fid" className="af-topbar__logo" />
+        </button>
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto', position: 'relative' }} ref={menuRef}>
+        <ThemeToggle />
+        {user && (
+          <>
+            <div className="af-topbar__user" onClick={() => setMenuOpen(v => !v)}>
+              <div className="af-topbar__avatar">{initials}</div>
+              <div>
+                <div className="af-topbar__user-name">{user.name || user.email?.split('@')[0] || 'Utilisateur'}</div>
+                <div className="af-topbar__user-role">{user.role}</div>
+              </div>
+              <ChevronDownIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
+            </div>
+            {menuOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                minWidth: 180, background: 'var(--af-surface)',
+                border: '1px solid var(--af-border)', borderRadius: 'var(--af-radius)',
+                boxShadow: 'var(--af-shadow-elevated)', padding: 6, zIndex: 100,
+              }}>
+                <button onClick={() => { setMenuOpen(false); onLogout() }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '10px 12px', background: 'transparent', border: 'none',
+                    borderRadius: 'var(--af-radius-sm)', color: 'var(--af-danger)',
+                    fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                  }}>
+                  <ArrowRightOnRectangleIcon style={{ width: 16, height: 16 }} />
+                  Déconnexion
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </header>
+  )
+}
+
+// ─── Nav horizontale ─────────────────────────────────────────────────────────
+function Navbar({ items }) {
+  return (
+    <nav className="af-navbar">
+      {items.map(item => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.end}
+          className={({ isActive }) => 'af-nav-item' + (isActive ? ' is-active' : '')}>
+          {item.Icon && <item.Icon className="af-nav-icon" />}
+          <span>{item.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+// ─── Admin Layout ────────────────────────────────────────────────────────────
 function AdminLayout({ children }) {
   const { user, logout } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
 
-  const nav = [
-    { path: '/admin', label: 'Dashboard', icon: ChartBarIcon },
-    { path: '/admin/merchants', label: 'Marchands', icon: BuildingStorefrontIcon },
-    { path: '/admin/clients', label: 'Clients', icon: UsersIcon },
-    { path: '/admin/transactions', label: 'Transactions', icon: CreditCardIcon },
-    { path: '/admin/loyalty', label: 'Fidélité', icon: StarIcon },
-    { path: '/admin/webhooks', label: 'Webhooks', icon: BellIcon },
-    { path: '/admin/fraud', label: 'Fraude', icon: ShieldCheckIcon },
-    { path: '/admin/exchange-rates', label: 'Taux de change', icon: ArrowsRightLeftIcon },
-    { path: '/admin/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
-    { path: '/admin/disputes', label: 'Litiges', icon: ScaleIcon },
-    { path: '/admin/subscriptions', label: 'Abonnements', icon: CreditCardIcon },
-    { path: '/admin/success-fees', label: 'Success Fees', icon: ChartBarIcon },
-    { path: '/admin/rfm', label: 'Segmentation RFM', icon: ChartBarIcon },
-    { path: '/admin/campaigns', label: 'Campagnes', icon: BellAlertIcon },
-    { path: '/admin/abandon-protocol', label: 'Protocole abandon', icon: BellAlertIcon },
-    { path: '/admin/churn-alerts', label: 'Alertes Churn', icon: ShieldCheckIcon },
-    { path: '/admin/audit-logs', label: 'Journal d\'audit', icon: ClipboardDocumentListIcon },
-    { path: '/admin/profile', label: 'Profil & Sécurité', icon: UserCircleIcon },
+  const items = [
+    { path: '/admin',                   end: true, label: 'Dashboard',          Icon: ChartBarIcon },
+    { path: '/admin/merchants',         label: 'Marchands',                    Icon: BuildingStorefrontIcon },
+    { path: '/admin/clients',           label: 'Clients',                      Icon: UsersIcon },
+    { path: '/admin/transactions',      label: 'Transactions',                 Icon: CreditCardIcon },
+    { path: '/admin/loyalty',           label: 'Fidélité',                     Icon: StarIcon },
+    { path: '/admin/webhooks',          label: 'Webhooks',                     Icon: BellIcon },
+    { path: '/admin/fraud',             label: 'Fraude',                       Icon: ShieldCheckIcon },
+    { path: '/admin/exchange-rates',    label: 'Taux de change',               Icon: ArrowsRightLeftIcon },
+    { path: '/admin/refunds',           label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
+    { path: '/admin/disputes',          label: 'Litiges',                      Icon: ScaleIcon },
+    { path: '/admin/subscriptions',     label: 'Abonnements',                  Icon: CreditCardIcon },
+    { path: '/admin/success-fees',      label: 'Success Fees',                 Icon: ChartBarIcon },
+    { path: '/admin/rfm',               label: 'Segmentation RFM',             Icon: ChartBarIcon },
+    { path: '/admin/campaigns',         label: 'Campagnes',                    Icon: BellAlertIcon },
+    { path: '/admin/abandon-protocol',  label: 'Protocole abandon',            Icon: BellAlertIcon },
+    { path: '/admin/churn-alerts',      label: 'Alertes Churn',                Icon: ShieldCheckIcon },
+    { path: '/admin/audit-logs',        label: "Journal d'audit",              Icon: ClipboardDocumentListIcon },
+    { path: '/admin/profile',           label: 'Profil & Sécurité',            Icon: UserCircleIcon },
   ]
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a' }}>
-      {/* Sidebar */}
-      <aside style={{ width: 240, background: '#1e293b', borderRight: '1px solid #334155', padding: '0 0 24px 0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid #334155', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.4))' }}>
-              <svg width="36" height="36" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="sidebarLogoGrad" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#fbbf24"/>
-                    <stop offset="100%" stopColor="#d97706"/>
-                  </linearGradient>
-                  <linearGradient id="sidebarShine" x1="0" y1="0" x2="0" y2="72" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2"/>
-                    <stop offset="60%" stopColor="#ffffff" stopOpacity="0"/>
-                  </linearGradient>
-                </defs>
-                <rect width="72" height="72" rx="18" fill="url(#sidebarLogoGrad)"/>
-                <rect width="72" height="40" rx="18" fill="url(#sidebarShine)"/>
-                <text x="36" y="50" fontFamily="Arial Black, Arial, sans-serif" fontSize="38" fontWeight="900" textAnchor="middle" fill="#0f172a" letterSpacing="-2">A</text>
-                <circle cx="56" cy="16" r="5" fill="#0f172a" opacity="0.2"/>
-                <circle cx="56" cy="16" r="3" fill="#0f172a" opacity="0.35"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: '#f1f5f9', letterSpacing: '-0.3px' }}>Afrik<span style={{ color: '#f59e0b' }}>'Fid</span></div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Administration</div>
-            </div>
-          </div>
-        </div>
-
-        <nav style={{ flex: 1, padding: '8px 8px', overflowY: 'auto' }}>
-          {nav.map(item => (
-            <Link key={item.path} to={item.path}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8,
-                marginBottom: 2, textDecoration: 'none', fontSize: 13, fontWeight: 500,
-                background: location.pathname === item.path ? 'rgba(245,158,11,0.15)' : 'transparent',
-                color: location.pathname === item.path ? '#f59e0b' : '#94a3b8',
-                transition: 'all 0.15s',
-              }}>
-              <item.icon style={{ width: 18, height: 18, flexShrink: 0 }} />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #334155' }}>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>{user?.email}</div>
-          <button onClick={() => { logout(); navigate('/login') }}
-            style={{ width: '100%', padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-            Déconnexion
-          </button>
-        </div>
-      </aside>
-
-      {/* Content */}
+    <div style={{ minHeight: '100vh', background: 'var(--af-bg)', color: 'var(--af-text)', display: 'flex', flexDirection: 'column' }}>
+      <Topbar user={user} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/admin')} />
+      <Navbar items={items} />
       <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         {children}
       </main>
@@ -211,73 +260,46 @@ function AdminLayout({ children }) {
 // ─── Merchant Layout ──────────────────────────────────────────────────────────
 function MerchantLayout({ children }) {
   const { user, logout } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
 
-  const nav = [
-    { path: '/merchant', label: 'Dashboard', icon: ChartBarIcon },
-    { path: '/merchant/transactions', label: 'Transactions', icon: CreditCardIcon },
-    { path: '/merchant/links', label: 'Liens de paiement', icon: LinkIcon },
-    { path: '/merchant/clients', label: 'Clients fidélisés', icon: UsersIcon },
-    { path: '/merchant/intelligence', label: 'Intelligence', icon: ChartBarIcon },
-    { path: '/merchant/refunds', label: 'Remboursements', icon: ArrowUturnLeftIcon },
-    { path: '/merchant/kyc', label: 'Vérification KYC', icon: ShieldCheckIcon },
-    { path: '/merchant/settings', label: 'Paramètres', icon: Cog6ToothIcon },
-    { path: '/merchant/profile', label: 'Profil & Sécurité', icon: UserCircleIcon },
+  const items = [
+    { path: '/merchant',               end: true, label: 'Dashboard',          Icon: ChartBarIcon },
+    { path: '/merchant/transactions',  label: 'Transactions',                 Icon: CreditCardIcon },
+    { path: '/merchant/links',         label: 'Liens de paiement',            Icon: LinkIcon },
+    { path: '/merchant/clients',       label: 'Clients fidélisés',            Icon: UsersIcon },
+    { path: '/merchant/intelligence',  label: 'Intelligence',                 Icon: ChartBarIcon },
+    { path: '/merchant/refunds',       label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
+    { path: '/merchant/kyc',           label: 'Vérification KYC',             Icon: ShieldCheckIcon },
+    { path: '/merchant/settings',      label: 'Paramètres',                   Icon: Cog6ToothIcon },
+    { path: '/merchant/profile',       label: 'Profil & Sécurité',            Icon: UserCircleIcon },
   ]
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a' }}>
-      <aside style={{ width: 220, background: '#1e293b', borderRight: '1px solid #334155', padding: '0 0 24px 0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid #334155', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.4))' }}>
-              <svg width="32" height="32" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="merchantLogoGrad" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#fbbf24"/>
-                    <stop offset="100%" stopColor="#d97706"/>
-                  </linearGradient>
-                  <linearGradient id="merchantShine" x1="0" y1="0" x2="0" y2="72" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2"/>
-                    <stop offset="60%" stopColor="#ffffff" stopOpacity="0"/>
-                  </linearGradient>
-                </defs>
-                <rect width="72" height="72" rx="18" fill="url(#merchantLogoGrad)"/>
-                <rect width="72" height="40" rx="18" fill="url(#merchantShine)"/>
-                <text x="36" y="50" fontFamily="Arial Black, Arial, sans-serif" fontSize="38" fontWeight="900" textAnchor="middle" fill="#0f172a" letterSpacing="-2">A</text>
-                <circle cx="56" cy="16" r="5" fill="#0f172a" opacity="0.2"/>
-                <circle cx="56" cy="16" r="3" fill="#0f172a" opacity="0.35"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: '#f1f5f9', letterSpacing: '-0.3px' }}>Afrik<span style={{ color: '#f59e0b' }}>'Fid</span></div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>Espace Marchand</div>
-            </div>
-          </div>
-        </div>
-        <nav style={{ flex: 1, padding: '8px 8px' }}>
-          {nav.map(item => (
-            <Link key={item.path} to={item.path}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                marginBottom: 2, textDecoration: 'none', fontSize: 14,
-                background: location.pathname === item.path ? 'rgba(245,158,11,0.15)' : 'transparent',
-                color: location.pathname === item.path ? '#f59e0b' : '#94a3b8',
-              }}>
-              <item.icon style={{ width: 18, height: 18, flexShrink: 0 }} /><span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #334155' }}>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>{user?.name || user?.email}</div>
-          <button onClick={() => { logout(); navigate('/login') }}
-            style={{ width: '100%', padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 13 }}>
-            Déconnexion
-          </button>
-        </div>
-      </aside>
-      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>{children}</main>
+    <div style={{ minHeight: '100vh', background: 'var(--af-bg)', color: 'var(--af-text)', display: 'flex', flexDirection: 'column' }}>
+      <Topbar user={user} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/merchant')} />
+      <Navbar items={items} />
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
+        {children}
+      </main>
+    </div>
+  )
+}
+
+// ─── Breadcrumb helper (exporté pour les pages) ──────────────────────────────
+export function Breadcrumb({ title, segments = [] }) {
+  return (
+    <div className="af-breadcrumb">
+      <div className="af-breadcrumb__title">{title}</div>
+      <span className="af-breadcrumb__sep">|</span>
+      <HomeIcon className="af-breadcrumb__home" />
+      {segments.map((seg, i) => (
+        <React.Fragment key={i}>
+          <span className="af-breadcrumb__sep">›</span>
+          {seg.to
+            ? <Link to={seg.to} className="af-breadcrumb__item">{seg.label}</Link>
+            : <span className={'af-breadcrumb__item' + (i === segments.length - 1 ? ' is-current' : '')}>{seg.label}</span>}
+        </React.Fragment>
+      ))}
     </div>
   )
 }
@@ -285,56 +307,58 @@ function MerchantLayout({ children }) {
 // ─── Router ───────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <ToastProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/register-client" element={<RegisterClient />} />
-          <Route path="/pay/:code" element={<PaymentPage />} />
+    <ThemeProvider>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <ToastProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/register-client" element={<RegisterClient />} />
+            <Route path="/pay/:code" element={<PaymentPage />} />
 
-          {/* Admin */}
-          <Route path="/admin" element={<Protected role="admin"><AdminLayout><AdminDashboard /></AdminLayout></Protected>} />
-          <Route path="/admin/merchants" element={<Protected role="admin"><AdminLayout><AdminMerchants /></AdminLayout></Protected>} />
-          <Route path="/admin/clients" element={<Protected role="admin"><AdminLayout><AdminClients /></AdminLayout></Protected>} />
-          <Route path="/admin/transactions" element={<Protected role="admin"><AdminLayout><AdminTransactions /></AdminLayout></Protected>} />
-          <Route path="/admin/loyalty" element={<Protected role="admin"><AdminLayout><AdminLoyalty /></AdminLayout></Protected>} />
-          <Route path="/admin/webhooks" element={<Protected role="admin"><AdminLayout><AdminWebhooks /></AdminLayout></Protected>} />
-          <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
-          <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
-          <Route path="/admin/refunds" element={<Protected role="admin"><AdminLayout><AdminRefunds /></AdminLayout></Protected>} />
-          <Route path="/admin/disputes" element={<Protected role="admin"><AdminLayout><AdminDisputes /></AdminLayout></Protected>} />
-          <Route path="/admin/subscriptions" element={<Protected role="admin"><AdminLayout><AdminSubscriptions /></AdminLayout></Protected>} />
-          <Route path="/admin/success-fees" element={<Protected role="admin"><AdminLayout><AdminSuccessFees /></AdminLayout></Protected>} />
-          <Route path="/admin/rfm" element={<Protected role="admin"><AdminLayout><AdminRFM /></AdminLayout></Protected>} />
-          <Route path="/admin/campaigns" element={<Protected role="admin"><AdminLayout><AdminCampaigns /></AdminLayout></Protected>} />
-          <Route path="/admin/abandon-protocol" element={<Protected role="admin"><AdminLayout><AdminAbandonProtocol /></AdminLayout></Protected>} />
-          <Route path="/admin/churn-alerts" element={<Protected role="admin"><AdminLayout><AdminChurnAlerts /></AdminLayout></Protected>} />
-          <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
-          <Route path="/admin/profile" element={<Protected role="admin"><AdminLayout><AdminProfile /></AdminLayout></Protected>} />
+            {/* Admin */}
+            <Route path="/admin" element={<Protected role="admin"><AdminLayout><AdminDashboard /></AdminLayout></Protected>} />
+            <Route path="/admin/merchants" element={<Protected role="admin"><AdminLayout><AdminMerchants /></AdminLayout></Protected>} />
+            <Route path="/admin/clients" element={<Protected role="admin"><AdminLayout><AdminClients /></AdminLayout></Protected>} />
+            <Route path="/admin/transactions" element={<Protected role="admin"><AdminLayout><AdminTransactions /></AdminLayout></Protected>} />
+            <Route path="/admin/loyalty" element={<Protected role="admin"><AdminLayout><AdminLoyalty /></AdminLayout></Protected>} />
+            <Route path="/admin/webhooks" element={<Protected role="admin"><AdminLayout><AdminWebhooks /></AdminLayout></Protected>} />
+            <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
+            <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />
+            <Route path="/admin/refunds" element={<Protected role="admin"><AdminLayout><AdminRefunds /></AdminLayout></Protected>} />
+            <Route path="/admin/disputes" element={<Protected role="admin"><AdminLayout><AdminDisputes /></AdminLayout></Protected>} />
+            <Route path="/admin/subscriptions" element={<Protected role="admin"><AdminLayout><AdminSubscriptions /></AdminLayout></Protected>} />
+            <Route path="/admin/success-fees" element={<Protected role="admin"><AdminLayout><AdminSuccessFees /></AdminLayout></Protected>} />
+            <Route path="/admin/rfm" element={<Protected role="admin"><AdminLayout><AdminRFM /></AdminLayout></Protected>} />
+            <Route path="/admin/campaigns" element={<Protected role="admin"><AdminLayout><AdminCampaigns /></AdminLayout></Protected>} />
+            <Route path="/admin/abandon-protocol" element={<Protected role="admin"><AdminLayout><AdminAbandonProtocol /></AdminLayout></Protected>} />
+            <Route path="/admin/churn-alerts" element={<Protected role="admin"><AdminLayout><AdminChurnAlerts /></AdminLayout></Protected>} />
+            <Route path="/admin/audit-logs" element={<Protected role="admin"><AdminLayout><AdminAuditLogs /></AdminLayout></Protected>} />
+            <Route path="/admin/profile" element={<Protected role="admin"><AdminLayout><AdminProfile /></AdminLayout></Protected>} />
 
-          {/* Merchant */}
-          <Route path="/merchant" element={<Protected role="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></Protected>} />
-          <Route path="/merchant/transactions" element={<Protected role="merchant"><MerchantLayout><MerchantTransactions /></MerchantLayout></Protected>} />
-          <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
-          <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
-          <Route path="/merchant/intelligence" element={<Protected role="merchant"><MerchantLayout><MerchantIntelligence /></MerchantLayout></Protected>} />
-          <Route path="/merchant/churn-alerts" element={<Protected role="merchant"><MerchantLayout><MerchantChurnAlerts /></MerchantLayout></Protected>} />
-          <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
-          <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
-          <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />
-          <Route path="/merchant/profile" element={<Protected role="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></Protected>} />
+            {/* Merchant */}
+            <Route path="/merchant" element={<Protected role="merchant"><MerchantLayout><MerchantDashboard /></MerchantLayout></Protected>} />
+            <Route path="/merchant/transactions" element={<Protected role="merchant"><MerchantLayout><MerchantTransactions /></MerchantLayout></Protected>} />
+            <Route path="/merchant/links" element={<Protected role="merchant"><MerchantLayout><MerchantLinks /></MerchantLayout></Protected>} />
+            <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
+            <Route path="/merchant/intelligence" element={<Protected role="merchant"><MerchantLayout><MerchantIntelligence /></MerchantLayout></Protected>} />
+            <Route path="/merchant/churn-alerts" element={<Protected role="merchant"><MerchantLayout><MerchantChurnAlerts /></MerchantLayout></Protected>} />
+            <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
+            <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
+            <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />
+            <Route path="/merchant/profile" element={<Protected role="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></Protected>} />
 
-          {/* Client */}
-          <Route path="/client" element={<Protected role="client"><ClientDashboard /></Protected>} />
-          <Route path="/client/profile" element={<Protected role="client"><ClientProfile /></Protected>} />
+            {/* Client */}
+            <Route path="/client" element={<Protected role="client"><ClientDashboard /></Protected>} />
+            <Route path="/client/profile" element={<Protected role="client"><ClientProfile /></Protected>} />
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
