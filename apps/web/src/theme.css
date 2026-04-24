@@ -65,13 +65,13 @@
 
   /* Nav accents — une couleur par section */
   --af-nav-accent-dashboard: #3B82F6;
-  --af-nav-accent-partners: #E63946;
+  --af-nav-accent-partners: #E30613;
   --af-nav-accent-consumers: #10B981;
   --af-nav-accent-loyalty: #A78BFA;
   --af-nav-accent-gift: #E30613;
   --af-nav-accent-wallet: #10B981;
   --af-nav-accent-transactions: #A78BFA;
-  --af-nav-accent-finance: #E63946;
+  --af-nav-accent-finance: #E30613;
 
   /* Ombres */
   --af-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -87,7 +87,7 @@
   --af-radius-pill: 999px;
 
   /* Focus ring */
-  --af-focus-ring: 0 0 0 3px rgba(230, 57, 70, 0.25);
+  --af-focus-ring: 0 0 0 3px rgba(227, 6, 19, 0.25);
 
   /* ─── Rétro-compat : mapping des anciennes variables --afrikfid-* ─── */
   --afrikfid-primary: var(--af-brand);
@@ -176,13 +176,13 @@
 
   /* Nav accents */
   --af-nav-accent-dashboard: #60A5FA;
-  --af-nav-accent-partners: #E63946;
+  --af-nav-accent-partners: #E30613;
   --af-nav-accent-consumers: #10B981;
   --af-nav-accent-loyalty: #A78BFA;
   --af-nav-accent-gift: #E30613;
   --af-nav-accent-wallet: #10B981;
   --af-nav-accent-transactions: #A78BFA;
-  --af-nav-accent-finance: #E63946;
+  --af-nav-accent-finance: #E30613;
 
   /* Ombres (quasi-invisibles en dark mais on garde pour l'élévation) */
   --af-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -190,7 +190,7 @@
   --af-shadow-topbar: 0 1px 0 rgba(0, 0, 0, 0.4);
 
   /* Focus ring */
-  --af-focus-ring: 0 0 0 3px rgba(230, 57, 70, 0.4);
+  --af-focus-ring: 0 0 0 3px rgba(227, 6, 19, 0.4);
 
   /* Rétro-compat */
   --afrikfid-primary: var(--af-brand);

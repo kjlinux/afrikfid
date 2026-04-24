@@ -431,11 +431,11 @@ export function exportPdf(rows, columns, title = 'Rapport', subtitle = '') {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Poppins', Arial, sans-serif; font-size: 11px; color: #1F2937; padding: 24px; }
-    h1 { font-size: 18px; color: #E63946; margin-bottom: 4px; }
+    h1 { font-size: 18px; color: #E30613; margin-bottom: 4px; }
     .subtitle { font-size: 12px; color: #6B7280; margin-bottom: 4px; }
     .date { font-size: 11px; color: #6B7280; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; }
-    th { background: #E63946; color: #FFFFFF; padding: 8px 10px; text-align: left; font-size: 11px; }
+    th { background: #E30613; color: #FFFFFF; padding: 8px 10px; text-align: left; font-size: 11px; }
     td { padding: 7px 10px; border-bottom: 1px solid #E5E7EB; font-size: 11px; }
     tr:nth-child(even) td { background: #F9FAFB; }
     .footer { margin-top: 20px; font-size: 10px; color: #6B7280; text-align: right; }

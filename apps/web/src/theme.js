@@ -55,13 +55,13 @@ export const tokens = {
 
     nav: {
       dashboard: '#3B82F6',
-      partners: '#E63946',
+      partners: '#E30613',
       consumers: '#10B981',
       loyalty: '#A78BFA',
       gift: '#E30613',
       wallet: '#10B981',
       transactions: '#A78BFA',
-      finance: '#E63946',
+      finance: '#E30613',
     },
 
     loyalty: {
@@ -112,13 +112,13 @@ export const tokens = {
 
     nav: {
       dashboard: '#60A5FA',
-      partners: '#E63946',
+      partners: '#E30613',
       consumers: '#10B981',
       loyalty: '#A78BFA',
       gift: '#E30613',
       wallet: '#10B981',
       transactions: '#A78BFA',
-      finance: '#E63946',
+      finance: '#E30613',
     },
 
     loyalty: {
@@ -166,7 +166,7 @@ export const theme = {
     md: '8px',
     lg: '12px',
   },
-  focusRing: '0 0 0 3px rgba(230,57,70,0.25)',
+  focusRing: '0 0 0 3px rgba(227,6,19,0.25)',
 }
 
 export default theme
