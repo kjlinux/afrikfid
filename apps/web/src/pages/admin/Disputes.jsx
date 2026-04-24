@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Modal, Button, Select, Pagination, Spinner, Alert, EmptyState, KpiCard } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const STATUS_COLORS = {
   open: 'yellow',
@@ -188,11 +189,8 @@ export default function AdminDisputes() {
   const statMap = Object.fromEntries(stats.map(s => [s.status, parseInt(s.count)]))
 
   return (
-    <div style={{ padding: '24px 20px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>Litiges & Disputes</h1>
-        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Gestion des contestations de transactions ·</p>
-      </div>
+    <div style={{ padding: '24px 28px' }}>
+      <Breadcrumb title="Litiges" segments={[{ label: 'Gestion des contestations de transactions' }]} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <KpiCard label="Ouverts"   value={statMap.open || 0}          color="var(--af-accent)" />

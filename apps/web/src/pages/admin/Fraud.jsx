@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Modal, Input, Button, Alert, EmptyState, Spinner } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 import { ScaleIcon, NoSymbolIcon } from '@heroicons/react/24/outline'
 
 const RULE_TYPE_LABELS = {
@@ -89,10 +90,7 @@ export default function AdminFraud() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Détection de Fraude</h1>
-        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Règles configurables · Blacklist · Score de risque</p>
-      </div>
+      <Breadcrumb title="Fraude" segments={[{ label: 'Règles · Blacklist · Score de risque' }]} />
 
       {alert && <Alert type={alert.type} onClose={() => setAlert(null)}>{alert.text}</Alert>}
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Spinner, Pagination, EmptyState, exportCsv, exportPdf } from '../../components/ui.jsx'
-import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
+import { Breadcrumb } from '../../App.jsx'
+import { ClipboardDocumentListIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 
 const ACTOR_COLORS = { admin: 'var(--af-accent)', merchant: '#3b82f6', system: '#8b5cf6' }
 const ACTION_COLORS = { create: '#10b981', update: '#3b82f6', delete: '#ef4444', login: 'var(--af-accent)', refund: '#8b5cf6' }
@@ -45,21 +46,15 @@ export default function AdminAuditLogs() {
   const inp = { padding: '9px 12px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', fontSize: 13 }
 
   return (
-    <div style={{ padding: '24px 20px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Journal d'audit</h1>
-          <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>{total} entrée{total > 1 ? 's' : ''} — traçabilité complète</p>
-        </div>
+    <div style={{ padding: '24px 28px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Journal d'audit" segments={[{ label: `${total} entrée${total > 1 ? 's' : ''} — traçabilité complète` }]} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => exportCsv(logs, COLS, 'audit-logs.csv')}
-            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            ↓ CSV
+          <button onClick={() => exportCsv(logs, COLS, 'audit-logs.csv')} className="af-btn af-btn--ghost af-btn--sm">
+            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> CSV
           </button>
-          <button onClick={() => exportPdf(logs, COLS, 'Journal d\'audit', `${total} entrées`)}
-            style={{ padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            ↓ PDF
+          <button onClick={() => exportPdf(logs, COLS, 'Journal d\'audit', `${total} entrées`)} className="af-btn af-btn--ghost af-btn--sm">
+            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> PDF
           </button>
         </div>
       </div>

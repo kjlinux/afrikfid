@@ -8,7 +8,7 @@ import {
   ArrowUpCircleIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../api.js'
-import { useAuth } from '../../App.jsx'
+import { useAuth, Breadcrumb } from '../../App.jsx'
 import { Spinner, Badge, InfoTooltip, Tooltip } from '../../components/ui.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
@@ -72,7 +72,7 @@ export default function MerchantChurnAlerts() {
 
   if (error?.upgrade) return (
     <div style={{ padding: '28px 32px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 24 }}>Alertes Churn</h1>
+      <Breadcrumb title="Alertes Churn" segments={[{ label: 'Upgrade requis' }]} />
       <div style={{ background: 'var(--af-surface)', border: '1px dashed #8b5cf6', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
         <ChartBarIcon style={{ width: 48, height: 48, color: '#8b5cf6', margin: '0 auto 16px' }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: '#8b5cf6', marginBottom: 8 }}>Fonctionnalité non incluse dans votre package actuel</div>
@@ -101,14 +101,10 @@ export default function MerchantChurnAlerts() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Alertes Churn<InfoTooltip text={TOOLTIPS.churn} /></h1>
-          <p style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Clients susceptibles de partir — agissez avant qu'il ne soit trop tard</p>
-        </div>
-        <button onClick={load} disabled={loading}
-          style={{ padding: '8px 16px', background: 'var(--af-surface)', color: 'var(--af-text)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {loading ? <Spinner size="sm" /> : <ArrowPathIcon style={{ width: 16, height: 16 }} />} Actualiser
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Alertes Churn" segments={[{ label: 'Clients susceptibles de partir' }]} />
+        <button onClick={load} disabled={loading} className="af-btn af-btn--ghost af-btn--sm">
+          <ArrowPathIcon style={{ width: 14, height: 14 }} /> Actualiser
         </button>
       </div>
 

@@ -216,7 +216,7 @@ export default function RegisterClient() {
     <Screen>
       <div style={{ width: '100%', maxWidth: 460 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <img src="/brand/logo.png" alt="AfrikFid" style={{ height: 52, objectFit: 'contain', marginBottom: 10, filter: 'drop-shadow(0 2px 8px rgba(15, 17, 21,0.15))' }} onError={e => { e.target.style.display = 'none' }} />
+          <img src="/afrikfid-logo.png" alt="AfrikFid" style={{ height: 52, objectFit: 'contain', marginBottom: 10, filter: 'drop-shadow(0 2px 8px rgba(15, 17, 21,0.15))' }} onError={e => { e.target.style.display = 'none' }} />
           <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--af-text)', fontFamily: 'Montserrat, sans-serif' }}>Créer un compte client</h1>
           <p style={{ color: 'var(--afrikfid-muted)', fontSize: 13, marginTop: 3 }}>Profitez des remises fidélité chez tous nos marchands partenaires</p>
         </div>

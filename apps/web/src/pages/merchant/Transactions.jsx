@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
-import { ArrowUturnLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { ArrowUturnLeftIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { exportCsv, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
@@ -66,8 +67,8 @@ export default function MerchantTransactions() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Mes Transactions ({total})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Transactions" segments={[{ label: `${total} opération${total > 1 ? 's' : ''}` }]} />
         {transactions.length > 0 && (
           <button onClick={() => exportCsv(transactions, [
             { label: 'Référence', key: 'reference' },

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Spinner, Pagination } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const SEGMENT_COLORS = { A_RISQUE: 'red', HIBERNANTS: 'orange', PERDUS: 'gray', CHAMPIONS: 'green', FIDELES: 'blue', PROMETTEURS: 'yellow' }
 
@@ -28,9 +29,9 @@ export default function AdminChurnAlerts() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Alertes Churn</h1>
-        <button onClick={load} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Actualiser</button>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Alertes Churn" segments={[{ label: 'Prédiction de désabonnement clients' }]} />
+        <button onClick={load} className="af-btn af-btn--ghost af-btn--sm">Actualiser</button>
       </div>
 
       <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, overflow: 'hidden' }}>

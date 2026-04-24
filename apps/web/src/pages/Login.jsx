@@ -118,15 +118,10 @@ export default function Login() {
     <div style={{ minHeight: '100vh', background: 'var(--af-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 420 }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-block', marginBottom: 16 }}>
-            <img src="/brand/logo.png" alt="AfrikFid" style={{ height: 72, objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(15, 17, 21,0.18))' }}
-              onError={e => { e.target.style.display = 'none' }} />
-          </div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--af-text)', letterSpacing: '-0.5px', fontFamily: 'Montserrat, sans-serif' }}>
-            Afrik<span style={{ color: 'var(--afrikfid-accent)' }}>'Fid</span>
-          </h1>
-          <p style={{ color: 'var(--afrikfid-muted)', marginTop: 6, fontSize: 13, letterSpacing: '0.3px' }}>Passerelle de Paiement B2B Multi-Pays</p>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <img src="/afrikfid-logo.png" alt="Afrik'Fid" style={{ height: 80, objectFit: 'contain', display: 'block', margin: '0 auto 10px' }}
+            onError={e => { e.target.style.display = 'none' }} />
+          <p style={{ color: 'var(--af-text-muted)', fontSize: 13, letterSpacing: '0.3px' }}>Passerelle de Paiement B2B Multi-Pays</p>
         </div>
 
         {/* Card */}

@@ -144,15 +144,17 @@ export default function MerchantSettings() {
   )
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 780 }}>
+    <div style={{ padding: '28px 32px' }}>
       {PasswordModal}
       <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Paramètres</h1>
-      <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 28 }}>Configurez le comportement de votre intégration Afrik'Fid</p>
+      <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 24 }}>Configurez le comportement de votre intégration Afrik'Fid</p>
 
       <Msg msg={msg} />
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20, alignItems: 'start' }}>
+
       {/* ─── Comportement paiements ────────────────────────────────────────── */}
-      <Card style={{ marginBottom: 20 }}>
+      <Card style={{ marginBottom: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <CreditCardIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Comportement des paiements</h2>
@@ -196,7 +198,7 @@ export default function MerchantSettings() {
       </Card>
 
       {/* ─── Webhook ──────────────────────────────────────────────────────── */}
-      <Card style={{ marginBottom: 20 }}>
+      <Card style={{ marginBottom: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <GlobeAltIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Webhook de notification<InfoTooltip text={TOOLTIPS.webhook} /></h2>
@@ -234,21 +236,8 @@ export default function MerchantSettings() {
         </div>
       </Card>
 
-      {/* ─── Bouton Save ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 28 }}>
-        <button onClick={saveSettings} disabled={saving}
-          style={{
-            padding: '10px 28px', background: saving ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))',
-            border: 'none', borderRadius: 8, color: saving ? 'var(--af-text-muted)' : '#fff',
-            fontWeight: 700, cursor: saving ? 'default' : 'pointer', fontSize: 14,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-          {saving ? 'Enregistrement...' : 'Enregistrer les paramètres'}
-        </button>
-      </div>
-
       {/* ─── Clés API ─────────────────────────────────────────────────────── */}
-      <Card style={{ marginBottom: 20 }}>
+      <Card style={{ marginBottom: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <KeyIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Clés API<InfoTooltip text={TOOLTIPS.api_key} /></h2>
@@ -341,6 +330,17 @@ export default function MerchantSettings() {
           Pour modifier votre taux X%, la fréquence de settlement ou vos coordonnées bancaires, contactez le support Afrik'Fid.
         </p>
       </Card>
+
+      </div>
+
+      {/* ─── Bouton Save (en bas de page) ──────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+        <button onClick={saveSettings} disabled={saving}
+          className="af-btn af-btn--primary af-btn--lg"
+          style={saving ? { opacity: 0.6, cursor: 'default' } : {}}>
+          {saving ? 'Enregistrement...' : 'Enregistrer les paramètres'}
+        </button>
+      </div>
     </div>
   )
 }

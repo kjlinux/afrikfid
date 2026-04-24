@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Spinner, Pagination } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const STEP_LABELS = [
   'Étape 1 — Win-back -15%',
@@ -39,10 +40,9 @@ export default function AdminAbandonProtocol() {
 
   return (
     <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Protocole d'abandon</h1>
-        <button onClick={load} disabled={loading}
-          style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, opacity: loading ? 0.5 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Protocole d'abandon" segments={[{ label: 'Séquence de réactivation clients inactifs' }]} />
+        <button onClick={load} disabled={loading} className="af-btn af-btn--ghost af-btn--sm">
           {loading ? 'Chargement...' : 'Actualiser'}
         </button>
       </div>

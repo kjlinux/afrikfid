@@ -102,7 +102,7 @@ function AfrikFidCardBlock({ data }) {
 function TxStatusBadge({ status }) {
   const colors = {
     completed: ['#10b981', '#10b98115'],
-    pending:   ['var(--af-accent)', 'var(--af-accent-soft)'],
+    pending:   ['#F59E0B', 'rgba(245,158,11,0.15)'],
     failed:    ['#ef4444', '#ef444415'],
     expired:   ['#6B7280', '#6B728015'],
   }

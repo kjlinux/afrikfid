@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Button, Spinner, Pagination, Select, Modal } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const PACKAGES = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 const PKG_COLORS = { STARTER_BOOST: 'yellow', STARTER_PLUS: 'blue', GROWTH: 'green', PREMIUM: 'purple' }
@@ -112,8 +113,8 @@ export default function AdminSubscriptions() {
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Abonnements Marchands</h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Abonnements" segments={[{ label: 'Packages marchands' }]} />
         <Select value={filterPkg} onChange={e => { setFilterPkg(e.target.value); setPage(1) }}>
           <option value="">Tous les packages</option>
           {PACKAGES.map(p => <option key={p} value={p}>{PKG_LABELS[p]}</option>)}

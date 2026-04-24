@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Spinner, Pagination, Select } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const SEGMENTS = ['CHAMPIONS', 'FIDELES', 'PROMETTEURS', 'A_RISQUE', 'HIBERNANTS', 'PERDUS']
 const SEG_COLORS = { CHAMPIONS: 'green', FIDELES: 'blue', PROMETTEURS: 'yellow', A_RISQUE: 'orange', HIBERNANTS: 'gray', PERDUS: 'red' }
@@ -52,8 +53,8 @@ export default function AdminRFM() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Segmentation RFM</h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Segmentation RFM" segments={[{ label: 'Récence · Fréquence · Montant' }]} />
         <div style={{ display: 'flex', gap: 8 }}>
           <Select value={selectedMerchant} onChange={e => { setSelectedMerchant(e.target.value); setPage(1) }}>
             <option value="">Choisir un marchand</option>

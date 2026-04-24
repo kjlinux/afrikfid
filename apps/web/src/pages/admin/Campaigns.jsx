@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Spinner, Pagination, Select, Button, Modal, Input } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const SEGMENTS = ['CHAMPIONS', 'FIDELES', 'PROMETTEURS', 'A_RISQUE', 'HIBERNANTS', 'PERDUS']
 const TRIGGER_TYPES = ['BIENVENUE', '1ER_ACHAT', 'ABSENCE', 'ALERTE_R', 'A_RISQUE', 'WIN_BACK', 'ANNIVERSAIRE', 'PALIER']
@@ -100,8 +101,8 @@ export default function AdminCampaigns() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Campagnes & Triggers</h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Campagnes" segments={[{ label: 'Campagnes automatisées & Triggers RFM' }]} />
         <div style={{ display: 'flex', gap: 8 }}>
           {['campaigns', 'triggers'].map(t => (
             <button key={t} onClick={() => { setTab(t); setPage(1) }}

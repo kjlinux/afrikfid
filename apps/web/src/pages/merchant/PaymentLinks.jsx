@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { CheckCircleIcon } from '@heroicons/react/24/outline'
+import { Breadcrumb } from '../../App.jsx'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 
@@ -42,13 +43,9 @@ export default function MerchantLinks() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Liens de Paiement</h1>
-          <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 4 }}>Partagez des liens de paiement sans intégration technique</p>
-        </div>
-        <button onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 20px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: 'var(--af-surface-3)', fontWeight: 700, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Liens de paiement" segments={[{ label: 'Partagez des liens sans intégration technique' }]} />
+        <button onClick={() => setShowCreate(true)} className="af-btn af-btn--primary">
           + Créer un lien
         </button>
       </div>

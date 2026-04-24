@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { Card, Badge, Pagination, Spinner, EmptyState, Modal } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -41,9 +42,7 @@ export default function MerchantRefunds() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Mes Remboursements ({total})</h1>
-      </div>
+      <Breadcrumb title="Remboursements" segments={[{ label: `${total} demande${total > 1 ? 's' : ''}` }]} />
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>

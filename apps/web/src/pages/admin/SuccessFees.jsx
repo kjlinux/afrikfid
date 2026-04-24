@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Spinner, Pagination } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const STATUS_COLORS = { calculated: 'blue', invoiced: 'yellow', paid: 'green', waived: 'gray' }
 
@@ -39,7 +40,7 @@ export default function AdminSuccessFees() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 24 }}>Success Fees</h1>
+      <Breadcrumb title="Success Fees" segments={[{ label: 'Facturation sur croissance' }]} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         <div style={kpiCard}>

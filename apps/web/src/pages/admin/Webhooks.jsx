@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Badge, Modal, Spinner, Pagination, Alert, EmptyState, CopyButton } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 import { BellSlashIcon } from '@heroicons/react/24/outline'
 
 const STATUS_LABEL = { pending: 'En attente', delivered: 'Livré', failed: 'Échoué', retry: 'Retry' }
@@ -43,13 +44,8 @@ export default function AdminWebhooks() {
   }
 
   return (
-    <div style={{ padding: '24px 20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Webhooks</h1>
-          <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Suivi des événements et livraisons</p>
-        </div>
-      </div>
+    <div style={{ padding: '24px 28px' }}>
+      <Breadcrumb title="Webhooks" segments={[{ label: 'Suivi des événements et livraisons' }]} />
 
       {alert && <Alert type={alert.type} onClose={() => setAlert(null)}>{alert.text}</Alert>}
 

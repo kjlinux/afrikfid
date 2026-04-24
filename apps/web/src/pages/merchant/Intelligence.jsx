@@ -10,7 +10,7 @@ import {
   ArrowUpCircleIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../api.js'
-import { useAuth } from '../../App.jsx'
+import { useAuth, Breadcrumb } from '../../App.jsx'
 import { Badge, Spinner, InfoTooltip, Tooltip } from '../../components/ui.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
@@ -338,8 +338,8 @@ export default function MerchantIntelligence() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Dashboard Intelligence</h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Intelligence" segments={[{ label: 'Analytics & insights business' }]} />
         <span style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: pkgColor + '22', color: pkgColor, border: '1px solid ' + pkgColor + '44' }}>{PKG_LABELS[pkg] || pkg}</span>
       </div>
 

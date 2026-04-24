@@ -93,12 +93,17 @@ export default function MerchantProfile() {
     } finally { setDisableLoading(false) }
   }
 
-  return (
-    <div style={{ padding: '28px 32px', maxWidth: 640 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Profil & Sécurité</h1>
-      <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 28 }}>Gérez la sécurité de votre compte marchand</p>
+  // Pendant le setup 2FA (QR code + saisie code), on élargit la carte sécurité sur 2 colonnes.
+  const securitySpansAll = !totpEnabled && (step === 'verify' || step === 'done')
 
-      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)', marginBottom: 20 }}>
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Profil & Sécurité</h1>
+      <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 24 }}>Gérez la sécurité de votre compte marchand</p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20, alignItems: 'start' }}>
+
+      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <KeyIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Informations du compte</h2>
@@ -117,7 +122,7 @@ export default function MerchantProfile() {
         </div>
       </div>
 
-      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)' }}>
+      <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)', gridColumn: securitySpansAll ? '1 / -1' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <ShieldCheckIcon style={{ width: 18, height: 18, color: '#10b981' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Authentification à deux facteurs (2FA)</h2>
@@ -229,6 +234,8 @@ export default function MerchantProfile() {
             )}
           </>
         )}
+      </div>
+
       </div>
     </div>
   )

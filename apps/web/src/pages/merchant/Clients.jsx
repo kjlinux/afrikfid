@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../api.js'
 import { fmt, Card, Spinner, LoyaltyBadge, Pagination, exportCsv, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 
 const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
 const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
@@ -86,14 +88,10 @@ export default function MerchantClients() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Clients Fidélisés</h1>
-          <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>Clients Afrik'Fid ayant effectué au moins une transaction chez vous</p>
-        </div>
-        <button onClick={handleExport}
-          style={{ padding: '8px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-          ↓ Export CSV
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <Breadcrumb title="Clients fidélisés" segments={[{ label: "Clients Afrik'Fid ayant effectué au moins une transaction" }]} />
+        <button onClick={handleExport} className="af-btn af-btn--ghost af-btn--sm">
+          <ArrowDownTrayIcon style={{ width: 14, height: 14 }} /> Export CSV
         </button>
       </div>
 

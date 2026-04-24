@@ -149,9 +149,9 @@ export default function MerchantDashboard() {
           borderRadius: 12, padding: '14px 20px', marginBottom: 24,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <ShieldExclamationIcon style={{ width: 22, color: profile.kycStatus === 'rejected' ? '#ef4444' : 'var(--af-accent)', flexShrink: 0 }} />
+            <ShieldExclamationIcon style={{ width: 22, color: profile.kycStatus === 'rejected' ? '#ef4444' : '#F59E0B', flexShrink: 0 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: profile.kycStatus === 'rejected' ? '#ef4444' : 'var(--af-accent)' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: profile.kycStatus === 'rejected' ? '#ef4444' : '#F59E0B' }}>
                 {profile.kycStatus === 'submitted' && 'KYC en cours d\'examen'}
                 {profile.kycStatus === 'rejected' && 'KYC rejeté — action requise'}
                 {profile.kycStatus === 'pending' && 'Vérification KYC requise'}
@@ -165,7 +165,7 @@ export default function MerchantDashboard() {
           </div>
           {profile.kycStatus !== 'submitted' && (
             <Link to="/merchant/kyc" style={{
-              padding: '8px 18px', background: profile.kycStatus === 'rejected' ? '#ef4444' : 'var(--af-accent)',
+              padding: '8px 18px', background: profile.kycStatus === 'rejected' ? '#ef4444' : '#F59E0B',
               color: 'var(--af-surface-3)', borderRadius: 8, fontWeight: 700, fontSize: 13,
               textDecoration: 'none', whiteSpace: 'nowrap',
             }}>

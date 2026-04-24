@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline'
 import api from '../../api.js'
 import { Card, Badge, Modal, Button, Input, Select, Pagination, Spinner, Alert, EmptyState, KpiCard } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 const STATUS_COLORS = {
   completed: 'green',
@@ -134,11 +135,8 @@ export default function AdminRefunds() {
   }
 
   return (
-    <div style={{ padding: '24px 20px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>Remboursements</h1>
-        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>Suivi des remboursements totaux et partiels</p>
-      </div>
+    <div style={{ padding: '24px 28px' }}>
+      <Breadcrumb title="Remboursements" segments={[{ label: 'Suivi des remboursements totaux et partiels' }]} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <KpiCard label="Total" value={summary.total} />

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api.js'
 import { Card, Input, Button, Alert, Spinner } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 
 export default function AdminExchangeRates() {
   const [rates, setRates] = useState([])
@@ -41,10 +42,7 @@ export default function AdminExchangeRates() {
 
   return (
     <div style={{ padding: '28px 32px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>Taux de Change</h1>
-        <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginTop: 2 }}>XOF · XAF · KES · EUR — Taux utilisés pour la normalisation des rapports</p>
-      </div>
+      <Breadcrumb title="Taux de change" segments={[{ label: 'XOF · XAF · KES · EUR' }]} />
 
       {alert && <Alert type={alert.type} onClose={() => setAlert(null)}>{alert.text}</Alert>}
 

@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react'
 import api from '../../api.js'
 import { Spinner, Alert, InfoTooltip, Tooltip } from '../../components/ui.jsx'
+import { Breadcrumb } from '../../App.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 const STATUS_CONFIG = {
   pending:   { label: 'Non soumis',    color: 'var(--af-text-muted)', bg: 'rgba(156,163,175,0.1)',  icon: ClockIcon },
-  submitted: { label: 'En cours d\'examen', color: 'var(--af-accent)', bg: 'rgba(245,158,11,0.1)', icon: ClockIcon },
+  submitted: { label: 'En cours d\'examen', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', icon: ClockIcon },
   approved:  { label: 'Approuvé',      color: '#10b981', bg: 'rgba(16,185,129,0.1)',   icon: CheckCircleIcon },
   rejected:  { label: 'Rejeté',        color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    icon: XCircleIcon },
 }
@@ -124,12 +125,7 @@ export default function MerchantKyc() {
   return (
     <div style={{ padding: '28px 32px' }}>
       <div style={{ maxWidth: 620 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--af-text)', margin: 0 }}>Vérification KYC<InfoTooltip text={TOOLTIPS.KYC} /></h1>
-        <p style={{ color: 'var(--af-text-muted)', fontSize: 14, marginTop: 4 }}>
-          Soumettez vos documents pour activer votre compte et commencer à accepter des paiements.
-        </p>
-      </div>
+      <Breadcrumb title="Vérification KYC" segments={[{ label: 'Soumettez vos documents pour activer votre compte' }]} />
 
       {/* Statut actuel */}
       <div style={{
