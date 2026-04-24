@@ -99,6 +99,72 @@ function AfrikFidCardBlock({ data }) {
   )
 }
 
+// Timeline fusionnée gateway + business-api (achats multi-enseignes)
+function UnifiedHistorySection({ history }) {
+  if (!history) return null
+  // On n'affiche cette section que si la carte fidélité est liée, sinon les
+  // "Dernières transactions" ci-dessous suffisent et on évite un doublon.
+  if (!history.sources?.afrikfid?.available) return null
+  if (!history.items?.length) return null
+
+  const sourceMeta = {
+    gateway: { label: 'Passerelle', color: '#3b82f6', bg: '#3b82f615' },
+    afrikfid: { label: 'Enseigne', color: '#8b5cf6', bg: '#8b5cf615' },
+  }
+
+  return (
+    <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 14, overflow: 'hidden', marginBottom: 24 }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--af-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--af-text)' }}>Historique unifié</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2 }}>
+            Paiements passerelle et achats dans le réseau Afrik'Fid
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+          <span style={{ color: sourceMeta.gateway.color }}>● Passerelle : {history.sources.gateway.count}</span>
+          <span style={{ color: sourceMeta.afrikfid.color }}>● Enseignes : {history.sources.afrikfid.kept}</span>
+        </div>
+      </div>
+      <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+        {history.items.map((it) => {
+          const meta = sourceMeta[it.source]
+          return (
+            <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: '1px solid var(--af-surface)' }}>
+              {it.merchantLogo ? (
+                <img src={it.merchantLogo} alt="" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', background: 'var(--af-surface-3)' }} />
+              ) : (
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--af-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 700 }}>
+                  {(it.merchantName || '?').slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {it.merchantName || '—'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span>{fmtDate(it.date)}</span>
+                  <span style={{ background: meta.bg, color: meta.color, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{meta.label}</span>
+                  {it.source === 'gateway' && <TxStatusBadge status={it.status} />}
+                  {it.source === 'afrikfid' && it.pointsEarned > 0 && (
+                    <span style={{ color: '#F59E0B' }}>+{it.pointsEarned} pts</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{fmt(it.amountXof, it.currency)}</div>
+                {it.clientRebateXof > 0 && (
+                  <div style={{ fontSize: 11, color: '#10b981', marginTop: 2 }}>− {fmt(it.clientRebateXof, it.currency)}</div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function TxStatusBadge({ status }) {
   const colors = {
     completed: ['#10b981', '#10b98115'],
@@ -120,6 +186,7 @@ export default function ClientDashboard() {
   const [profile, setProfile]       = useState(null)
   const [transactions, setTxs]      = useState([])
   const [afrikfidCard, setAfrikfidCard] = useState(null)
+  const [unifiedHistory, setUnifiedHistory] = useState(null)
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   // Litige
@@ -152,6 +219,10 @@ export default function ClientDashboard() {
     api.get('/clients/me/afrikfid-profile')
       .then(r => setAfrikfidCard(r.data))
       .catch(() => setAfrikfidCard({ available: false, reason: 'upstream_unavailable' }))
+
+    api.get('/clients/me/unified-history?limit=30')
+      .then(r => setUnifiedHistory(r.data))
+      .catch(() => setUnifiedHistory(null))
   }, [user?.id])
 
   const handleLogout = () => {
@@ -396,6 +467,9 @@ export default function ClientDashboard() {
 
         {/* Mon segment RFM + offres personnalisées , §5.4) */}
         <ClientRfmSection rfmSegment={profile.rfmSegment} triggerHistory={profile.triggerHistory} />
+
+        {/* Historique unifié (affiché uniquement si carte fidélité liée) */}
+        <UnifiedHistorySection history={unifiedHistory} />
 
         {/* Dernières transactions */}
         <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 14, overflow: 'hidden' }}>

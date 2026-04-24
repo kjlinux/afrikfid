@@ -190,9 +190,17 @@ function normalizeCard(payload) {
   const src = payload && payload.data ? payload.data : payload;
   if (!src) return null;
   const consommateur = src.consommateur || {};
+  // Transactions multi-enseignes (30 dernières) retournées par InfoController
+  const transactions = Array.isArray(src.transactions) ? src.transactions.map(t => ({
+    merchant: t.marchand || null,
+    logo: t.logo || null,
+    amountXof: Number(t.montant) || 0,
+    pointsEarned: Number(t.points_obtenus) || 0,
+    date: t.date || null,
+  })) : [];
   return {
     numero: src.numero,
-    points_cumules: src.points_cumules || 0,
+    points_cumules: src.points_cumules || src.points || 0,
     reduction: src.reduction || null,
     consommateur: {
       id: consommateur.id,
@@ -200,10 +208,43 @@ function normalizeCard(payload) {
       prenom: consommateur.prenom,
       email: consommateur.email || null,
       telephone: consommateur.telephone || null,
+      whatsapp: consommateur.whatsapp || null,
       pays_id: consommateur.pays_id || null,
       ville: consommateur.ville || null,
+      sexe: consommateur.sexe || null,
+      date_naissance: consommateur.date_naissance || null,
     },
+    transactions,
   };
+}
+
+/**
+ * Débite le wallet d'une carte fidélité via l'endpoint /external/wallet/debit.
+ * Idempotent sur reference_afrikid (UNIQUE côté Laravel).
+ * Fail-closed : propagation des erreurs pour que l'appelant invalide la transaction
+ * passerelle en cas d'échec (solde insuffisant, carte introuvable, etc.).
+ *
+ * @returns {Promise<{ success: boolean, solde_apres?: number, error?: string, solde_disponible?: number, transaction_id?: number, reference?: string }>}
+ */
+async function debitWallet({ numero, montant_xof, marchand_id, reference_afrikid }) {
+  if (!isValidCardNumero(numero)) {
+    const err = new Error('numero carte invalide');
+    err.code = 'INVALID_CARD';
+    throw err;
+  }
+  try {
+    const { status, data } = await request('POST', '/external/wallet/debit', {
+      body: { numero_carte: numero, montant_xof, marchand_id, reference_afrikid },
+      retries: 0, // pas de retry : un débit doit être strictement contrôlé
+    });
+    return { status, ...(data || {}) };
+  } catch (e) {
+    // 404/422 remontent via request() avec err.status/err.data
+    if (e.status === 404 || e.status === 422) {
+      return { status: e.status, success: false, ...(e.data || {}) };
+    }
+    throw e;
+  }
 }
 
 /**
@@ -238,6 +279,7 @@ module.exports = {
   lookupCard,
   getWallet,
   creditTransaction,
+  debitWallet,
   getMerchantLoyaltySummary,
   getDailyReconciliation,
   isValidCardNumero,

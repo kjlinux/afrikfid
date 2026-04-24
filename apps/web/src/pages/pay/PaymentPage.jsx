@@ -14,6 +14,7 @@ import {
   TrophyIcon,
   ShieldCheckIcon,
   UserCircleIcon,
+  WalletIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 
@@ -213,7 +214,10 @@ export default function PaymentPage() {
   const [error, setError] = useState('')
   const [step, setStep] = useState('identify')
   const [paymentType, setPaymentType] = useState(null)
-  const [form, setForm] = useState({ phone: '', localPhone: '', countryCode: 'CI', afrikfid_id: '', operator: '', custom_amount: '' })
+  // `mode` pilote le basculement téléphone ↔ carte/ID sur le champ d'identification.
+  //   - 'phone' : sélecteur pays + saisie locale (comportement historique)
+  //   - 'card'  : champ unique intelligent (détecte 2014xxxxxxxx ou AFD-*)
+  const [form, setForm] = useState({ phone: '', localPhone: '', countryCode: 'CI', afrikfid_id: '', cardOrId: '', mode: 'phone', operator: '', custom_amount: '' })
   const setPhone = (countryCode, localPhone) => {
     const e164 = localPhone.trim() ? buildE164(localPhone, COUNTRIES.find(c => c.code === countryCode)?.dial || '+225') : ''
     setForm(f => ({ ...f, countryCode, localPhone, phone: e164 }))
@@ -242,14 +246,35 @@ export default function PaymentPage() {
     })
   }, [code])
 
+  // Détection auto du type d'identifiant saisi dans le champ unique.
+  // Miroir côté client du helper serveur lib/client-identifier.js.
+  const detectIdentifierType = (raw) => {
+    const trimmed = String(raw || '').trim()
+    if (!trimmed) return 'empty'
+    const digits = trimmed.replace(/\s+/g, '')
+    if (/^2014\d{8}$/.test(digits)) return 'card'
+    if (/^AFD-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(trimmed)) return 'afrikfid_legacy'
+    return 'phone'
+  }
+  const identifierType = form.mode === 'card' ? detectIdentifierType(form.cardOrId) : 'phone'
+
   const lookupClient = async () => {
-    if (!form.phone && !form.afrikfid_id) { setStep('method'); return }
+    // Mode téléphone : on envoie le E.164 construit par PhoneInput.
+    // Mode carte/ID : on envoie la saisie brute (détectée côté serveur).
+    const payload = {}
+    if (form.mode === 'card' && form.cardOrId?.trim()) {
+      payload.identifier = form.cardOrId.trim().replace(/\s+/g, '')
+    } else if (form.phone) {
+      payload.phone = form.phone
+    } else {
+      setStep('method'); return
+    }
     try {
-      const { data } = await api.post('/payment-links/' + code + '/identify-client', {
-        phone: form.phone || undefined,
-        afrikfid_id: form.afrikfid_id || undefined,
-      })
+      const { data } = await api.post('/payment-links/' + code + '/identify-client', payload)
       setClientInfo(data.found ? data.client : null)
+      if (data.found && data.client?.afrikfidId) {
+        setForm(f => ({ ...f, afrikfid_id: data.client.afrikfidId }))
+      }
     } catch { setClientInfo(null) }
     setStep('method')
   }
@@ -295,6 +320,23 @@ export default function PaymentPage() {
     } finally { setProcessing(false) }
   }
 
+  // Paiement par wallet Afrik'Fid (business-api) — disponible uniquement si le
+  // client a une carte liée et un solde suffisant exposé par /identify-client.
+  const payWithWallet = async () => {
+    if (!clientInfo?.afrikfidWalletBalance) return
+    setProcessing(true); setPageError('')
+    try {
+      const { data } = await api.post('/payment-links/' + code + '/pay', {
+        payment_method: 'wallet',
+        afrikfid_id: clientInfo.afrikfidId,
+        custom_amount: linkInfo?.amount ? undefined : parseFloat(form.custom_amount),
+      })
+      setResult(data); setStep('done')
+    } catch (err) {
+      setPageError(err.response?.data?.message || err.response?.data?.error || 'Erreur lors du paiement par wallet')
+    } finally { setProcessing(false) }
+  }
+
   const payCard = async () => {
     if (!amount) { setPageError('Montant invalide.'); return }
     setProcessing(true); setPageError('')
@@ -328,7 +370,7 @@ export default function PaymentPage() {
     </Screen>
   )
 
-  const stepIdx = { identify: 0, method: 1, mobile: 2, card: 2, points: 2, done: 3 }[step] || 0
+  const stepIdx = { identify: 0, method: 1, mobile: 2, card: 2, points: 2, wallet: 2, done: 3 }[step] || 0
   const stepLabels = ['Identification', 'Méthode', 'Paiement']
   const selectedOp = MM_OPERATORS.find(o => o.code === form.operator)
   const ussdInfo = form.operator ? getUssdInstructions(form.operator, countryCode) : null
@@ -383,14 +425,60 @@ export default function PaymentPage() {
 
           <div style={{ padding: '16px 20px' }}>
 
-            {/* ÉTAPE 1 : Identification */}
+            {/* ÉTAPE 1 : Identification — téléphone OU numéro de carte fidélité */}
             {step === 'identify' && (
               <div>
                 <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 12 }}>
                   Identifiez-vous pour bénéficier de votre remise fidélité (optionnel)
                 </p>
-                <label style={labelStyle}>Numéro de téléphone</label>
-                <PhoneInput countryCode={form.countryCode} localPhone={form.localPhone} onChange={setPhone} />
+
+                {/* Toggle téléphone / carte */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10, padding: 3, background: 'var(--af-surface-3)', borderRadius: 10, border: '1px solid var(--af-border)' }}>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, mode: 'phone' }))}
+                    style={{
+                      flex: 1, padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 600,
+                      background: form.mode === 'phone' ? 'var(--af-accent)' : 'transparent',
+                      color: form.mode === 'phone' ? '#fff' : 'var(--af-text-muted)',
+                    }}
+                  >📱 Téléphone</button>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, mode: 'card' }))}
+                    style={{
+                      flex: 1, padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 600,
+                      background: form.mode === 'card' ? 'var(--af-accent)' : 'transparent',
+                      color: form.mode === 'card' ? '#fff' : 'var(--af-text-muted)',
+                    }}
+                  >💳 Carte fidélité</button>
+                </div>
+
+                {form.mode === 'phone' ? (
+                  <>
+                    <label style={labelStyle}>Numéro de téléphone</label>
+                    <PhoneInput countryCode={form.countryCode} localPhone={form.localPhone} onChange={setPhone} />
+                  </>
+                ) : (
+                  <>
+                    <label style={labelStyle}>Numéro de carte ou identifiant</label>
+                    <input
+                      type="text"
+                      inputMode="text"
+                      autoComplete="off"
+                      value={form.cardOrId}
+                      onChange={e => setForm(f => ({ ...f, cardOrId: e.target.value }))}
+                      placeholder="2014 1234 5678"
+                      style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 6, letterSpacing: 1 }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 12, minHeight: 14 }}>
+                      {form.cardOrId.trim() === '' && '12 chiffres au dos de votre carte (préfixe 2014)'}
+                      {form.cardOrId.trim() !== '' && identifierType === 'card' && <span style={{ color: '#10b981' }}>✓ Carte fidélité détectée</span>}
+                      {form.cardOrId.trim() !== '' && identifierType === 'afrikfid_legacy' && <span style={{ color: '#10b981' }}>✓ Identifiant AfrikFid détecté</span>}
+                      {form.cardOrId.trim() !== '' && identifierType === 'phone' && <span style={{ color: '#f59e0b' }}>Format non reconnu — vérifiez votre numéro</span>}
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={lookupClient} style={btnPrimary}>Continuer</button>
                   <button onClick={() => setStep('method')} style={btnGhost}>Invité</button>
@@ -449,8 +537,54 @@ export default function PaymentPage() {
                     </button>
                   )
                 })()}
+                {clientInfo?.afrikfidWalletBalance > 0 && (() => {
+                  const balance = clientInfo.afrikfidWalletBalance
+                  const canPay = balance >= amount && amount > 0
+                  return (
+                    <button
+                      onClick={() => { if (canPay) { setPaymentType('wallet'); setStep('wallet') } }}
+                      disabled={!canPay}
+                      style={{ width: '100%', padding: '13px 16px', marginTop: 10, border: '2px solid ' + (canPay ? '#8b5cf6' : 'var(--af-border)'), borderRadius: 12, background: canPay ? 'rgba(139,92,246,0.08)' : 'var(--af-surface-3)', cursor: canPay ? 'pointer' : 'not-allowed', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, opacity: canPay ? 1 : 0.5 }}>
+                      <WalletIcon style={{ width: 26, height: 26, color: canPay ? '#8b5cf6' : 'var(--af-border-strong)', flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: canPay ? '#8b5cf6' : 'var(--af-text-muted)' }}>Wallet Afrik'Fid</div>
+                        <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 1 }}>
+                          Solde : {fmt(balance)} {linkInfo.currency}
+                          {!canPay && amount > 0 && ' · solde insuffisant'}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })()}
               </div>
             )}
+
+            {/* ÉTAPE 3d : Wallet Afrik'Fid */}
+            {step === 'wallet' && (() => {
+              const balance = clientInfo?.afrikfidWalletBalance || 0
+              return (
+                <div>
+                  <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                  <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6', marginBottom: 4 }}>Paiement par wallet Afrik'Fid</div>
+                    <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(amount)} {linkInfo.currency}</span> seront débités de votre wallet
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>
+                      Solde après paiement : {fmt(balance - amount)} {linkInfo.currency}
+                    </div>
+                  </div>
+                  {pageError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{pageError}</div>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
+                    <button onClick={payWithWallet} disabled={processing}
+                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}>
+                      {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} via Wallet`}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ÉTAPE 3c : Points récompense */}
             {step === 'points' && (() => {

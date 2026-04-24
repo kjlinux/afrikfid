@@ -6,6 +6,8 @@ import { Breadcrumb } from '../../App.jsx'
 const SEGMENTS = ['CHAMPIONS', 'FIDELES', 'PROMETTEURS', 'A_RISQUE', 'HIBERNANTS', 'PERDUS']
 const TRIGGER_TYPES = ['BIENVENUE', '1ER_ACHAT', 'ABSENCE', 'ALERTE_R', 'A_RISQUE', 'WIN_BACK', 'ANNIVERSAIRE', 'PALIER']
 const STATUS_COLORS = { draft: 'gray', scheduled: 'blue', running: 'yellow', completed: 'green', cancelled: 'red' }
+const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+const LOYALTY_STATUSES = ['OPEN', 'LIVE', 'GOLD', 'ROYAL', 'ROYAL_ELITE']
 
 export default function AdminCampaigns() {
   const [tab, setTab] = useState('campaigns')
@@ -20,6 +22,16 @@ export default function AdminCampaigns() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const limit = 20
+
+  // Campagne démographique
+  const [showDemoModal, setShowDemoModal] = useState(false)
+  const [demoForm, setDemoForm] = useState({
+    merchant_id: '', name: '', channel: 'sms', message_template: '',
+    birth_months: [], cities: '', genders: [], age_min: '', age_max: '',
+    loyalty_statuses: [], has_purchased: false, inactivity_days: '',
+  })
+  const [demoPreview, setDemoPreview] = useState(null)
+  const [demoPreviewLoading, setDemoPreviewLoading] = useState(false)
 
   useEffect(() => {
     api.get('/merchants', { params: { limit: 200 } }).then(r => setMerchants(r.data.merchants || []))
@@ -86,6 +98,68 @@ export default function AdminCampaigns() {
     } catch { /* ignore */ }
   }
 
+  // Campagnes démographiques — helpers
+  const demoFilterPayload = () => {
+    const f = {}
+    if (demoForm.birth_months.length) f.birth_months = demoForm.birth_months
+    if (demoForm.cities.trim()) f.cities = demoForm.cities.split(',').map(s => s.trim()).filter(Boolean)
+    if (demoForm.genders.length) f.genders = demoForm.genders
+    if (demoForm.age_min) f.age_min = parseInt(demoForm.age_min, 10)
+    if (demoForm.age_max) f.age_max = parseInt(demoForm.age_max, 10)
+    if (demoForm.loyalty_statuses.length) f.loyalty_statuses = demoForm.loyalty_statuses
+    if (demoForm.has_purchased) f.has_purchased = true
+    if (demoForm.inactivity_days) f.inactivity_days = parseInt(demoForm.inactivity_days, 10)
+    return f
+  }
+
+  const previewDemo = async () => {
+    if (!demoForm.merchant_id) return setFormError('Sélectionnez un marchand')
+    setDemoPreviewLoading(true); setFormError('')
+    try {
+      const { data } = await api.post('/campaigns/demographic/preview', {
+        merchant_id: demoForm.merchant_id,
+        filter: demoFilterPayload(),
+      })
+      setDemoPreview(data)
+    } catch (e) {
+      setFormError(e.response?.data?.error || 'Erreur preview')
+    } finally { setDemoPreviewLoading(false) }
+  }
+
+  const createDemo = async () => {
+    if (!demoForm.merchant_id) return setFormError('Sélectionnez un marchand')
+    if (!demoForm.name) return setFormError('Nom requis')
+    if (!demoForm.message_template) return setFormError('Message template requis')
+    const filter = demoFilterPayload()
+    if (Object.keys(filter).length === 0) return setFormError('Au moins un critère de ciblage requis')
+    setSubmitting(true); setFormError('')
+    try {
+      await api.post('/campaigns/demographic', {
+        merchant_id: demoForm.merchant_id,
+        name: demoForm.name,
+        channel: demoForm.channel,
+        message_template: demoForm.message_template,
+        filter,
+      })
+      setShowDemoModal(false)
+      setDemoForm({ merchant_id: '', name: '', channel: 'sms', message_template: '',
+        birth_months: [], cities: '', genders: [], age_min: '', age_max: '',
+        loyalty_statuses: [], has_purchased: false, inactivity_days: '' })
+      setDemoPreview(null)
+      load()
+    } catch (e) {
+      setFormError(e.response?.data?.error || 'Erreur création')
+    } finally { setSubmitting(false) }
+  }
+
+  const toggleArr = (key, val) => {
+    setDemoForm(f => ({
+      ...f,
+      [key]: f[key].includes(val) ? f[key].filter(x => x !== val) : [...f[key], val],
+    }))
+    setDemoPreview(null)
+  }
+
   const toggleTrigger = async (id, active) => {
     try {
       await api.patch(`/campaigns/triggers/${id}`, { is_active: !active })
@@ -112,8 +186,14 @@ export default function AdminCampaigns() {
           ))}
           <button onClick={() => setShowModal(true)}
             style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            + {tab === 'campaigns' ? 'Campagne' : 'Trigger'}
+            + {tab === 'campaigns' ? 'Campagne RFM' : 'Trigger'}
           </button>
+          {tab === 'campaigns' && (
+            <button onClick={() => setShowDemoModal(true)}
+              style={{ padding: '8px 16px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              + Campagne ciblée
+            </button>
+          )}
         </div>
       </div>
 
@@ -174,6 +254,139 @@ export default function AdminCampaigns() {
           </div>
           {total > limit && <Pagination page={page} total={total} limit={limit} onPage={setPage} />}
         </div>
+      )}
+
+      {showDemoModal && (
+        <Modal open onClose={() => { setShowDemoModal(false); setDemoPreview(null); setFormError('') }} title="Campagne ciblée (démographique)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '70vh', overflowY: 'auto' }}>
+            <Select value={demoForm.merchant_id} onChange={e => { setDemoForm({ ...demoForm, merchant_id: e.target.value }); setDemoPreview(null) }}>
+              <option value="">— Sélectionner un marchand —</option>
+              {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </Select>
+            <Input placeholder="Nom de la campagne (ex: Anniversaires mars Abidjan)" value={demoForm.name}
+              onChange={e => setDemoForm({ ...demoForm, name: e.target.value })} />
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Mois d'anniversaire</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {MONTHS.map((m, i) => {
+                  const num = i + 1
+                  const on = demoForm.birth_months.includes(num)
+                  return (
+                    <button key={num} type="button" onClick={() => toggleArr('birth_months', num)}
+                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
+                        background: on ? '#8b5cf6' : 'var(--af-surface-3)',
+                        color: on ? '#fff' : 'var(--af-text-muted)',
+                        border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>
+                      {m}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Villes (séparées par virgule)</div>
+              <Input placeholder="Abidjan, Bouaké, Daloa" value={demoForm.cities}
+                onChange={e => { setDemoForm({ ...demoForm, cities: e.target.value }); setDemoPreview(null) }} />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Genre</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[{ k: 'M', l: 'Hommes' }, { k: 'F', l: 'Femmes' }, { k: 'X', l: 'Autre' }].map(({ k, l }) => {
+                  const on = demoForm.genders.includes(k)
+                  return (
+                    <button key={k} type="button" onClick={() => toggleArr('genders', k)}
+                      style={{ padding: '5px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                        background: on ? '#8b5cf6' : 'var(--af-surface-3)',
+                        color: on ? '#fff' : 'var(--af-text-muted)',
+                        border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>{l}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Âge min</div>
+                <Input type="number" placeholder="18" value={demoForm.age_min}
+                  onChange={e => { setDemoForm({ ...demoForm, age_min: e.target.value }); setDemoPreview(null) }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Âge max</div>
+                <Input type="number" placeholder="65" value={demoForm.age_max}
+                  onChange={e => { setDemoForm({ ...demoForm, age_max: e.target.value }); setDemoPreview(null) }} />
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Statut fidélité</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {LOYALTY_STATUSES.map(s => {
+                  const on = demoForm.loyalty_statuses.includes(s)
+                  return (
+                    <button key={s} type="button" onClick={() => toggleArr('loyalty_statuses', s)}
+                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
+                        background: on ? '#8b5cf6' : 'var(--af-surface-3)',
+                        color: on ? '#fff' : 'var(--af-text-muted)',
+                        border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>{s}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--af-text)' }}>
+                <input type="checkbox" checked={demoForm.has_purchased}
+                  onChange={e => { setDemoForm({ ...demoForm, has_purchased: e.target.checked }); setDemoPreview(null) }} />
+                A déjà acheté chez ce marchand
+              </label>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>
+                Inactif depuis (jours, chez ce marchand)
+              </div>
+              <Input type="number" placeholder="60" value={demoForm.inactivity_days}
+                onChange={e => { setDemoForm({ ...demoForm, inactivity_days: e.target.value }); setDemoPreview(null) }} />
+            </div>
+
+            <Select value={demoForm.channel} onChange={e => setDemoForm({ ...demoForm, channel: e.target.value })}>
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
+            </Select>
+            <textarea rows={3} placeholder="Message (ex: Joyeux anniversaire {client_name} ! -20% chez {merchant_name} ce mois.)"
+              value={demoForm.message_template}
+              onChange={e => setDemoForm({ ...demoForm, message_template: e.target.value })}
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+            />
+
+            {demoPreview && (
+              <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>
+                  Audience estimée : {demoPreview.total} client{demoPreview.total > 1 ? 's' : ''}
+                </div>
+                {demoPreview.sample?.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>
+                    Aperçu : {demoPreview.sample.map(s => s.name).join(' · ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {formError && <div style={{ color: 'var(--af-danger)', fontSize: 12, padding: '6px 10px', background: 'var(--af-danger-soft)', borderRadius: 6 }}>{formError}</div>}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button onClick={previewDemo} disabled={demoPreviewLoading} style={{ flex: 1, background: 'var(--af-surface-3)', color: 'var(--af-text)' }}>
+                {demoPreviewLoading ? 'Calcul...' : "Prévisualiser l'audience"}
+              </Button>
+              <Button onClick={createDemo} disabled={submitting || !demoPreview} style={{ flex: 1, background: '#8b5cf6' }}>
+                {submitting ? 'Création...' : 'Créer la campagne'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showModal && (

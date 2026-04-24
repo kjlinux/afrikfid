@@ -427,18 +427,65 @@ router.get('/:id/export', requireAuth, async (req, res) => {
 });
 
 // POST /api/v1/clients/lookup (marchands)
+//
+// Accepte soit `identifier` (champ unique intelligent : téléphone, carte
+// 2014xxxxxxxx, ou afrikfid_id legacy), soit les champs legacy phone /
+// afrikfid_id / card_number. Si la carte n'est pas connue localement, on
+// interroge business-api (source de vérité des cartes fidélité) et on
+// importe/rattache le consommateur si trouvé.
 router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, res) => {
-  const { phone, afrikfid_id } = req.body;
+  const { detectIdentifier } = require('../lib/client-identifier');
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { identifier, phone, afrikfid_id, card_number } = req.body;
+
+  let lookup = { type: 'unknown', normalized: '' };
+  if (identifier) lookup = detectIdentifier(identifier);
+  else if (card_number) lookup = { type: 'card', normalized: card_number };
+  else if (afrikfid_id) {
+    // afrikfid_id peut être au nouveau format (12 chiffres) ou au format legacy AFD-*
+    lookup = detectIdentifier(afrikfid_id);
+    if (lookup.type === 'unknown') lookup = { type: 'afrikfid_legacy', normalized: afrikfid_id };
+  } else if (phone) lookup = { type: 'phone', normalized: phone };
 
   let clientRes;
-  if (afrikfid_id) {
-    clientRes = await db.query('SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.afrikfid_id = $1 AND c.is_active = TRUE', [afrikfid_id]);
-  } else if (phone) {
-    const ph = hashField(phone);
-    clientRes = await db.query('SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.phone_hash = $1 AND c.is_active = TRUE', [ph]);
+  if (lookup.type === 'card') {
+    // Depuis la migration 031, clients.afrikfid_id EST le numéro de carte (2014xxxxxxxx).
+    clientRes = await db.query(
+      'SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.afrikfid_id = $1 AND c.is_active = TRUE',
+      [lookup.normalized]
+    );
+  } else if (lookup.type === 'afrikfid_legacy') {
+    clientRes = await db.query(
+      `SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id
+       WHERE (c.afrikfid_id = $1 OR c.legacy_afrikfid_id = $1) AND c.is_active = TRUE`,
+      [lookup.normalized]
+    );
+  } else if (lookup.type === 'phone') {
+    const ph = hashField(lookup.normalized);
+    clientRes = await db.query(
+      'SELECT c.*, co.currency FROM clients c LEFT JOIN countries co ON c.country_id = co.id WHERE c.phone_hash = $1 AND c.is_active = TRUE',
+      [ph]
+    );
+  } else {
+    return res.status(400).json({ error: 'Identifiant non reconnu' });
   }
 
-  const client = clientRes && clientRes.rows[0];
+  let client = clientRes && clientRes.rows[0];
+
+  // Fallback business-api : carte inconnue localement → on résout via l'API
+  // historique des cartes fidélité et on crée le client local au vol.
+  if (!client && lookup.type === 'card') {
+    try {
+      const card = await afrikfidClient.lookupCard(lookup.normalized);
+      if (card && (card.consommateur || card.numero)) {
+        const { upsertClientFromCarteInfo } = require('../lib/business-api-sync');
+        client = await upsertClientFromCarteInfo(card, lookup.normalized);
+      }
+    } catch (err) {
+      console.warn('[lookup] business-api fallback failed:', err.message);
+    }
+  }
+
   if (!client) return res.status(404).json({ error: 'Client non trouvé. Mode invité appliqué.' });
 
   const wallet = (await db.query('SELECT balance FROM wallets WHERE client_id = $1', [client.id])).rows[0];
@@ -454,9 +501,11 @@ router.post('/lookup', requireApiKey, validate(LookupClientSchema), async (req, 
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,
       currency: client.currency || 'XOF',
+      businessApiLinked: !!client.business_api_consommateur_id,
     },
   });
 });
+
 
 // POST /api/v1/clients/:id/rewards/spend — CDC v3 §2.3 — Dépenser des points récompense
 // Les points récompense (1 pt = 100 FCFA) peuvent être utilisés chez tout marchand du réseau
@@ -622,6 +671,302 @@ router.get('/me/afrikfid-profile', require('../middleware/auth').requireClient, 
     },
     wallet: wallet || null,
   });
+});
+
+// ─── GET /clients/me/unified-history ──────────────────────────────────────────
+//
+// Timeline fusionnée : paiements passerelle (transactions locales) + achats
+// multi-enseignes rapportés par business-api (InfoController@infoCarteFidelite).
+// Tri chronologique décroissant, tag de source sur chaque entrée.
+//
+// Fail-open sur business-api : si le SI fidélité est injoignable, on renvoie
+// uniquement la partie gateway avec `sources.afrikfid = { available: false }`.
+
+router.get('/me/unified-history', requireClient, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+
+  const clientId = req.client.id;
+  const afrikfidId = req.client.afrikfid_id;
+
+  // Gateway : transactions locales récentes (toutes statuts)
+  const gatewayRes = await db.query(`
+    SELECT t.id, t.reference, t.gross_amount, t.client_rebate_amount, t.currency,
+           t.status, t.payment_method, t.initiated_at, t.completed_at,
+           m.name AS merchant_name
+      FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id
+     WHERE t.client_id = $1
+     ORDER BY COALESCE(t.completed_at, t.initiated_at) DESC
+     LIMIT $2
+  `, [clientId, limit]);
+
+  const gatewayItems = gatewayRes.rows.map(r => ({
+    source: 'gateway',
+    id: r.id,
+    reference: r.reference,
+    date: r.completed_at || r.initiated_at,
+    merchantName: r.merchant_name,
+    merchantLogo: null,
+    amountXof: Number(r.gross_amount) || 0,
+    clientRebateXof: Number(r.client_rebate_amount) || 0,
+    currency: r.currency || 'XOF',
+    status: r.status,
+    paymentMethod: r.payment_method,
+  }));
+
+  // business-api : achats multi-enseignes (depuis normalizeCard)
+  let afrikfidSource = { available: false, reason: 'card_not_linked' };
+  let afrikfidItems = [];
+  if (afrikfidClient.isValidCardNumero(afrikfidId)) {
+    try {
+      const card = await afrikfidClient.lookupCard(afrikfidId);
+      if (card) {
+        afrikfidSource = { available: true, numero: card.numero, points: card.points_cumules };
+        afrikfidItems = (card.transactions || []).map((t, i) => ({
+          source: 'afrikfid',
+          id: `bapi-${afrikfidId}-${i}-${t.date || ''}`,
+          date: t.date,
+          merchantName: t.merchant,
+          merchantLogo: t.logo,
+          amountXof: t.amountXof,
+          pointsEarned: t.pointsEarned,
+          currency: 'XOF',
+          status: 'completed',
+        }));
+      } else {
+        afrikfidSource = { available: false, reason: 'upstream_404' };
+      }
+    } catch {
+      afrikfidSource = { available: false, reason: 'upstream_unavailable' };
+    }
+  }
+
+  // Fusion : déduplication des transactions déjà synchronisées depuis la
+  // gateway vers business-api — on préfère l'entrée gateway (plus riche :
+  // remise, statut, ID). Heuristique : même marchand + même montant + date ±2min.
+  const near = (a, b) => {
+    if (!a || !b) return false;
+    return Math.abs(new Date(a).getTime() - new Date(b).getTime()) < 2 * 60 * 1000;
+  };
+  const afrikfidFiltered = afrikfidItems.filter(ai =>
+    !gatewayItems.some(gi =>
+      gi.status === 'completed' &&
+      gi.merchantName === ai.merchantName &&
+      Math.round(gi.amountXof) === Math.round(ai.amountXof) &&
+      near(gi.date, ai.date)
+    )
+  );
+
+  const merged = [...gatewayItems, ...afrikfidFiltered]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, limit);
+
+  res.json({
+    items: merged,
+    sources: {
+      gateway: { available: true, count: gatewayItems.length },
+      afrikfid: { ...afrikfidSource, count: afrikfidItems.length, kept: afrikfidFiltered.length },
+    },
+  });
+});
+
+// ─── DELETE /clients/:id/card-link — Admin : délier la carte fidélité ────────
+//
+// Cas d'usage : fraude, demande client, carte perdue.
+// Effet : le client reste actif mais perd son rattachement à la carte fidélité
+// business-api. On restaure legacy_afrikfid_id s'il existe (format AFD-*),
+// sinon on génère un nouvel identifiant AFD-UNLNK-*. Le consommateur business-api
+// n'est PAS supprimé (géré par leur équipe), on coupe juste le lien.
+
+router.delete('/:id/card-link', requireAdmin, async (req, res) => {
+  const clientRes = await db.query(
+    'SELECT id, afrikfid_id, legacy_afrikfid_id, business_api_consommateur_id FROM clients WHERE id = $1 OR afrikfid_id = $1',
+    [req.params.id]
+  );
+  const client = clientRes.rows[0];
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  if (!/^2014\d{8}$/.test(client.afrikfid_id)) {
+    return res.status(409).json({ error: 'Ce client n\'a pas de carte fidélité liée.' });
+  }
+
+  // Restauration de l'ancien identifiant si disponible, sinon génération.
+  let newAfrikfidId = client.legacy_afrikfid_id;
+  if (!newAfrikfidId) {
+    const { randomBytes } = require('crypto');
+    newAfrikfidId = `AFD-UNLNK-${randomBytes(3).toString('hex').toUpperCase()}`;
+  } else {
+    // Vérifie que le legacy ne collisionne pas (cas rare : un autre compte l'a repris)
+    const taken = (await db.query(
+      'SELECT id FROM clients WHERE afrikfid_id = $1 AND id != $2',
+      [newAfrikfidId, client.id]
+    )).rows[0];
+    if (taken) {
+      const { randomBytes } = require('crypto');
+      newAfrikfidId = `AFD-UNLNK-${randomBytes(3).toString('hex').toUpperCase()}`;
+    }
+  }
+
+  const formerCard = client.afrikfid_id;
+
+  await db.query(
+    `UPDATE clients
+        SET afrikfid_id = $1,
+            legacy_afrikfid_id = NULL,
+            business_api_consommateur_id = NULL,
+            updated_at = NOW()
+      WHERE id = $2`,
+    [newAfrikfidId, client.id]
+  );
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, payload, ip_address)
+     VALUES ($1, 'admin', $2, 'card_link_removed', 'client', $3, $4, $5)`,
+    [uuidv4(), req.admin.id, client.id,
+     JSON.stringify({ former_card: formerCard, former_consommateur_id: client.business_api_consommateur_id, new_afrikfid_id: newAfrikfidId }),
+     req.ip]
+  );
+
+  res.json({
+    unlinked: true,
+    formerCard,
+    newAfrikfidId,
+  });
+});
+
+// ─── Link Card — lier une carte fidélité existante à son compte ───────────────
+//
+// Flux en deux temps côté client authentifié :
+//   1) POST /clients/me/link-card/request  { numero_carte }
+//        → lookup business-api, envoi OTP par SMS sur le téléphone du consommateur
+//   2) POST /clients/me/link-card/verify   { numero_carte, otp }
+//        → vérif OTP, écriture afrikfid_id (+ legacy_afrikfid_id) et
+//          business_api_consommateur_id sur le client local
+//
+// Sécurité :
+//   - OTP envoyé sur le téléphone business-api (pas celui saisi par l'UI) → prouve la possession
+//   - Unicité sur afrikfid_id : une carte ne peut être liée qu'à un seul compte
+//   - Audit log sur chaque étape
+
+router.post('/me/link-card/request', requireClient, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { sendSMS } = require('../lib/notifications');
+  const { issueOtp, OTP_TTL_SECONDS } = require('../lib/link-card-otp');
+
+  const numero = String(req.body.numero_carte || '').replace(/\s+/g, '');
+  if (!afrikfidClient.isValidCardNumero(numero)) {
+    return res.status(400).json({ error: 'Numéro de carte invalide (format 2014xxxxxxxx attendu)' });
+  }
+
+  // Déjà lié au compte courant → idempotent
+  if (req.client.afrikfid_id === numero) {
+    return res.json({ alreadyLinked: true });
+  }
+
+  // Carte déjà liée à un autre compte actif → refus
+  const occupied = (await db.query(
+    'SELECT id FROM clients WHERE afrikfid_id = $1 AND id != $2 AND is_active = TRUE',
+    [numero, req.client.id]
+  )).rows[0];
+  if (occupied) {
+    return res.status(409).json({ error: 'Cette carte est déjà liée à un autre compte.' });
+  }
+
+  let card;
+  try { card = await afrikfidClient.lookupCard(numero); } catch { card = null; }
+  if (!card || !card.consommateur) {
+    return res.status(404).json({ error: 'Carte introuvable dans le système fidélité.' });
+  }
+
+  const phoneConso = card.consommateur.telephone;
+  if (!phoneConso) {
+    return res.status(422).json({ error: "Cette carte n'a pas de téléphone rattaché — impossible d'envoyer un OTP." });
+  }
+
+  const code = await issueOtp(req.client.id, numero);
+  try {
+    await sendSMS(
+      phoneConso,
+      `Afrik'Fid : votre code pour lier la carte ${numero} est ${code}. Valable ${Math.round(OTP_TTL_SECONDS / 60)} min.`
+    );
+  } catch (err) {
+    console.warn('[link-card/request] SMS failed:', err.message);
+    return res.status(502).json({ error: "Échec de l'envoi du SMS. Réessayez dans un instant." });
+  }
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
+     VALUES ($1, 'client', $2, 'link_card_otp_requested', 'client', $3, $4)`,
+    [uuidv4(), req.client.id, req.client.id, req.ip]
+  );
+
+  // Masque partiel pour affichage UI : "+225•••••45 67"
+  const masked = phoneConso.length > 4
+    ? phoneConso.slice(0, 4) + '•'.repeat(Math.max(phoneConso.length - 8, 2)) + phoneConso.slice(-4)
+    : '••••';
+
+  res.json({
+    otpSent: true,
+    phoneMasked: masked,
+    ttlSeconds: OTP_TTL_SECONDS,
+    consommateurName: [card.consommateur.prenom, card.consommateur.nom].filter(Boolean).join(' ') || null,
+  });
+});
+
+router.post('/me/link-card/verify', requireClient, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { verifyOtp } = require('../lib/link-card-otp');
+
+  const numero = String(req.body.numero_carte || '').replace(/\s+/g, '');
+  const otp = String(req.body.otp || '').trim();
+
+  if (!afrikfidClient.isValidCardNumero(numero)) {
+    return res.status(400).json({ error: 'Numéro de carte invalide' });
+  }
+  if (!/^\d{6}$/.test(otp)) {
+    return res.status(400).json({ error: 'Code OTP invalide (6 chiffres attendus)' });
+  }
+
+  const check = await verifyOtp(req.client.id, numero, otp);
+  if (!check.ok) {
+    const msg = {
+      expired_or_missing: 'Code expiré — demandez un nouvel envoi.',
+      too_many_attempts: 'Trop de tentatives — demandez un nouvel envoi.',
+      invalid_code: `Code incorrect.${check.remaining != null ? ` ${check.remaining} tentative(s) restante(s).` : ''}`,
+    }[check.reason] || 'Vérification impossible.';
+    return res.status(401).json({ error: msg, reason: check.reason, remaining: check.remaining });
+  }
+
+  // Re-vérifie la non-collision (course avec un autre lien simultané)
+  const occupied = (await db.query(
+    'SELECT id FROM clients WHERE afrikfid_id = $1 AND id != $2 AND is_active = TRUE',
+    [numero, req.client.id]
+  )).rows[0];
+  if (occupied) return res.status(409).json({ error: 'Cette carte est déjà liée à un autre compte.' });
+
+  // Re-lookup pour récupérer consommateur_id (la carte peut avoir changé depuis /request)
+  let card;
+  try { card = await afrikfidClient.lookupCard(numero); } catch { card = null; }
+  const consommateurId = card?.consommateur?.id != null ? parseInt(card.consommateur.id, 10) : null;
+
+  await db.query(
+    `UPDATE clients
+        SET legacy_afrikfid_id = COALESCE(legacy_afrikfid_id, afrikfid_id),
+            afrikfid_id = $1,
+            business_api_consommateur_id = COALESCE($2, business_api_consommateur_id),
+            updated_at = NOW()
+      WHERE id = $3`,
+    [numero, consommateurId, req.client.id]
+  );
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, ip_address)
+     VALUES ($1, 'client', $2, 'link_card_verified', 'client', $3, $4)`,
+    [uuidv4(), req.client.id, req.client.id, req.ip]
+  );
+
+  res.json({ linked: true, afrikfidId: numero });
 });
 
 module.exports = router;

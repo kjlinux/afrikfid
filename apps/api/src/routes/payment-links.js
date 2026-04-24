@@ -71,11 +71,21 @@ router.post('/:code/identify-client', async (req, res) => {
 
   if (!link) return res.status(404).json({ error: 'Lien invalide' });
 
-  const { phone, afrikfid_id } = req.body;
+  // Champ unique `identifier` (téléphone / carte 2014xxxxxxxx / afrikfid_id legacy)
+  // OU champs legacy `phone` / `afrikfid_id` (rétro-compat intégrations existantes).
+  const { identifier } = req.body;
+  let { phone, afrikfid_id } = req.body;
+  if (identifier && !phone && !afrikfid_id) {
+    const { detectIdentifier } = require('../lib/client-identifier');
+    const detected = detectIdentifier(identifier);
+    if (detected.type === 'phone') phone = detected.normalized;
+    else if (detected.type === 'card' || detected.type === 'afrikfid_legacy') afrikfid_id = detected.normalized;
+  }
   if (!phone && !afrikfid_id) return res.status(400).json({ found: false });
 
+  // afrikfid_id couvre désormais carte 2014xxxxxxxx (depuis migration 031) ET legacy AFD-*
   let client = afrikfid_id
-    ? (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [afrikfid_id])).rows[0]
+    ? (await db.query("SELECT * FROM clients WHERE (afrikfid_id = $1 OR legacy_afrikfid_id = $1) AND is_active = TRUE", [afrikfid_id])).rows[0]
     : (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(phone)])).rows[0];
 
   // Fallback : carte fidélité historique AfrikFid (format 2014xxxxxxx) côté business-api.
@@ -113,6 +123,17 @@ router.post('/:code/identify-client', async (req, res) => {
   const loyaltyConfig = (await db.query('SELECT * FROM loyalty_config WHERE status = $1', [client.loyalty_status])).rows[0];
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
 
+  // Si le client a une carte fidélité liée (afrikfid_id format 2014xxxxxxxx),
+  // rapatrier le solde wallet business-api pour permettre le paiement par wallet.
+  let afrikfidWalletBalance = null;
+  try {
+    const afrikfidClient = require('../lib/afrikfid-client');
+    if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
+      const w = await afrikfidClient.getWallet(client.afrikfid_id);
+      if (w && w.solde_xof != null) afrikfidWalletBalance = parseInt(w.solde_xof, 10) || 0;
+    }
+  } catch { /* fail-open : pas de wallet business-api dispo */ }
+
   res.json({
     found: true,
     client: {
@@ -122,6 +143,7 @@ router.post('/:code/identify-client', async (req, res) => {
       loyaltyStatus: client.loyalty_status,
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,
+      afrikfidWalletBalance, // solde wallet business-api (null si carte non liée ou service indispo)
       rewardPoints: parseInt(client.reward_points) || 0,
       currency: 'XOF',
     },
@@ -149,11 +171,12 @@ router.post('/:code/pay', async (req, res) => {
 
   const isCard = payment_method === 'card';
   const isRewardPoints = payment_method === 'reward_points';
-  if (!isCard && !isRewardPoints && (!phone || !payment_operator)) {
+  const isWallet = payment_method === 'wallet';
+  if (!isCard && !isRewardPoints && !isWallet && (!phone || !payment_operator)) {
     return res.status(400).json({ error: 'phone et payment_operator requis pour le paiement Mobile Money' });
   }
-  if (isRewardPoints && !afrikfid_id) {
-    return res.status(400).json({ error: 'Identification Afrik\'Fid requise pour payer par points' });
+  if ((isRewardPoints || isWallet) && !afrikfid_id) {
+    return res.status(400).json({ error: 'Identification Afrik\'Fid requise pour payer par points ou wallet' });
   }
 
   // ── Vérification des seuils marchand ──────────────────────────────────────
@@ -249,6 +272,84 @@ router.post('/:code/pay', async (req, res) => {
       status: 'completed',
       pointsUsed: pointsRequired,
       message: `Paiement par points récompense validé. ${pointsRequired} pts déduits de votre compte.`,
+    });
+  }
+
+  // Paiement par wallet Afrik'Fid (business-api)
+  if (isWallet) {
+    const afrikfidClient = require('../lib/afrikfid-client');
+    if (!afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
+      return res.status(400).json({ error: 'Le compte client n\'est pas lié à une carte fidélité.' });
+    }
+    // Le débit côté business-api exige un marchand_id business-api mappé.
+    const marchand = (await db.query(
+      'SELECT business_api_marchand_id FROM merchants WHERE id = $1',
+      [link.merchant_id]
+    )).rows[0];
+    if (!marchand?.business_api_marchand_id) {
+      return res.status(503).json({
+        error: 'WALLET_UNAVAILABLE',
+        message: 'Le paiement wallet n\'est pas encore disponible pour ce marchand.',
+      });
+    }
+
+    const txId = uuidv4();
+    const reference = `PLK-W-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
+    let debit;
+    try {
+      debit = await afrikfidClient.debitWallet({
+        numero: client.afrikfid_id,
+        montant_xof: Math.round(parseFloat(amount)),
+        marchand_id: marchand.business_api_marchand_id,
+        reference_afrikid: txId,
+      });
+    } catch (err) {
+      console.warn('[payment-links/pay wallet] debit failed:', err.message);
+      return res.status(502).json({ error: 'WALLET_UPSTREAM_ERROR', message: 'Service wallet indisponible. Réessayez.' });
+    }
+
+    if (!debit.success) {
+      if (debit.error === 'solde_insuffisant') {
+        return res.status(400).json({
+          error: 'INSUFFICIENT_WALLET_BALANCE',
+          message: `Solde wallet insuffisant : ${debit.solde_disponible} XOF disponibles, ${debit.montant_demande} XOF requis.`,
+          available: debit.solde_disponible,
+          required: debit.montant_demande,
+        });
+      }
+      return res.status(400).json({ error: 'WALLET_DEBIT_FAILED', message: debit.error || 'Débit wallet refusé.' });
+    }
+
+    await db.query(`
+      INSERT INTO transactions (
+        id, reference, merchant_id, client_id,
+        gross_amount, net_client_amount,
+        merchant_rebate_percent, client_rebate_percent, platform_commission_percent,
+        merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
+        merchant_receives, client_loyalty_status, rebate_mode,
+        payment_method, currency, description, status, expires_at,
+        business_api_transaction_id, business_api_synced_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'completed',$19,$20,NOW())
+    `, [
+      txId, reference, link.merchant_id, client.id,
+      amount, amount,
+      0, 0, 0, 0, 0, 0,
+      amount, client.loyalty_status, link.rebate_mode,
+      'WALLET', link.currency, link.description,
+      new Date(Date.now() + 120000).toISOString(),
+      debit.transaction_id || null,
+    ]);
+    await db.query('UPDATE payment_links SET uses_count = uses_count + 1 WHERE id = $1', [link.id]);
+    if (link.uses_count + 1 >= link.max_uses) {
+      await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
+    }
+
+    return res.json({
+      transactionId: txId,
+      reference,
+      status: 'completed',
+      walletBalanceAfter: debit.solde_apres,
+      message: `Paiement wallet validé. ${Math.round(parseFloat(amount))} XOF débités. Solde restant : ${debit.solde_apres} XOF.`,
     });
   }
 

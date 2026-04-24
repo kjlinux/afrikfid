@@ -32,6 +32,7 @@ import AdminMerchants from './pages/admin/Merchants.jsx'
 import AdminClients from './pages/admin/Clients.jsx'
 import AdminTransactions from './pages/admin/Transactions.jsx'
 import AdminLoyalty from './pages/admin/Loyalty.jsx'
+import AdminLoyaltyBridge from './pages/admin/LoyaltyBridge.jsx'
 import AdminWebhooks from './pages/admin/Webhooks.jsx'
 import AdminFraud from './pages/admin/Fraud.jsx'
 import AdminExchangeRates from './pages/admin/ExchangeRates.jsx'
@@ -231,6 +232,7 @@ function AdminLayout({ children }) {
     { path: '/admin/clients',           label: 'Clients',                      Icon: UsersIcon },
     { path: '/admin/transactions',      label: 'Transactions',                 Icon: CreditCardIcon },
     { path: '/admin/loyalty',           label: 'Fidélité',                     Icon: StarIcon },
+    { path: '/admin/loyalty-bridge',    label: 'Pont business-api',            Icon: LinkIcon },
     { path: '/admin/webhooks',          label: 'Webhooks',                     Icon: BellIcon },
     { path: '/admin/fraud',             label: 'Fraude',                       Icon: ShieldCheckIcon },
     { path: '/admin/exchange-rates',    label: 'Taux de change',               Icon: ArrowsRightLeftIcon },
@@ -323,6 +325,7 @@ export default function App() {
             <Route path="/admin/clients" element={<Protected role="admin"><AdminLayout><AdminClients /></AdminLayout></Protected>} />
             <Route path="/admin/transactions" element={<Protected role="admin"><AdminLayout><AdminTransactions /></AdminLayout></Protected>} />
             <Route path="/admin/loyalty" element={<Protected role="admin"><AdminLayout><AdminLoyalty /></AdminLayout></Protected>} />
+            <Route path="/admin/loyalty-bridge" element={<Protected role="admin"><AdminLayout><AdminLoyaltyBridge /></AdminLayout></Protected>} />
             <Route path="/admin/webhooks" element={<Protected role="admin"><AdminLayout><AdminWebhooks /></AdminLayout></Protected>} />
             <Route path="/admin/fraud" element={<Protected role="admin"><AdminLayout><AdminFraud /></AdminLayout></Protected>} />
             <Route path="/admin/exchange-rates" element={<Protected role="admin"><AdminLayout><AdminExchangeRates /></AdminLayout></Protected>} />

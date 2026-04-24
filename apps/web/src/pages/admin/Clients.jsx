@@ -32,6 +32,8 @@ export default function AdminClients() {
   const [pieData, setPieData] = useState([])
   const [confirmAnonymize, setConfirmAnonymize] = useState(null)
   const [anonymizeLoading, setAnonymizeLoading] = useState(false)
+  const [confirmUnlink, setConfirmUnlink] = useState(null)
+  const [unlinkLoading, setUnlinkLoading] = useState(false)
 
   useEffect(() => {
     api.get('/loyalty/stats').then(r => {
@@ -80,6 +82,23 @@ export default function AdminClients() {
     } catch (e) {
       alert('Erreur export RGPD : ' + (e.response?.data?.error || e.message))
     }
+  }
+
+  const unlinkCard = async () => {
+    if (!confirmUnlink) return
+    setUnlinkLoading(true)
+    try {
+      const { data } = await api.delete(`/clients/${confirmUnlink.id}/card-link`)
+      setConfirmUnlink(null)
+      // Rafraîchir le client sélectionné avec le nouvel afrikfidId
+      if (selected?.id === confirmUnlink.id) {
+        setSelected(prev => ({ ...prev, afrikfidId: data.newAfrikfidId }))
+        openDetail({ id: confirmUnlink.id })
+      }
+      load()
+    } catch (e) {
+      alert('Erreur : ' + (e.response?.data?.error || e.message))
+    } finally { setUnlinkLoading(false) }
   }
 
   const anonymizeClient = async () => {
@@ -211,6 +230,32 @@ export default function AdminClients() {
                 <Legend formatter={name => <span style={{ color: 'var(--af-text-muted)', fontSize: 12 }}>{name}</span>} />
               </PieChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Unlink card confirm */}
+      {confirmUnlink && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 17, 21,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div style={{ background: 'var(--afrikfid-surface)', borderRadius: 12, border: '1px solid rgba(245,158,11,0.4)', padding: 28, width: 420, maxWidth: '90vw', boxShadow: '0 8px 32px rgba(15, 17, 21,0.15)' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', marginBottom: 12, fontFamily: 'Montserrat, sans-serif' }}>Délier la carte fidélité ?</div>
+            <p style={{ fontSize: 13, color: 'var(--afrikfid-muted)', marginBottom: 8 }}>
+              Le compte <strong style={{ color: 'var(--afrikfid-text)' }}>{confirmUnlink.fullName}</strong> sera déconnecté de la carte&nbsp;
+              <span style={{ color: 'var(--afrikfid-text)', fontFamily: 'monospace' }}>{confirmUnlink.afrikfidId}</span>.
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 20 }}>
+              Le client ne pourra plus payer par wallet ni accumuler de points fidélité tant qu'une nouvelle carte n'est pas liée. La carte elle-même reste active côté business-api.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmUnlink(null)} disabled={unlinkLoading}
+                style={{ flex: 1, padding: 10, background: 'transparent', border: '1px solid var(--afrikfid-border)', borderRadius: 8, color: 'var(--afrikfid-muted)', cursor: 'pointer', fontSize: 13 }}>
+                Annuler
+              </button>
+              <button onClick={unlinkCard} disabled={unlinkLoading}
+                style={{ flex: 1, padding: 10, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 8, color: '#f59e0b', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                {unlinkLoading ? 'Déliaison...' : 'Confirmer la déliaison'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -359,6 +404,19 @@ export default function AdminClients() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/^2014\d{8}$/.test(selected.afrikfidId) && !selected.anonymized_at && (
+                  <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 10, padding: 16, border: '1px solid var(--afrikfid-border)', marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 10 }}>Carte fidélité</div>
+                    <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginBottom: 10 }}>
+                      Carte liée : <span style={{ color: 'var(--afrikfid-text)', fontFamily: 'monospace' }}>{selected.afrikfidId}</span>
+                    </div>
+                    <button onClick={() => setConfirmUnlink(selected)}
+                      style={{ width: '100%', padding: 9, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, color: '#f59e0b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      Délier la carte
+                    </button>
                   </div>
                 )}
 

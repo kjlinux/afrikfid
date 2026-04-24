@@ -20,6 +20,10 @@ const uuid = z.string().uuid('UUID invalide');
 const InitiatePaymentSchema = z.object({
   amount: positiveAmount,
   currency: z.enum(CURRENCIES).default('XOF'),
+  // Champ unique : téléphone, numéro de carte 2014xxxxxxxx, ou afrikfid_id legacy.
+  // La détection est déléguée à lib/client-identifier.js côté route.
+  client_identifier: z.string().min(4).max(20).optional(),
+  // Champs legacy conservés pour la rétro-compatibilité SDK/marchands.
   client_phone: phoneNumber.optional(),
   client_afrikfid_id: z.string().optional(),
   payment_method: z.enum(['mobile_money', 'card', 'payment_link'], { errorMap: () => ({ message: "payment_method doit être 'mobile_money', 'card' ou 'payment_link'" }) }),
@@ -27,10 +31,7 @@ const InitiatePaymentSchema = z.object({
   description: z.string().max(255).optional(),
   idempotency_key: z.string().max(100).optional(),
   product_category: z.string().max(100).optional(),
-}).refine(
-  data => data.client_phone || data.client_afrikfid_id || true, // client optionnel (mode invité)
-  { message: 'client_phone ou client_afrikfid_id recommandé' }
-);
+});
 
 const RefundSchema = z.object({
   amount: positiveAmount.optional(),
@@ -115,9 +116,16 @@ const UpdateLoyaltyStatusSchema = z.object({
 });
 
 const LookupClientSchema = z.object({
+  // Champ unique préféré (téléphone, carte 2014xxxxxxxx, ou afrikfid_id legacy)
+  identifier: z.string().min(4).max(20).optional(),
+  // Legacy
   phone: phoneNumber.optional(),
   afrikfid_id: z.string().optional(),
-}).refine(data => data.phone || data.afrikfid_id, { message: 'phone ou afrikfid_id requis' });
+  card_number: z.string().regex(/^2014\d{8}$/).optional(),
+}).refine(
+  data => data.identifier || data.phone || data.afrikfid_id || data.card_number,
+  { message: 'identifier, phone, afrikfid_id ou card_number requis' }
+);
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 

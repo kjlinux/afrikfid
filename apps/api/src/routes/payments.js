@@ -32,10 +32,21 @@ function getCardProvider() {
 // POST /api/v1/payments/initiate
 router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePaymentSchema), async (req, res) => {
   const {
-    amount, currency, client_phone, client_afrikfid_id,
+    amount, currency, client_identifier, client_phone, client_afrikfid_id,
     payment_method, payment_operator, description, idempotency_key,
     product_category,
   } = req.body;
+
+  // Champ unique intelligent : détecte téléphone / carte 2014xxxxxxxx / afrikfid_id legacy.
+  // Alimente les variables resolvedPhone / resolvedAfrikfidId qui piloteront le reste du flux.
+  const { detectIdentifier } = require('../lib/client-identifier');
+  let resolvedPhone = client_phone || null;
+  let resolvedAfrikfidId = client_afrikfid_id || null;
+  if (client_identifier && !resolvedPhone && !resolvedAfrikfidId) {
+    const detected = detectIdentifier(client_identifier);
+    if (detected.type === 'phone') resolvedPhone = detected.normalized;
+    else if (detected.type === 'card' || detected.type === 'afrikfid_legacy') resolvedAfrikfidId = detected.normalized;
+  }
 
   // Idempotence — fenêtre glissante 24h sur référence marchand 
   if (idempotency_key) {
@@ -49,11 +60,29 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   const merchant = req.merchant;
 
   let client = null;
-  if (client_afrikfid_id) {
-    client = (await db.query("SELECT * FROM clients WHERE afrikfid_id = $1 AND is_active = TRUE", [client_afrikfid_id])).rows[0];
-  } else if (client_phone) {
+  if (resolvedAfrikfidId) {
+    // Couvre carte 2014xxxxxxxx (= afrikfid_id depuis migration 031) ET legacy AFD-*
+    client = (await db.query(
+      "SELECT * FROM clients WHERE (afrikfid_id = $1 OR legacy_afrikfid_id = $1) AND is_active = TRUE",
+      [resolvedAfrikfidId]
+    )).rows[0];
+
+    // Fallback business-api : carte inconnue localement → import au vol
+    if (!client && /^2014\d{8}$/.test(resolvedAfrikfidId)) {
+      try {
+        const afrikfidClient = require('../lib/afrikfid-client');
+        const card = await afrikfidClient.lookupCard(resolvedAfrikfidId);
+        if (card && (card.consommateur || card.numero)) {
+          const { upsertClientFromCarteInfo } = require('../lib/business-api-sync');
+          client = await upsertClientFromCarteInfo(card, resolvedAfrikfidId);
+        }
+      } catch (err) {
+        console.warn('[payments/initiate] business-api fallback failed:', err.message);
+      }
+    }
+  } else if (resolvedPhone) {
     const { hashField } = require('../lib/crypto');
-    const phoneHash = hashField(client_phone);
+    const phoneHash = hashField(resolvedPhone);
     client = (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [phoneHash])).rows[0];
   }
 
@@ -108,7 +137,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   }
 
   const fraudCheck = await checkTransaction({
-    amount, clientId: client ? client.id : null, clientPhone: client_phone || null, merchantId: merchant.id,
+    amount, clientId: client ? client.id : null, clientPhone: resolvedPhone || null, merchantId: merchant.id,
   });
   if (fraudCheck.blocked) {
     return res.status(403).json({ error: 'FRAUD_BLOCKED', message: fraudCheck.reason, riskScore: fraudCheck.riskScore });
@@ -163,7 +192,7 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
     distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
     distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
     distribution.merchantReceives, loyaltyStatus, merchant.rebate_mode,
-    payment_method, payment_operator || null, client_phone || null,
+    payment_method, payment_operator || null, resolvedPhone || null,
     currency, description || null, idempotency_key || null, expiresAt, product_category || null,
     req.isSandbox ? true : false,
   ]);

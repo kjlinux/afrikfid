@@ -58,6 +58,50 @@ export default function ClientProfile() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteMsg, setDeleteMsg] = useState(null)
 
+  // Link-card — lier une carte fidélité Afrik'Fid existante à ce compte
+  const hasLinkedCard = /^2014\d{8}$/.test(user?.afrikfidId || '')
+  const [linkStep, setLinkStep] = useState('idle') // idle | otp_sent
+  const [linkCardNumber, setLinkCardNumber] = useState('')
+  const [linkOtp, setLinkOtp] = useState('')
+  const [linkPhoneMasked, setLinkPhoneMasked] = useState(null)
+  const [linkConsommateurName, setLinkConsommateurName] = useState(null)
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkMsg, setLinkMsg] = useState(null)
+
+  const requestLinkOtp = async () => {
+    setLinkLoading(true); setLinkMsg(null)
+    try {
+      const { data } = await api.post('/clients/me/link-card/request', {
+        numero_carte: linkCardNumber.replace(/\s+/g, ''),
+      })
+      if (data.alreadyLinked) {
+        setLinkMsg({ type: 'success', text: 'Cette carte est déjà liée à votre compte.' })
+      } else {
+        setLinkStep('otp_sent')
+        setLinkPhoneMasked(data.phoneMasked)
+        setLinkConsommateurName(data.consommateurName)
+        setLinkMsg({ type: 'success', text: `Code envoyé par SMS au ${data.phoneMasked}` })
+      }
+    } catch (e) {
+      setLinkMsg({ type: 'error', text: e.response?.data?.error || 'Erreur lors de la demande.' })
+    } finally { setLinkLoading(false) }
+  }
+
+  const verifyLinkOtp = async () => {
+    setLinkLoading(true); setLinkMsg(null)
+    try {
+      const { data } = await api.post('/clients/me/link-card/verify', {
+        numero_carte: linkCardNumber.replace(/\s+/g, ''),
+        otp: linkOtp.trim(),
+      })
+      updateUser({ afrikfidId: data.afrikfidId })
+      setLinkMsg({ type: 'success', text: 'Carte liée avec succès ✓' })
+      setLinkStep('idle'); setLinkOtp(''); setLinkCardNumber('')
+    } catch (e) {
+      setLinkMsg({ type: 'error', text: e.response?.data?.error || 'Code incorrect.' })
+    } finally { setLinkLoading(false) }
+  }
+
   const exportMyData = async () => {
     setGdprLoading(true)
     try {
@@ -263,6 +307,87 @@ export default function ClientProfile() {
             </>
           )}
         </div>
+        {/* Carte fidélité Afrik'Fid — lier une carte physique existante */}
+        <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 20, border: '1px solid var(--af-border)', marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <QrCodeIcon style={{ width: 16, height: 16, color: 'var(--af-text-muted)' }} />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--af-text)' }}>Ma carte de fidélité Afrik'Fid</h2>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 14 }}>
+            {hasLinkedCard
+              ? 'Votre compte est associé à une carte fidélité — vos points et wallet sont synchronisés avec le réseau Afrik\'Fid.'
+              : 'Si vous possédez une carte fidélité Afrik\'Fid physique, liez-la pour bénéficier de vos points et remises dans le réseau.'}
+          </p>
+
+          {hasLinkedCard ? (
+            <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <CheckCircleIcon style={{ width: 16, height: 16, color: '#10b981' }} />
+              <div style={{ fontSize: 13 }}>
+                <div style={{ color: 'var(--af-text)', fontWeight: 600 }}>Carte liée</div>
+                <div style={{ color: 'var(--af-text-muted)', fontFamily: 'monospace', letterSpacing: 1, marginTop: 2 }}>{user.afrikfidId}</div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Msg msg={linkMsg} />
+              {linkStep === 'idle' && (
+                <>
+                  <label style={{ fontSize: 12, color: 'var(--af-text-muted)', display: 'block', marginBottom: 6 }}>
+                    Numéro de carte (12 chiffres, préfixe 2014)
+                  </label>
+                  <input
+                    type="text" inputMode="numeric" value={linkCardNumber}
+                    onChange={e => setLinkCardNumber(e.target.value)}
+                    placeholder="2014 1234 5678"
+                    style={{ ...inp, letterSpacing: 1, fontFamily: 'monospace', marginBottom: 10 }}
+                  />
+                  <button
+                    onClick={requestLinkOtp}
+                    disabled={linkLoading || !/^2014\d{8}$/.test(linkCardNumber.replace(/\s+/g, ''))}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: linkLoading ? 0.6 : 1 }}
+                  >
+                    {linkLoading ? 'Envoi du code...' : 'Envoyer un code de vérification'}
+                  </button>
+                </>
+              )}
+
+              {linkStep === 'otp_sent' && (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 10 }}>
+                    {linkConsommateurName && <>Carte au nom de <strong style={{ color: 'var(--af-text)' }}>{linkConsommateurName}</strong>. </>}
+                    Un code à 6 chiffres a été envoyé par SMS au numéro enregistré sur la carte {linkPhoneMasked && <strong style={{ color: 'var(--af-text)' }}>({linkPhoneMasked})</strong>}.
+                  </div>
+                  <label style={{ fontSize: 12, color: 'var(--af-text-muted)', display: 'block', marginBottom: 6 }}>
+                    Code reçu par SMS
+                  </label>
+                  <input
+                    type="text" inputMode="numeric" maxLength={6} value={linkOtp}
+                    onChange={e => setLinkOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    style={{ ...inp, letterSpacing: 4, fontFamily: 'monospace', textAlign: 'center', fontSize: 18, marginBottom: 10 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setLinkStep('idle'); setLinkOtp(''); setLinkMsg(null) }}
+                      disabled={linkLoading}
+                      style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13 }}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={verifyLinkOtp}
+                      disabled={linkLoading || linkOtp.length !== 6}
+                      style={{ flex: 2, padding: '10px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+                    >
+                      {linkLoading ? 'Vérification...' : 'Valider le code'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
         {/* RGPD */}
         <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 20, border: '1px solid var(--af-border)', marginTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

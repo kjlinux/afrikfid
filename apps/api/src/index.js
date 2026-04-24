@@ -137,6 +137,7 @@ app.use('/api/v1/success-fees', require('./routes/success-fees'));
 app.use('/api/v1/rfm', require('./routes/rfm'));
 app.use('/api/v1/campaigns', require('./routes/campaigns'));
 app.use('/api/v1/merchant-intelligence', require('./routes/merchant-intelligence'));
+app.use('/api/v1/loyalty-bridge', require('./routes/loyalty-bridge'));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();

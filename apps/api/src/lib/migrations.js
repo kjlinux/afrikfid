@@ -1147,6 +1147,30 @@ const MIGRATIONS = [
         WHERE status = 'completed' AND business_api_synced_at IS NULL;
     `,
   },
+  {
+    version: 32,
+    name: '032_demographic_campaigns',
+    up: `
+      -- Campagnes ciblées par critères démographiques (anniversaire, ville, sexe).
+      -- Coexiste avec les campagnes RFM existantes : audience_type discrimine le mode.
+      -- target_segment reste requis pour les campagnes RFM (contrainte historique) ;
+      -- pour les campagnes démographiques on stocke un marqueur 'DEMOGRAPHIC'.
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audience_type TEXT NOT NULL DEFAULT 'RFM'
+        CHECK (audience_type IN ('RFM', 'DEMOGRAPHIC'));
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audience_filter JSONB;
+
+      -- Enrichissement client depuis business-api : on stocke localement ce qui
+      -- permet le ciblage (sexe et éventuellement date_naissance/ville raffinés).
+      -- birth_date/city sont déjà présents (migration 010) — on ajoute uniquement gender.
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS gender TEXT
+        CHECK (gender IN ('M', 'F', 'X') OR gender IS NULL);
+      CREATE INDEX IF NOT EXISTS idx_clients_birth_month
+        ON clients((EXTRACT(MONTH FROM birth_date)::int))
+        WHERE birth_date IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_clients_city_active
+        ON clients(city) WHERE is_active = TRUE AND city IS NOT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

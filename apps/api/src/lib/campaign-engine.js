@@ -158,6 +158,88 @@ async function runBirthdayTriggers() {
 }
 
 /**
+ * Construit la requête SQL pour une audience démographique.
+ *
+ * Filtre JSON attendu (tous optionnels) :
+ *   {
+ *     birth_months: [1..12],       // anniversaires du mois
+ *     cities: ["Abidjan", ...],    // villes exactes (case-insensitive)
+ *     genders: ["M", "F", "X"],    // genres
+ *     age_min, age_max,            // tranche d'âge (nécessite birth_date non null)
+ *     loyalty_statuses: [...],     // OPEN/LIVE/GOLD/ROYAL/ROYAL_ELITE
+ *     has_purchased: true,         // au moins une transaction chez ce marchand
+ *     inactivity_days: 60,         // aucun achat chez ce marchand depuis N jours
+ *   }
+ *
+ * La contrainte "chez ce marchand" (has_purchased / inactivity) exploite la
+ * table transactions pour cibler l'audience ACTUELLE du marchand. Sans filtre
+ * marchand-spécifique, on renvoie tout client du réseau.
+ */
+function buildDemographicQuery(merchantId, rawFilter) {
+  const filter = rawFilter || {};
+  const where = ['cl.is_active = true'];
+  const params = [];
+  const push = v => { params.push(v); return `$${params.length}`; };
+
+  if (Array.isArray(filter.birth_months) && filter.birth_months.length) {
+    const months = filter.birth_months.map(m => parseInt(m, 10)).filter(m => m >= 1 && m <= 12);
+    if (months.length) {
+      where.push(`EXTRACT(MONTH FROM cl.birth_date)::int = ANY(${push(months)})`);
+    }
+  }
+  if (Array.isArray(filter.cities) && filter.cities.length) {
+    const cities = filter.cities.map(c => String(c).trim()).filter(Boolean);
+    if (cities.length) where.push(`LOWER(cl.city) = ANY(${push(cities.map(c => c.toLowerCase()))})`);
+  }
+  if (Array.isArray(filter.genders) && filter.genders.length) {
+    const genders = filter.genders.filter(g => ['M', 'F', 'X'].includes(g));
+    if (genders.length) where.push(`cl.gender = ANY(${push(genders)})`);
+  }
+  if (filter.age_min != null) {
+    where.push(`cl.birth_date IS NOT NULL AND cl.birth_date <= NOW() - (INTERVAL '1 year' * ${push(parseInt(filter.age_min, 10))})`);
+  }
+  if (filter.age_max != null) {
+    where.push(`cl.birth_date IS NOT NULL AND cl.birth_date >= NOW() - (INTERVAL '1 year' * ${push(parseInt(filter.age_max, 10) + 1)})`);
+  }
+  if (Array.isArray(filter.loyalty_statuses) && filter.loyalty_statuses.length) {
+    where.push(`cl.loyalty_status = ANY(${push(filter.loyalty_statuses)})`);
+  }
+
+  // Clauses marchand-spécifiques via sous-requête transactions
+  if (filter.has_purchased || filter.inactivity_days != null) {
+    const merchantParam = push(merchantId);
+    if (filter.inactivity_days != null) {
+      const days = parseInt(filter.inactivity_days, 10);
+      where.push(`NOT EXISTS (
+        SELECT 1 FROM transactions t
+         WHERE t.client_id = cl.id AND t.merchant_id = ${merchantParam}
+           AND t.status = 'completed'
+           AND t.completed_at > NOW() - (INTERVAL '1 day' * ${push(days)})
+      )`);
+      where.push(`EXISTS (
+        SELECT 1 FROM transactions t
+         WHERE t.client_id = cl.id AND t.merchant_id = ${merchantParam}
+           AND t.status = 'completed'
+      )`);
+    } else if (filter.has_purchased) {
+      where.push(`EXISTS (
+        SELECT 1 FROM transactions t
+         WHERE t.client_id = cl.id AND t.merchant_id = ${merchantParam}
+           AND t.status = 'completed'
+      )`);
+    }
+  }
+
+  const sql = `
+    SELECT cl.* FROM clients cl
+    WHERE ${where.join(' AND ')}
+    ORDER BY cl.created_at DESC
+    LIMIT 10000
+  `;
+  return { sql, params };
+}
+
+/**
  * Exécute une campagne : envoie les messages à tous les clients ciblés
  */
 async function executeCampaign(campaignId) {
@@ -174,12 +256,19 @@ async function executeCampaign(campaignId) {
 
   await pool.query("UPDATE campaigns SET status = 'running', updated_at = NOW() WHERE id = $1", [campaignId]);
 
-  const clients = await pool.query(
-    `SELECT cl.* FROM rfm_scores rs
-     JOIN clients cl ON cl.id = rs.client_id
-     WHERE rs.merchant_id = $1 AND rs.segment = $2 AND cl.is_active = true`,
-    [c.merchant_id, c.target_segment]
-  );
+  // Sélection de l'audience — RFM (historique) OU démographique (filtre JSON)
+  let clients;
+  if (c.audience_type === 'DEMOGRAPHIC') {
+    const { sql, params } = buildDemographicQuery(c.merchant_id, c.audience_filter);
+    clients = await pool.query(sql, params);
+  } else {
+    clients = await pool.query(
+      `SELECT cl.* FROM rfm_scores rs
+       JOIN clients cl ON cl.id = rs.client_id
+       WHERE rs.merchant_id = $1 AND rs.segment = $2 AND cl.is_active = true`,
+      [c.merchant_id, c.target_segment]
+    );
+  }
 
   await pool.query("UPDATE campaigns SET total_targeted = $1 WHERE id = $2", [clients.rows.length, campaignId]);
 
@@ -448,4 +537,5 @@ module.exports = {
   runAbandonProtocol,
   runTransitionTriggers,
   executeCampaign,
+  buildDemographicQuery,
 };

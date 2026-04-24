@@ -225,6 +225,75 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ═══════════════════════ CAMPAGNES DÉMOGRAPHIQUES ═══════════════════════
+
+// POST /campaigns/demographic/preview — compte l'audience sans créer la campagne
+router.post('/demographic/preview', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
+  try {
+    const { merchant_id, filter } = req.body;
+    const effectiveMerchantId = req.merchant ? req.merchant.id : merchant_id;
+    if (!effectiveMerchantId) return res.status(400).json({ error: 'merchant_id requis' });
+    if (!assertMerchantOwnership(req, effectiveMerchantId)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
+    const { buildDemographicQuery } = require('../lib/campaign-engine');
+    const { sql, params } = buildDemographicQuery(effectiveMerchantId, filter || {});
+
+    // Count via wrap pour éviter de tirer 10 000 lignes inutilement
+    const countSql = `SELECT COUNT(*)::int AS total FROM (${sql}) sub`;
+    const { rows } = await pool.query(countSql, params);
+
+    // Sample de 5 clients pour preview UI (noms masqués)
+    const sampleRes = await pool.query(sql, params);
+    const sample = sampleRes.rows.slice(0, 5).map(c => {
+      const fn = c.full_name || '';
+      const parts = fn.split(' ');
+      const masked = parts.map((p, i) => i === 0 ? p : (p.slice(0, 1) + '.')).join(' ');
+      return {
+        afrikfidId: c.afrikfid_id,
+        name: masked || '—',
+        city: c.city || null,
+        gender: c.gender || null,
+        birthMonth: c.birth_date ? new Date(c.birth_date).getMonth() + 1 : null,
+        loyaltyStatus: c.loyalty_status,
+      };
+    });
+
+    res.json({ total: rows[0]?.total || 0, sample });
+  } catch (err) { next(err); }
+});
+
+// POST /campaigns/demographic — crée une campagne démographique
+router.post('/demographic', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
+  try {
+    const { merchant_id, name, filter, channel, message_template, scheduled_at } = req.body;
+    const effectiveMerchantId = req.merchant ? req.merchant.id : merchant_id;
+    if (!effectiveMerchantId) return res.status(400).json({ error: 'merchant_id requis' });
+    if (!assertMerchantOwnership(req, effectiveMerchantId)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+    if (!name || !message_template) {
+      return res.status(400).json({ error: 'name et message_template requis' });
+    }
+    if (!filter || typeof filter !== 'object') {
+      return res.status(400).json({ error: 'filter (objet JSON) requis' });
+    }
+
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO campaigns
+         (id, merchant_id, name, target_segment, audience_type, audience_filter,
+          channel, message_template, scheduled_at, status)
+       VALUES ($1, $2, $3, 'DEMOGRAPHIC', 'DEMOGRAPHIC', $4::jsonb, $5, $6, $7, $8)`,
+      [id, effectiveMerchantId, name, JSON.stringify(filter),
+       channel || 'sms', message_template, scheduled_at || null,
+       scheduled_at ? 'scheduled' : 'draft']
+    );
+    res.status(201).json({ id, message: 'Campagne démographique créée' });
+  } catch (err) { next(err); }
+});
+
 // ═══════════════════════ ABANDON PROTOCOL ═══════════════════════
 
 // GET /campaigns/abandon — protocole d'abandon (admin ou marchand propriétaire, GROWTH+)
