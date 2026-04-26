@@ -512,9 +512,10 @@ export default function PaymentPage() {
                   </button>
                   <button onClick={() => { setPaymentType('card'); setStep('card') }}
                     style={{ padding: '14px 10px', border: '2px solid var(--af-border)', borderRadius: 12, background: 'var(--af-surface-3)', cursor: 'pointer', textAlign: 'center' }}>
-                    <CreditCardIcon style={{ width: 28, height: 28, color: 'var(--af-text)', margin: '0 auto 5px' }} />
+                    <img src="/operators/stripe-logo.png" alt="Stripe"
+                      style={{ height: 28, margin: '0 auto 5px', objectFit: 'contain', display: 'block' }} />
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)' }}>Carte bancaire</div>
-                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Visa, Mastercard, GIM</div>
+                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Visa, Mastercard via Stripe</div>
                   </button>
                 </div>
                 {clientInfo?.rewardPoints > 0 && (() => {
@@ -672,31 +673,25 @@ export default function PaymentPage() {
               </div>
             )}
 
-            {/* ÉTAPE 3b : Carte */}
+            {/* ÉTAPE 3b : Carte (via Stripe Checkout) */}
             {step === 'card' && (
               <div>
                 <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
-                <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, padding: '11px 13px', marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600, marginBottom: 3 }}>Paiement sécurisé 3DS</div>
-                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Vous serez redirigé vers CinetPay. Visa, Mastercard et GIM-UEMOA acceptés.</div>
-                </div>
-                {/* Logos cartes */}
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
-                  {[
-                    { label: 'VISA', bg: '#1a1f71', color: '#fff', italic: true },
-                    { label: 'MC', bg: '#eb001b', color: '#fff', italic: false },
-                    { label: 'GIM', bg: '#00843d', color: '#fff', italic: false },
-                  ].map(c => (
-                    <div key={c.label} style={{ background: c.bg, borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 800, color: c.color, fontStyle: c.italic ? 'italic' : 'normal', letterSpacing: 1 }}>
-                      {c.label}
+                <div style={{ background: 'rgba(99,91,255,0.08)', border: '1px solid rgba(99,91,255,0.25)', borderRadius: 10, padding: '11px 13px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src="/operators/stripe-logo.png" alt="Stripe"
+                    style={{ height: 24, objectFit: 'contain', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--af-text)', fontWeight: 600, marginBottom: 2 }}>Paiement sécurisé via Stripe (3D Secure)</div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>
+                      Vous serez redirigé vers la page de paiement Stripe. Visa et Mastercard acceptés.
                     </div>
-                  ))}
+                  </div>
                 </div>
                 {pageError && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{pageError}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payCard} disabled={processing || !amount}
-                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)', opacity: !amount ? 0.5 : 1 }}>
+                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : '#635bff', opacity: !amount ? 0.5 : 1 }}>
                     {processing ? 'Redirection...' : 'Payer ' + fmt(amount) + ' ' + linkInfo.currency + ' par carte'}
                   </button>
                 </div>

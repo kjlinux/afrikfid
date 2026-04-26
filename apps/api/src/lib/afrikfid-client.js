@@ -43,9 +43,28 @@ function auditCall({ method, path, status, latencyMs, error }) {
   }
 }
 
+/**
+ * Variables d'env :
+ *   BUSINESS_API_URL — URL de base business-api, DOIT se terminer par "/api".
+ *     Exemples valides :
+ *       https://business-api.afrikfid.com/api
+ *       https://api.afrikfid.com/api          (si Laravel sert sous /api)
+ *     Exemples INVALIDES (les routes /external/... seront en 404) :
+ *       https://business-api.afrikfid.com     (manque /api)
+ *       https://api.afrikfid.com/api/         (slash final, le code re-strip mais autant être propre)
+ *   BUSINESS_API_TOKEN — Bearer Sanctum/HMAC accepté par Laravel sur /external/*
+ *   BUSINESS_API_HMAC_SECRET — secret partagé pour signer les requêtes
+ */
 function config() {
+  let baseURL = (process.env.BUSINESS_API_URL || '').replace(/\/+$/, '');
+  // Garde-fou : si l'op a oublié /api, on émet un warn une seule fois pour aider
+  // au diagnostic. Sans /api, Laravel renverra 404 sur toutes les routes /external/*.
+  if (baseURL && !/\/api$/.test(baseURL) && !config._warned) {
+    console.warn(`[afrikfid-client] BUSINESS_API_URL="${baseURL}" ne se termine pas par "/api". Les requêtes vers /external/* renverront probablement 404. Voir DEPLOY-OVH.md.`);
+    config._warned = true;
+  }
   return {
-    baseURL: process.env.BUSINESS_API_URL || '',
+    baseURL,
     token: process.env.BUSINESS_API_TOKEN || '',
     hmacSecret: process.env.BUSINESS_API_HMAC_SECRET || '',
     timeout: parseInt(process.env.BUSINESS_API_TIMEOUT_MS || '5000', 10),
@@ -248,6 +267,148 @@ async function debitWallet({ numero, montant_xof, marchand_id, reference_afrikid
 }
 
 /**
+ * Délègue la vérification d'un mot de passe à business-api (source unique
+ * pour les comptes marchand/caissier liés à un User Laravel).
+ *
+ * @returns {Promise<{ ok: true, user: object } | { ok: false, error: string, status: number }>}
+ */
+async function verifyPassword(email, password) {
+  try {
+    const { status, data } = await request('POST', '/external/auth/verify-password', {
+      body: { email, password },
+      retries: 0, // pas de retry sur un échec d'auth (évite les rate-limits côté Laravel)
+    });
+    if (data && data.ok && data.user) return { ok: true, user: data.user };
+    return { ok: false, error: data?.error || 'unknown_error', status };
+  } catch (e) {
+    if (e.status === 401 || e.status === 404) {
+      return { ok: false, error: e.data?.error || 'invalid_credentials', status: e.status };
+    }
+    throw e; // 5xx / réseau : on laisse l'appelant décider du fallback
+  }
+}
+
+/**
+ * Push une mise à jour de profil vers business-api (route entrante côté Laravel
+ * `POST /api/external/sync/profile-updated`, signée HMAC).
+ *
+ * Anti-boucle : `source: 'gateway'` indique à Laravel de ne pas renotifier.
+ *
+ * @param {object} params
+ * @param {'merchant'|'client'} params.type
+ * @param {number} params.business_api_id  — id côté Laravel (consommateur_id ou marchand_id)
+ * @param {object} params.changes          — sous-ensemble des champs modifiés
+ * @returns {Promise<{ok: boolean}>}
+ */
+async function pushProfileUpdate({ type, business_api_id, changes }) {
+  if (!type || !business_api_id || !changes) {
+    const err = new Error('type, business_api_id, changes requis');
+    err.code = 'INVALID_PAYLOAD';
+    throw err;
+  }
+  try {
+    await request('POST', '/external/sync/profile-updated', {
+      body: {
+        type,
+        business_api_id,
+        changes,
+        source: 'gateway',
+        sent_at: new Date().toISOString(),
+      },
+      retries: 2,
+    });
+    return { ok: true };
+  } catch (e) {
+    // Fail-soft : un push raté ne doit pas casser la mise à jour locale.
+    // L'audit_logs côté afrikfid-client suit déjà l'échec.
+    return { ok: false, error: e.message };
+  }
+}
+
+/**
+ * Recherche un consommateur côté business-api par identifiant (carte/phone/email).
+ * Retourne les canaux OTP disponibles (téléphone/email masqués + valeurs internes
+ * pour l'envoi côté passerelle).
+ *
+ * @returns {Promise<object|null>} le payload Laravel ou null si 404
+ */
+/**
+ * Crée un Consommateur côté business-api (avec carte fidélité + wallet auto).
+ *
+ * Si un Consommateur existe déjà avec le même téléphone/email, l'API retourne
+ * 409 avec `consommateur_id` et `numero_carte` existants — on les remonte tels
+ * quels pour que la passerelle puisse rattacher au lieu de dupliquer.
+ *
+ * @param {object} data — { nom, prenom, sexe, date_naissance?, ville?,
+ *                          telephone?, whatsapp?, email?, indicatif?, pays_id? }
+ * @returns {Promise<{ ok: boolean, consommateur_id: number, numero_carte: string, error?: string }>}
+ */
+async function createConsommateur(data) {
+  if (!data?.nom || !data?.prenom || !data?.sexe) {
+    const err = new Error('nom, prenom, sexe requis');
+    err.code = 'INVALID_PAYLOAD';
+    throw err;
+  }
+  try {
+    const { status, data: body } = await request('POST', '/external/consommateurs', {
+      body: data,
+      retries: 0,
+    });
+    if (status === 201) {
+      return { ok: true, consommateur_id: body.consommateur_id, numero_carte: body.numero_carte };
+    }
+    if (status === 409) {
+      // Consommateur existe déjà → rattacher
+      return {
+        ok: false,
+        already_exists: true,
+        consommateur_id: body.consommateur_id,
+        numero_carte: body.numero_carte,
+        error: 'consommateur_already_exists',
+      };
+    }
+    return { ok: false, status, error: body?.error || 'unknown_error', message: body?.message };
+  } catch (e) {
+    if (e.status === 409 && e.data) {
+      return {
+        ok: false,
+        already_exists: true,
+        consommateur_id: e.data.consommateur_id,
+        numero_carte: e.data.numero_carte,
+        error: 'consommateur_already_exists',
+      };
+    }
+    throw e;
+  }
+}
+
+async function lookupConsommateurByIdentifier(identifier) {
+  if (!identifier) return null;
+  try {
+    const { status, data } = await request('POST', '/external/consommateurs/lookup-by-identifier', {
+      body: { identifier: String(identifier).trim() },
+      retries: 1,
+    });
+    if (status === 404 || !data?.ok) return null;
+    return data;
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+async function lookupUserByEmail(email) {
+  if (!email) return null;
+  try {
+    const { status, data } = await request('GET', `/external/auth/user-by-email?email=${encodeURIComponent(email)}`);
+    if (status === 404 || !data?.ok) return null;
+    return data.user || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Récupère l'agrégat fidélité d'un marchand (par id business-api).
  * null si indisponible.
  */
@@ -282,6 +443,11 @@ module.exports = {
   debitWallet,
   getMerchantLoyaltySummary,
   getDailyReconciliation,
+  verifyPassword,
+  lookupUserByEmail,
+  lookupConsommateurByIdentifier,
+  createConsommateur,
+  pushProfileUpdate,
   isValidCardNumero,
   // exposé pour tests
   _sign: sign,

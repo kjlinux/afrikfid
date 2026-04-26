@@ -3,8 +3,9 @@
 const { pool } = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const { TRIGGER_TYPES, ABANDON_PROTOCOL_STEPS } = require('../config/constants');
-const { sendSMS, sendEmail } = require('./notifications');
 const { decrypt } = require('./crypto');
+const notif = require('./notification-channel');
+const { dispatchWebhook } = require('./merchant-webhooks');
 
 /**
  * Vérifie le cooldown d'un trigger pour un client
@@ -38,31 +39,60 @@ async function fireTrigger(trigger, client) {
     .replace('{phone}', rawPhone || '');
 
   const logId = uuidv4();
+  const channel = trigger.channel === 'email' ? 'email' : 'whatsapp';
   await pool.query(
     `INSERT INTO trigger_logs (id, trigger_id, client_id, merchant_id, trigger_type, channel, status, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())`,
-    [logId, trigger.id, client.id, trigger.merchant_id, trigger.trigger_type, trigger.channel || 'sms']
+    [logId, trigger.id, client.id, trigger.merchant_id, trigger.trigger_type, channel]
   );
 
-  try {
-    if (trigger.channel === 'email' && rawEmail) {
-      await sendEmail(rawEmail, `Afrik'Fid — ${trigger.trigger_type}`, message);
-    } else if (rawPhone) {
-      await sendSMS(rawPhone, message);
-    }
-    await pool.query("UPDATE trigger_logs SET status = 'sent', sent_at = NOW() WHERE id = $1", [logId]);
+  const result = await notif.send({
+    rawPhone, rawEmail,
+    text: message,
+    subject: `Afrik'Fid — ${trigger.trigger_type}`,
+    template: trigger.template_name ? {
+      name: trigger.template_name,
+      namespace: trigger.template_namespace,
+      bodyParams: [client.full_name || '', trigger.merchant_name || ''],
+    } : null,
+    channel,
+    context: { type: 'trigger', ref_id: trigger.id, merchant_id: trigger.merchant_id, client_id: client.id },
+  });
+
+  if (result.status === 'sent') {
+    await pool.query(
+      "UPDATE trigger_logs SET status = 'sent', sent_at = NOW() WHERE id = $1",
+      [logId]
+    );
+    dispatchWebhook(trigger.merchant_id, 'trigger.fired', {
+      trigger_id: trigger.id, trigger_type: trigger.trigger_type,
+      client_id: client.id, channel, sent_at: new Date().toISOString(),
+    }).catch(() => {});
     return logId;
-  } catch (err) {
-    await pool.query("UPDATE trigger_logs SET status = 'failed' WHERE id = $1", [logId]);
-    console.error(`[TRIGGER] Erreur envoi ${trigger.trigger_type} à ${client.id}:`, err.message);
-    return null;
   }
+
+  const nextRetry = new Date(Date.now() + 15 * 60 * 1000);
+  await pool.query(
+    "UPDATE trigger_logs SET status = 'failed', last_error = $2, next_retry_at = $3 WHERE id = $1",
+    [logId, result.error || 'unknown', nextRetry.toISOString()]
+  );
+  console.error(`[TRIGGER] Échec ${trigger.trigger_type} → ${client.id}: ${result.error}`);
+  return null;
 }
 
 /**
  * Trigger BIENVENUE : nouveau client inscrit (appeler après création client)
  */
 async function triggerBienvenue(merchantId, client) {
+  // 1× par couple (merchant, client) : on vérifie l'historique trigger_logs.
+  const already = await pool.query(
+    `SELECT 1 FROM trigger_logs
+       WHERE merchant_id = $1 AND client_id = $2 AND trigger_type = 'BIENVENUE'
+       LIMIT 1`,
+    [merchantId, client.id]
+  );
+  if (already.rows.length) return;
+
   const triggers = await pool.query(
     "SELECT t.*, m.name AS merchant_name FROM triggers t JOIN merchants m ON m.id = t.merchant_id WHERE t.merchant_id = $1 AND t.trigger_type = 'BIENVENUE' AND t.is_active = true",
     [merchantId]
@@ -206,8 +236,12 @@ function buildDemographicQuery(merchantId, rawFilter) {
   }
 
   // Clauses marchand-spécifiques via sous-requête transactions
-  if (filter.has_purchased || filter.inactivity_days != null) {
+  const needTxAggregate = filter.has_purchased || filter.inactivity_days != null
+    || filter.min_purchases != null || filter.min_amount != null;
+
+  if (needTxAggregate) {
     const merchantParam = push(merchantId);
+
     if (filter.inactivity_days != null) {
       const days = parseInt(filter.inactivity_days, 10);
       where.push(`NOT EXISTS (
@@ -228,13 +262,46 @@ function buildDemographicQuery(merchantId, rawFilter) {
            AND t.status = 'completed'
       )`);
     }
+
+    if (filter.min_purchases != null) {
+      const n = parseInt(filter.min_purchases, 10);
+      where.push(`(
+        SELECT COUNT(*) FROM transactions t
+         WHERE t.client_id = cl.id AND t.merchant_id = ${merchantParam} AND t.status = 'completed'
+      ) >= ${push(n)}`);
+    }
+    if (filter.min_amount != null) {
+      const a = parseFloat(filter.min_amount);
+      where.push(`COALESCE((
+        SELECT SUM(t.gross_amount) FROM transactions t
+         WHERE t.client_id = cl.id AND t.merchant_id = ${merchantParam} AND t.status = 'completed'
+      ), 0) >= ${push(a)}`);
+    }
   }
+
+  // Filtre par secteur (catégorie marchand) — exige au moins un achat dans ce secteur
+  if (Array.isArray(filter.sectors) && filter.sectors.length) {
+    const sectors = filter.sectors.map(s => String(s).trim().toLowerCase()).filter(Boolean);
+    if (sectors.length) {
+      const sectorsParam = push(sectors);
+      where.push(`EXISTS (
+        SELECT 1 FROM transactions t2
+          JOIN merchants m2 ON m2.id = t2.merchant_id
+         WHERE t2.client_id = cl.id AND t2.status = 'completed'
+           AND LOWER(m2.category) = ANY(${sectorsParam})
+      )`);
+    }
+  }
+
+  // Pagination : limit/offset configurables, plafond dur 50000.
+  const limit = Math.min(parseInt(filter.limit, 10) || 50000, 50000);
+  const offset = Math.max(parseInt(filter.offset, 10) || 0, 0);
 
   const sql = `
     SELECT cl.* FROM clients cl
     WHERE ${where.join(' AND ')}
     ORDER BY cl.created_at DESC
-    LIMIT 10000
+    LIMIT ${push(limit)} OFFSET ${push(offset)}
   `;
   return { sql, params };
 }
@@ -250,7 +317,7 @@ async function executeCampaign(campaignId) {
   if (!campaign.rows[0]) throw new Error('Campagne introuvable');
   const c = campaign.rows[0];
 
-  if (['running', 'completed'].includes(c.status)) {
+  if (['running', 'completed', 'failed'].includes(c.status)) {
     throw Object.assign(new Error(`Campagne déjà ${c.status}`), { code: 'CAMPAIGN_ALREADY_EXECUTED', status: 409 });
   }
 
@@ -289,18 +356,29 @@ async function executeCampaign(campaignId) {
     try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { rawPhone = null; }
     try { rawEmail = client.email ? decrypt(client.email) : null; } catch { rawEmail = null; }
 
-    try {
-      if (c.channel === 'email' && rawEmail) {
-        await sendEmail(rawEmail, `${c.name}`, message);
-      } else if (rawPhone) {
-        await sendSMS(rawPhone, message);
-      }
+    const channel = c.channel === 'email' ? 'email' : 'whatsapp';
+    const r = await notif.send({
+      rawPhone, rawEmail,
+      text: message,
+      subject: c.name,
+      template: c.template_name ? {
+        name: c.template_name,
+        namespace: c.template_namespace,
+        bodyParams: [client.full_name || '', c.merchant_name || ''],
+      } : null,
+      channel,
+      context: { type: 'campaign', ref_id: campaignId, merchant_id: c.merchant_id, client_id: client.id },
+    });
+
+    if (r.status === 'sent') {
       await pool.query("UPDATE campaign_actions SET status = 'sent', sent_at = NOW() WHERE id = $1", [actionId]);
       sent++;
-    } catch (err) {
-      //: audit trail obligatoire pour toutes les communications marketing
-      console.error(`[CAMPAIGN] Échec envoi action ${actionId} (client ${client.id}):`, err.message);
-      await pool.query("UPDATE campaign_actions SET status = 'failed' WHERE id = $1", [actionId]);
+    } else {
+      const nextRetry = new Date(Date.now() + 15 * 60 * 1000);
+      await pool.query(
+        "UPDATE campaign_actions SET status = 'failed', last_error = $2, next_retry_at = $3 WHERE id = $1",
+        [actionId, r.error || 'unknown', nextRetry.toISOString()]
+      );
     }
   }
 
@@ -308,6 +386,10 @@ async function executeCampaign(campaignId) {
     "UPDATE campaigns SET status = 'completed', total_sent = $1, updated_at = NOW() WHERE id = $2",
     [sent, campaignId]
   );
+  dispatchWebhook(c.merchant_id, 'campaign.completed', {
+    campaign_id: campaignId, name: c.name,
+    total_targeted: clients.rows.length, total_sent: sent,
+  }).catch(() => {});
   console.log(`[CAMPAIGN] ${c.name}: ${sent}/${clients.rows.length} envoyés`);
   return sent;
 }
@@ -368,11 +450,14 @@ async function runAbandonProtocol() {
       const message = step.message
         .replace('{client_name}', row.full_name || '')
         .replace('{merchant_name}', row.merchant_name || '');
-      let rawPhone = null;
+      let rawPhone = null, rawEmail = null;
       try { rawPhone = row.phone ? decrypt(row.phone) : null; } catch { /* chiffrement corrompu */ }
-      if (rawPhone) {
-        try { await sendSMS(rawPhone, message); } catch { /* ignore */ }
-      }
+      try { rawEmail = row.email ? decrypt(row.email) : null; } catch { /* chiffrement corrompu */ }
+      await notif.send({
+        rawPhone, rawEmail, text: message, channel: 'whatsapp',
+        subject: 'Afrik\'Fid — Vous nous manquez',
+        context: { type: 'trigger', ref_id: 'abandon-step-1', merchant_id: row.merchant_id, client_id: row.client_id },
+      }).catch(() => {});
     }
     actionsCount++;
   }
@@ -423,11 +508,14 @@ async function runAbandonProtocol() {
         const message = nextStep.message
           .replace('{client_name}', tracking.full_name || '')
           .replace('{merchant_name}', tracking.merchant_name || '');
-        let rawPhone = null;
+        let rawPhone = null, rawEmail = null;
         try { rawPhone = tracking.phone ? decrypt(tracking.phone) : null; } catch { /* chiffrement corrompu */ }
-        if (rawPhone) {
-          try { await sendSMS(rawPhone, message); } catch { /* ignore */ }
-        }
+        try { rawEmail = tracking.email ? decrypt(tracking.email) : null; } catch { /* chiffrement corrompu */ }
+        await notif.send({
+          rawPhone, rawEmail, text: message, channel: 'whatsapp',
+          subject: `Afrik'Fid — étape ${nextStep.step}`,
+          context: { type: 'trigger', ref_id: `abandon-step-${nextStep.step}`, merchant_id: tracking.merchant_id, client_id: tracking.client_id },
+        }).catch(() => {});
       }
     }
     actionsCount++;
@@ -491,21 +579,26 @@ async function runTransitionTriggers() {
       else if (t.new_segment === 'A_RISQUE' && t.old_segment !== 'A_RISQUE') {
         triggerName = 'A_RISQUE';
       }
+      // Frequency : montée significative (≥ +2) → félicitations / cross-sell PALIER
+      else if (t.new_f_score != null && t.old_f_score != null && (t.new_f_score - t.old_f_score) >= 2) {
+        triggerName = 'PALIER';
+      }
+      // Monetary : chute significative (≥ -2) → relance offre
+      else if (t.new_m_score != null && t.old_m_score != null && (t.old_m_score - t.new_m_score) >= 2) {
+        triggerName = 'ALERTE_R';
+      }
 
       if (triggerName) {
         // Récupérer la config du trigger pour ce marchand
         const triggerRes = await pool.query(
-          "SELECT * FROM triggers WHERE merchant_id = $1 AND name = $2 AND is_active = TRUE LIMIT 1",
+          "SELECT t.*, m.name AS merchant_name FROM triggers t JOIN merchants m ON m.id = t.merchant_id WHERE t.merchant_id = $1 AND t.trigger_type = $2 AND t.is_active = TRUE LIMIT 1",
           [t.merchant_id, triggerName]
         );
         const trigger = triggerRes.rows[0];
 
         if (trigger) {
-          // Déchiffrer les coordonnées client
-          let rawPhone = null, rawEmail = null;
-          try { rawPhone = t.phone ? require('./crypto').decrypt(t.phone) : null; } catch { /* skip */ }
-          try { rawEmail = t.email ? require('./crypto').decrypt(t.email) : null; } catch { /* skip */ }
-          const client = { ...t, id: t.client_id, phone: rawPhone, email: rawEmail };
+          // Passer les coords encore chiffrées : fireTrigger s'occupe du déchiffrement.
+          const client = { ...t, id: t.client_id };
           await fireTrigger(trigger, client);
         }
 
@@ -526,6 +619,59 @@ async function runTransitionTriggers() {
   return count;
 }
 
+/**
+ * Tracking conversion : pour chaque trigger/campagne envoyé(e) au client il y a < 30j,
+ * crée une ligne campaign_conversions et incrémente campaigns.total_converted.
+ * Idempotent grâce à UNIQUE(ref_type, ref_id, client_id, transaction_id).
+ */
+async function recordConversion(merchantId, clientId, transactionId, amount) {
+  if (!merchantId || !clientId || !transactionId) return 0;
+  const window = '30 days';
+  let inserted = 0;
+
+  // Triggers récents
+  const tlogs = await pool.query(
+    `SELECT trigger_id, sent_at FROM trigger_logs
+      WHERE merchant_id = $1 AND client_id = $2 AND status = 'sent'
+        AND sent_at > NOW() - INTERVAL '${window}'`,
+    [merchantId, clientId]
+  );
+  for (const r of tlogs.rows) {
+    const ins = await pool.query(
+      `INSERT INTO campaign_conversions (id, ref_type, ref_id, client_id, merchant_id, transaction_id, amount, sent_at, converted_at)
+       VALUES ($1, 'trigger', $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT DO NOTHING RETURNING id`,
+      [uuidv4(), r.trigger_id, clientId, merchantId, transactionId, amount, r.sent_at]
+    );
+    inserted += ins.rowCount;
+  }
+
+  // Campagnes récentes
+  const cactions = await pool.query(
+    `SELECT ca.campaign_id, ca.sent_at FROM campaign_actions ca
+      JOIN campaigns c ON c.id = ca.campaign_id
+      WHERE c.merchant_id = $1 AND ca.client_id = $2 AND ca.status = 'sent'
+        AND ca.sent_at > NOW() - INTERVAL '${window}'`,
+    [merchantId, clientId]
+  );
+  for (const r of cactions.rows) {
+    const ins = await pool.query(
+      `INSERT INTO campaign_conversions (id, ref_type, ref_id, client_id, merchant_id, transaction_id, amount, sent_at, converted_at)
+       VALUES ($1, 'campaign', $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT DO NOTHING RETURNING id`,
+      [uuidv4(), r.campaign_id, clientId, merchantId, transactionId, amount, r.sent_at]
+    );
+    if (ins.rowCount) {
+      await pool.query(
+        'UPDATE campaigns SET total_converted = total_converted + 1 WHERE id = $1',
+        [r.campaign_id]
+      );
+      inserted += 1;
+    }
+  }
+  return inserted;
+}
+
 module.exports = {
   fireTrigger,
   canFireTrigger,
@@ -538,4 +684,5 @@ module.exports = {
   runTransitionTriggers,
   executeCampaign,
   buildDemographicQuery,
+  recordConversion,
 };

@@ -16,6 +16,8 @@ const loyaltyBatchWorker = require('./workers/loyalty-batch');
 const successFeeWorker = require('./workers/success-fee');
 const rfmBatchWorker = require('./workers/rfm-batch');
 const triggerBatchWorker = require('./workers/trigger-batch');
+const campaignSchedulerWorker = require('./workers/campaign-scheduler');
+const notificationRetryWorker = require('./workers/notification-retry');
 const statusNotifWorker = require('./workers/status-notifications');
 const dailySummaryWorker = require('./workers/daily-workflow');
 const reconciliationWorker = require('./workers/reconciliation');
@@ -99,7 +101,14 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '1mb' }));
+// Capture du rawBody pour les routes signées HMAC (vérif business-api entrant).
+// On stocke req.rawBody en string utf8 — sans réécrire si déjà parsé.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    if (buf && buf.length) req.rawBody = buf.toString('utf8');
+  },
+}));
 
 // Confiance proxy (Nginx/Kubernetes ingress) pour obtenir la vraie IP client 
 app.set('trust proxy', process.env.TRUST_PROXY === 'false' ? false : 1);
@@ -138,6 +147,7 @@ app.use('/api/v1/rfm', require('./routes/rfm'));
 app.use('/api/v1/campaigns', require('./routes/campaigns'));
 app.use('/api/v1/merchant-intelligence', require('./routes/merchant-intelligence'));
 app.use('/api/v1/loyalty-bridge', require('./routes/loyalty-bridge'));
+app.use('/api/v1/external', require('./routes/external-sync').router);
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();
@@ -423,6 +433,12 @@ if (process.env.NODE_ENV !== 'test') {
 
   // CDC v3 §5.4 — Triggers par segment + anniversaires (07h00)
   triggerBatchWorker.start();
+
+  // Scheduler campagnes planifiées (toutes les 5 min)
+  campaignSchedulerWorker.start();
+
+  // Retry des notifications échouées (toutes les 15 min)
+  notificationRetryWorker.start();
 
   // CDC v3 §2.4.3 — Notifications requalification statut (08h00)
   statusNotifWorker.start();

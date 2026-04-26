@@ -35,6 +35,42 @@ export default function AdminClients() {
   const [confirmUnlink, setConfirmUnlink] = useState(null)
   const [unlinkLoading, setUnlinkLoading] = useState(false)
 
+  // Création d'un nouveau client (délègue à business-api)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    full_name: '', sexe: 'M', phone: '', email: '', city: '', birth_date: '', indicatif: '',
+  })
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createMsg, setCreateMsg] = useState(null)
+
+  const submitCreateClient = async () => {
+    if (!createForm.full_name?.trim()) return setCreateMsg({ type: 'error', text: 'Nom et prénom requis' })
+    if (!createForm.sexe) return setCreateMsg({ type: 'error', text: 'Genre requis' })
+    setCreateLoading(true); setCreateMsg(null)
+    try {
+      const { data } = await api.post('/clients', createForm)
+      setCreateMsg({
+        type: 'success',
+        text: `Client créé. Carte n° ${data.numero_carte}.`,
+      })
+      setCreateForm({ full_name: '', sexe: 'M', phone: '', email: '', city: '', birth_date: '', indicatif: '' })
+      load()
+      setTimeout(() => { setShowCreateModal(false); setCreateMsg(null) }, 2000)
+    } catch (e) {
+      const status = e.response?.status
+      if (status === 409) {
+        const numero = e.response.data?.numero_carte
+        setCreateMsg({
+          type: 'error',
+          text: `Consommateur déjà existant${numero ? ` (carte ${numero}, rattaché)` : ''}.`,
+        })
+        load()
+      } else {
+        setCreateMsg({ type: 'error', text: e.response?.data?.message || e.response?.data?.error || 'Erreur' })
+      }
+    } finally { setCreateLoading(false) }
+  }
+
   useEffect(() => {
     api.get('/loyalty/stats').then(r => {
       const dist = r.data.byStatus || []
@@ -122,8 +158,14 @@ export default function AdminClients() {
       <div className="af-card" style={{ marginBottom: 20 }}>
         <div className="af-card__header">
           <h3 className="af-card__title">Liste des consommateurs <span style={{ color: 'var(--af-text-muted)', fontWeight: 400, marginLeft: 8 }}>({total})</span></h3>
-          <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="recherche..."
-            className="af-field af-field--search" style={{ width: 240, marginBottom: 0 }} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="recherche..."
+              className="af-field af-field--search" style={{ width: 240, marginBottom: 0 }} />
+            <button onClick={() => setShowCreateModal(true)}
+              style={{ padding: '8px 14px', background: 'var(--afrikfid-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              + Nouveau client
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: '12px 20px', display: 'flex', gap: 12, borderBottom: '1px solid var(--af-border)', flexWrap: 'wrap' }}>
@@ -230,6 +272,94 @@ export default function AdminClients() {
                 <Legend formatter={name => <span style={{ color: 'var(--af-text-muted)', fontSize: 12 }}>{name}</span>} />
               </PieChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Create client modal */}
+      {showCreateModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 17, 21,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div style={{ background: 'var(--afrikfid-surface)', borderRadius: 12, border: '1px solid var(--afrikfid-border)', padding: 28, width: 460, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--afrikfid-text)', marginBottom: 6, fontFamily: 'Montserrat, sans-serif' }}>Nouveau client</div>
+            <p style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 18 }}>
+              Le compte est créé sur le système fidélité Afrik'Fid. Une carte fidélité (n° 2014…) et un wallet sont générés automatiquement.
+            </p>
+
+            {createMsg && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13,
+                background: createMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                color: createMsg.type === 'success' ? '#10b981' : '#ef4444',
+                border: '1px solid ' + (createMsg.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'),
+              }}>{createMsg.text}</div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Prénom + nom *</label>
+                <input value={createForm.full_name}
+                  onChange={e => setCreateForm({ ...createForm, full_name: e.target.value })}
+                  placeholder="Aïcha Diop" style={S.inp} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Genre *</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[{ k: 'M', l: 'Homme' }, { k: 'F', l: 'Femme' }].map(({ k, l }) => (
+                    <button key={k} type="button" onClick={() => setCreateForm({ ...createForm, sexe: k })}
+                      style={{
+                        flex: 1, padding: 8, borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                        background: createForm.sexe === k ? 'var(--afrikfid-accent)' : 'var(--afrikfid-surface-2)',
+                        color: createForm.sexe === k ? '#fff' : 'var(--afrikfid-muted)',
+                        border: '1px solid ' + (createForm.sexe === k ? 'var(--afrikfid-accent)' : 'var(--afrikfid-border)'),
+                      }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ width: 100 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Indicatif</label>
+                  <input value={createForm.indicatif} onChange={e => setCreateForm({ ...createForm, indicatif: e.target.value.replace(/\D/g, '') })}
+                    placeholder="221" style={S.inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Téléphone</label>
+                  <input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })}
+                    placeholder="771234567" style={S.inp} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Email</label>
+                <input type="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })}
+                  placeholder="aicha@example.com" style={S.inp} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Ville</label>
+                  <input value={createForm.city} onChange={e => setCreateForm({ ...createForm, city: e.target.value })}
+                    placeholder="Dakar" style={S.inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 4 }}>Date de naissance</label>
+                  <input type="date" value={createForm.birth_date} onChange={e => setCreateForm({ ...createForm, birth_date: e.target.value })}
+                    style={S.inp} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button onClick={() => { setShowCreateModal(false); setCreateMsg(null) }} disabled={createLoading}
+                style={{ flex: 1, padding: 10, background: 'transparent', border: '1px solid var(--afrikfid-border)', borderRadius: 8, color: 'var(--afrikfid-muted)', cursor: 'pointer', fontSize: 13 }}>
+                Annuler
+              </button>
+              <button onClick={submitCreateClient} disabled={createLoading || !createForm.full_name}
+                style={{ flex: 1, padding: 10, background: 'var(--afrikfid-accent)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                {createLoading ? 'Création...' : 'Créer le compte'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -135,14 +135,34 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
   }
 
   const result = await db.query('SELECT * FROM merchants WHERE email = $1 AND is_active = TRUE', [email]);
-  const merchant = result.rows[0];
-  if (!merchant || !merchant.password_hash) {
-    await recordFailure(email);
-    return res.status(401).json({ error: 'Identifiants invalides' });
+  let merchant = result.rows[0];
+
+  // Stratégie d'authentification :
+  //   1. Si compte local avec password_hash : on tente bcrypt local (cas legacy / admins ayant rotaté).
+  //   2. Sinon (ou si bcrypt échoue) : on délègue à business-api (source unique).
+  //   3. Si business-api valide et que le merchant local n'existe pas → provisioning au vol.
+  let valid = false;
+  if (merchant?.password_hash) {
+    valid = await bcrypt.compare(password, merchant.password_hash);
   }
 
-  const valid = await bcrypt.compare(password, merchant.password_hash);
   if (!valid) {
+    try {
+      const afrikfidClient = require('../lib/afrikfid-client');
+      const { findOrCreateMerchantFromBapiUser } = require('../lib/merchant-sso-provisioning');
+      const verify = await afrikfidClient.verifyPassword(email, password);
+      if (verify.ok && verify.user) {
+        const { merchant: m } = await findOrCreateMerchantFromBapiUser(verify.user);
+        merchant = m;
+        valid = true;
+      }
+    } catch (err) {
+      // 5xx / config absente : on log mais on ne bloque pas un login local valide
+      console.warn('[auth/merchant/login] business-api delegation failed:', err.message);
+    }
+  }
+
+  if (!merchant || !valid) {
     await recordFailure(email);
     return res.status(401).json({ error: 'Identifiants invalides' });
   }
@@ -499,6 +519,227 @@ router.post('/client/login', loginLimiter, async (req, res) => {
   });
 });
 
+// ─── Login client par OTP (sans mot de passe) ────────────────────────────────
+//
+// Flow en 3 étapes côté UI :
+//   1. POST /auth/client/login/request          { identifier }              → 200 { consommateurId, channels: [{id, masked}] }
+//   2. POST /auth/client/login/send-otp         { consommateurId, channel } → 200 { sent: true, channel, masked, ttl }
+//   3. POST /auth/client/login/verify           { consommateurId, channel, otp } → 200 { accessToken, refreshToken, client }
+//
+// La passerelle ne stocke aucun mot de passe pour ces clients : ils sont la
+// projection locale des Consommateurs business-api. Le provisioning local se
+// fait au moment de /verify (réutilise upsertClientFromCarteInfo).
+
+router.post('/client/login/request', loginLimiter, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const identifier = String(req.body?.identifier || '').trim();
+  if (!identifier) return res.status(400).json({ error: 'identifier requis' });
+
+  let lookup;
+  try {
+    lookup = await afrikfidClient.lookupConsommateurByIdentifier(identifier);
+  } catch (err) {
+    console.warn('[client/login/request] lookup failed:', err.message);
+    return res.status(503).json({ error: 'service_unavailable', message: 'Service fidélité momentanément indisponible.' });
+  }
+
+  if (!lookup) {
+    return res.status(404).json({ error: 'not_found', message: 'Aucun compte trouvé. Adressez-vous à votre marchand pour vous inscrire.' });
+  }
+
+  // On ne renvoie au client QUE les masques + ids opaques de canaux.
+  // Les valeurs réelles (phone_e164, email) sont stockées le temps de l'envoi.
+  res.json({
+    consommateurId: lookup.consommateur_id,
+    numeroCarte: lookup.numero_carte || null,
+    channels: (lookup.channels || []).map(c => ({ id: c.id, masked: c.masked })),
+  });
+});
+
+router.post('/client/login/send-otp', loginLimiter, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const lam = require('../lib/lafricamobile-whatsapp');
+  const { sendSMS, sendEmail } = require('../lib/notifications');
+  const { issueOtp, isOnCooldown, OTP_TTL_SECONDS, RESEND_COOLDOWN_SECONDS } = require('../lib/client-login-otp');
+
+  const consommateurId = parseInt(req.body?.consommateurId, 10);
+  const channel = String(req.body?.channel || '').toLowerCase();
+  if (!consommateurId || !['sms', 'whatsapp', 'email'].includes(channel)) {
+    return res.status(400).json({ error: 'consommateurId et channel (sms|whatsapp|email) requis' });
+  }
+
+  if (await isOnCooldown(consommateurId, channel)) {
+    return res.status(429).json({ error: 'cooldown', cooldownSeconds: RESEND_COOLDOWN_SECONDS });
+  }
+
+  // Re-fetch des canaux pour récupérer les valeurs réelles côté serveur
+  // (jamais renvoyées au client). On retrouve via le numéro de carte ou
+  // un identifier dérivé : ici on rappelle Laravel avec consommateur_id ?
+  // Plus simple : on relookup via un identifier qu'on a déjà — on demande
+  // à l'UI de nous le repasser dans le payload original. Approche choisie :
+  // l'UI passe l'`identifier` initial, on relookup pour resolver.
+  const identifier = String(req.body?.identifier || '').trim();
+  if (!identifier) return res.status(400).json({ error: 'identifier requis' });
+
+  let lookup;
+  try { lookup = await afrikfidClient.lookupConsommateurByIdentifier(identifier); }
+  catch { return res.status(503).json({ error: 'service_unavailable' }); }
+  if (!lookup || lookup.consommateur_id !== consommateurId) {
+    return res.status(400).json({ error: 'identifier_mismatch' });
+  }
+
+  const channelData = (lookup.channels || []).find(c => c.id === channel);
+  if (!channelData) return res.status(400).json({ error: 'channel_unavailable' });
+
+  // Stockage Redis : la clé est le channel DEMANDÉ (jamais un alias type 'sms_fallback').
+  // L'OTP envoyé par fallback SMS reste vérifiable avec channel='whatsapp' au verify.
+  // C'est l'invariant qui rend ce flow correct ; voir A17 dans l'audit.
+  const code = await issueOtp(consommateurId, channel);
+  let actuallyDeliveredVia = channel;
+  let fallbackUsed = false;
+
+  try {
+    if (channel === 'whatsapp') {
+      const wa = lam.toWaId(channelData.phone_e164);
+      if (!wa || !lam.isConfigured() || !lam.isTemplateConfigured()) {
+        await sendSMS(channelData.phone_e164, `Afrik'Fid : votre code de connexion est ${code}. Valable ${Math.round(OTP_TTL_SECONDS / 60)} min.`);
+        actuallyDeliveredVia = 'sms';
+        fallbackUsed = true;
+      } else {
+        const result = await lam.sendOtpTemplate(wa, code);
+        if (!result.ok) {
+          await sendSMS(channelData.phone_e164, `Afrik'Fid : votre code de connexion est ${code}. Valable ${Math.round(OTP_TTL_SECONDS / 60)} min.`);
+          actuallyDeliveredVia = 'sms';
+          fallbackUsed = true;
+        }
+      }
+    } else if (channel === 'sms') {
+      await sendSMS(channelData.phone_e164, `Afrik'Fid : votre code de connexion est ${code}. Valable ${Math.round(OTP_TTL_SECONDS / 60)} min.`);
+    } else if (channel === 'email') {
+      await sendEmail(channelData.email, "Votre code de connexion Afrik'Fid",
+        `Bonjour,\n\nVotre code de connexion Afrik'Fid est : ${code}\nIl est valable ${Math.round(OTP_TTL_SECONDS / 60)} minutes.\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message.`);
+    }
+  } catch (err) {
+    console.warn('[client/login/send-otp] send failed:', err.message);
+    return res.status(502).json({ error: 'send_failed', message: "Échec de l'envoi du code, réessayez." });
+  }
+
+  // Contrat fixe : `channel` est TOUJOURS celui demandé par l'UI (pour qu'elle
+  // puisse le renvoyer tel quel au verify). `deliveredVia` indique le canal réel
+  // si différent (ex: WhatsApp demandé mais fallback SMS).
+  res.json({
+    sent: true,
+    channel,
+    deliveredVia: actuallyDeliveredVia,
+    fallbackUsed,
+    masked: channelData.masked,
+    ttlSeconds: OTP_TTL_SECONDS,
+  });
+});
+
+router.post('/client/login/verify', loginLimiter, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { verifyOtp } = require('../lib/client-login-otp');
+  const { upsertClientFromCarteInfo } = require('../lib/business-api-sync');
+
+  const consommateurId = parseInt(req.body?.consommateurId, 10);
+  const channel = String(req.body?.channel || '').toLowerCase();
+  const otp = String(req.body?.otp || '').trim();
+  const identifier = String(req.body?.identifier || '').trim();
+
+  if (!consommateurId || !channel || !/^\d{6}$/.test(otp)) {
+    return res.status(400).json({ error: 'consommateurId, channel, otp (6 chiffres) requis' });
+  }
+
+  // Si on a fait un fallback SMS, l'OTP a été stocké sous channel='whatsapp' :
+  // on essaie d'abord le canal demandé, puis le canal d'origine.
+  let check = await verifyOtp(consommateurId, channel, otp);
+  if (!check.ok && channel === 'sms') {
+    // Cas fallback : l'utilisateur a cliqué WA mais a reçu par SMS. On a stocké
+    // sous 'whatsapp', le verify est sous 'whatsapp'. UI doit envoyer 'whatsapp' →
+    // ce branchement n'est utile que si l'UI confond. Sinon on tombe simplement
+    // sur 'invalid_code' et on retourne l'erreur normale.
+  }
+  if (!check.ok) {
+    const msg = {
+      expired_or_missing: 'Code expiré, demandez-en un nouveau.',
+      too_many_attempts: 'Trop de tentatives, demandez-en un nouveau.',
+      invalid_code: `Code incorrect.${check.remaining != null ? ` ${check.remaining} essai(s) restant(s).` : ''}`,
+    }[check.reason] || 'Vérification impossible.';
+    return res.status(401).json({ error: msg, reason: check.reason, remaining: check.remaining });
+  }
+
+  // Provisioning local : si on n'a pas encore le client en DB, on le crée
+  // depuis le payload Laravel (lookupCard si carte connue, sinon création
+  // minimaliste à partir des données du lookup).
+  let client = (await db.query(
+    'SELECT * FROM clients WHERE business_api_consommateur_id = $1 AND is_active = TRUE',
+    [consommateurId]
+  )).rows[0];
+
+  if (!client) {
+    // Re-lookup par identifier pour récupérer numero_carte si possible
+    let numeroCarte = null;
+    try {
+      const lookup = await afrikfidClient.lookupConsommateurByIdentifier(identifier);
+      numeroCarte = lookup?.numero_carte || null;
+    } catch { /* ignore */ }
+
+    if (numeroCarte) {
+      const card = await afrikfidClient.lookupCard(numeroCarte).catch(() => null);
+      if (card) client = await upsertClientFromCarteInfo(card, numeroCarte);
+    }
+    // Si toujours pas de client (cas rare : consommateur sans carte), on crée
+    // un mirror minimal avec un afrikfid_id legacy.
+    if (!client) {
+      const id = require('uuid').v4();
+      const legacyAfrikfidId = `AFD-BAPI-${consommateurId}`;
+      await db.query(
+        `INSERT INTO clients (id, afrikfid_id, full_name, business_api_consommateur_id, is_active)
+         VALUES ($1, $2, $3, $4, TRUE)
+         ON CONFLICT (afrikfid_id) DO NOTHING`,
+        [id, legacyAfrikfidId, `Client ${consommateurId}`, consommateurId]
+      );
+      client = (await db.query(
+        'SELECT * FROM clients WHERE business_api_consommateur_id = $1',
+        [consommateurId]
+      )).rows[0];
+    }
+  }
+
+  if (!client) return res.status(500).json({ error: 'provisioning_failed' });
+
+  // Émission tokens passerelle (cohérent avec /client/login classique)
+  const tokens = generateTokens({ sub: client.id, role: 'client', afrikfidId: client.afrikfid_id });
+  const refreshJti = extractJti(tokens.refreshToken);
+  if (refreshJti) {
+    await redis.setEx(refreshKey(refreshJti), REFRESH_TTL, JSON.stringify({ sub: client.id, role: 'client', via: 'otp' }));
+  }
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, payload, ip_address)
+     VALUES ($1, 'client', $2, 'login_otp', 'client', $3, $4, $5)`,
+    [require('uuid').v4(), client.id, client.id,
+     JSON.stringify({ channel, consommateurId }),
+     req.ip]
+  );
+
+  const wallet = (await db.query('SELECT balance FROM wallets WHERE client_id = $1', [client.id])).rows[0];
+  const { decrypt } = require('../lib/crypto');
+  res.json({
+    ...tokens,
+    client: {
+      id: client.id,
+      afrikfidId: client.afrikfid_id,
+      fullName: client.full_name,
+      phone: client.phone ? decrypt(client.phone) : null,
+      loyaltyStatus: client.loyalty_status,
+      walletBalance: wallet?.balance || 0,
+      totpEnabled: client.totp_enabled || false,
+    },
+  });
+});
+
 // ─── POST /api/v1/auth/client/2fa/setup ──────────────────────────────────────
 router.post('/client/2fa/setup', require('../middleware/auth').requireClient, async (req, res) => {
   const client = req.client;
@@ -606,6 +847,81 @@ router.post('/client/resolve-card', loginLimiter, async (req, res) => {
       hasPassword: !!local.password_hash,
     },
   });
+});
+
+// ─── GET /api/v1/auth/sso ─────────────────────────────────────────────────────
+//
+// SSO entrant depuis business-api : on vérifie le JWT signé, on provisionne ou
+// retrouve le merchant local, on émet une session passerelle et on redirige.
+//
+// Deux modes de réponse :
+//   - format=json (XHR/fetch)        → 200 { accessToken, refreshToken, merchant, redirectTo }
+//   - défaut (navigation directe)    → 302 vers la SPA marchand avec les tokens
+//                                        en fragment d'URL (jamais en query : pas de fuite logs)
+//
+// Audit : chaque entrée SSO est tracée dans audit_logs.
+router.get('/sso', async (req, res) => {
+  const { verifySsoToken } = require('../lib/sso');
+  const { findOrCreateMerchantFromBapiUser } = require('../lib/merchant-sso-provisioning');
+
+  const token = String(req.query.token || '').trim();
+  const wantJson = req.query.format === 'json' || (req.headers.accept || '').includes('application/json');
+  const fail = (status, code, msg) => {
+    if (wantJson) return res.status(status).json({ error: code, message: msg });
+    return res.status(status).send(`<html><body style="font-family:sans-serif;padding:40px"><h2>Connexion impossible</h2><p>${msg}</p><p style="color:#888;font-size:12px">code: ${code}</p></body></html>`);
+  };
+
+  const verify = verifySsoToken(token);
+  if (!verify.ok) return fail(401, verify.error, 'Lien SSO invalide ou expiré.');
+
+  let merchant;
+  try {
+    const provision = await findOrCreateMerchantFromBapiUser(verify.claims);
+    merchant = provision.merchant;
+  } catch (err) {
+    return fail(403, err.code || 'PROVISIONING_FAILED', 'Impossible de créer ou retrouver le compte marchand.');
+  }
+
+  if (!merchant.is_active) return fail(403, 'INACTIVE', 'Compte marchand désactivé.');
+
+  // Émission tokens passerelle (cohérent avec /merchant/login)
+  const tokens = generateTokens({ sub: merchant.id, role: 'merchant', email: merchant.email });
+  const refreshJti = extractJti(tokens.refreshToken);
+  if (refreshJti) {
+    await redis.setEx(refreshKey(refreshJti), REFRESH_TTL, JSON.stringify({ sub: merchant.id, role: 'merchant', via: 'sso' }));
+  }
+
+  await db.query(
+    `INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, payload, ip_address)
+     VALUES ($1, 'merchant', $2, 'sso_login', 'merchant', $3, $4, $5)`,
+    [require('uuid').v4(), merchant.id, merchant.id,
+     JSON.stringify({ bapi_user_id: verify.claims.sub, jti: verify.claims.jti, role: verify.claims.role }),
+     req.ip]
+  );
+
+  await clearFailures(merchant.email);
+
+  const redirectTo = verify.claims.redirect_to || '/merchant';
+
+  if (wantJson) {
+    return res.json({
+      ...tokens,
+      merchant: {
+        id: merchant.id, name: merchant.name, email: merchant.email,
+        status: merchant.status, rebatePercent: merchant.rebate_percent,
+        package: merchant.package || 'STARTER_BOOST',
+      },
+      redirectTo,
+    });
+  }
+
+  // Fragment URL = pas envoyé au serveur, pas dans les logs proxy.
+  // La SPA marchand lit window.location.hash au mount.
+  const params = new URLSearchParams({
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+  });
+  return res.redirect(302, `${redirectTo}#${params.toString()}`);
 });
 
 module.exports = router;

@@ -18,7 +18,7 @@ export default function AdminCampaigns() {
   const [total, setTotal] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [merchants, setMerchants] = useState([])
-  const [form, setForm] = useState({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+  const [form, setForm] = useState({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'whatsapp', template_name: '' })
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const limit = 20
@@ -26,15 +26,20 @@ export default function AdminCampaigns() {
   // Campagne démographique
   const [showDemoModal, setShowDemoModal] = useState(false)
   const [demoForm, setDemoForm] = useState({
-    merchant_id: '', name: '', channel: 'sms', message_template: '',
+    merchant_id: '', name: '', channel: 'whatsapp', template_name: '', message_template: '',
     birth_months: [], cities: '', genders: [], age_min: '', age_max: '',
     loyalty_statuses: [], has_purchased: false, inactivity_days: '',
+    min_purchases: '', min_amount: '', sectors: '',
   })
+  const [waTemplates, setWaTemplates] = useState([])
   const [demoPreview, setDemoPreview] = useState(null)
   const [demoPreviewLoading, setDemoPreviewLoading] = useState(false)
 
   useEffect(() => {
     api.get('/merchants', { params: { limit: 200 } }).then(r => setMerchants(r.data.merchants || []))
+    api.get('/campaigns/wa-templates').then(r => {
+      if (r.data?.ok) setWaTemplates(r.data.templates || [])
+    }).catch(() => {})
   }, [])
 
   const load = () => {
@@ -57,7 +62,7 @@ export default function AdminCampaigns() {
   const resetModal = () => {
     setShowModal(false)
     setFormError('')
-    setForm({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'sms' })
+    setForm({ merchant_id: '', name: '', target_segment: '', message_template: '', trigger_type: '', channel: 'whatsapp', template_name: '' })
   }
 
   const createCampaign = async () => {
@@ -109,6 +114,12 @@ export default function AdminCampaigns() {
     if (demoForm.loyalty_statuses.length) f.loyalty_statuses = demoForm.loyalty_statuses
     if (demoForm.has_purchased) f.has_purchased = true
     if (demoForm.inactivity_days) f.inactivity_days = parseInt(demoForm.inactivity_days, 10)
+    if (demoForm.min_purchases) f.min_purchases = parseInt(demoForm.min_purchases, 10)
+    if (demoForm.min_amount) f.min_amount = parseFloat(demoForm.min_amount)
+    if (demoForm.sectors) {
+      const arr = demoForm.sectors.split(',').map(s => s.trim()).filter(Boolean)
+      if (arr.length) f.sectors = arr
+    }
     return f
   }
 
@@ -139,12 +150,14 @@ export default function AdminCampaigns() {
         name: demoForm.name,
         channel: demoForm.channel,
         message_template: demoForm.message_template,
+        template_name: demoForm.template_name || undefined,
         filter,
       })
       setShowDemoModal(false)
-      setDemoForm({ merchant_id: '', name: '', channel: 'sms', message_template: '',
+      setDemoForm({ merchant_id: '', name: '', channel: 'whatsapp', template_name: '', message_template: '',
         birth_months: [], cities: '', genders: [], age_min: '', age_max: '',
-        loyalty_statuses: [], has_purchased: false, inactivity_days: '' })
+        loyalty_statuses: [], has_purchased: false, inactivity_days: '',
+        min_purchases: '', min_amount: '', sectors: '' })
       setDemoPreview(null)
       load()
     } catch (e) {
@@ -351,11 +364,37 @@ export default function AdminCampaigns() {
                 onChange={e => { setDemoForm({ ...demoForm, inactivity_days: e.target.value }); setDemoPreview(null) }} />
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Achats min</div>
+                <Input type="number" placeholder="3" value={demoForm.min_purchases}
+                  onChange={e => { setDemoForm({ ...demoForm, min_purchases: e.target.value }); setDemoPreview(null) }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Montant min (FCFA)</div>
+                <Input type="number" placeholder="50000" value={demoForm.min_amount}
+                  onChange={e => { setDemoForm({ ...demoForm, min_amount: e.target.value }); setDemoPreview(null) }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 6 }}>Secteurs (csv)</div>
+                <Input placeholder="restaurant,mode" value={demoForm.sectors}
+                  onChange={e => { setDemoForm({ ...demoForm, sectors: e.target.value }); setDemoPreview(null) }} />
+              </div>
+            </div>
+
             <Select value={demoForm.channel} onChange={e => setDemoForm({ ...demoForm, channel: e.target.value })}>
-              <option value="sms">SMS</option>
+              <option value="whatsapp">WhatsApp (Lafricamobile)</option>
               <option value="email">Email</option>
-              <option value="whatsapp">WhatsApp</option>
             </Select>
+            {demoForm.channel === 'whatsapp' && waTemplates.length > 0 && (
+              <Select value={demoForm.template_name}
+                onChange={e => setDemoForm({ ...demoForm, template_name: e.target.value })}>
+                <option value="">— Template WhatsApp (def. test_nvo_partenaire) —</option>
+                {waTemplates.map(t => (
+                  <option key={t.name || t.id} value={t.name || t.id}>{t.name || t.id}</option>
+                ))}
+              </Select>
+            )}
             <textarea rows={3} placeholder="Message (ex: Joyeux anniversaire {client_name} ! -20% chez {merchant_name} ce mois.)"
               value={demoForm.message_template}
               onChange={e => setDemoForm({ ...demoForm, message_template: e.target.value })}
@@ -417,10 +456,18 @@ export default function AdminCampaigns() {
               </>
             )}
             <Select value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value })}>
-              <option value="sms">SMS</option>
+              <option value="whatsapp">WhatsApp (Lafricamobile)</option>
               <option value="email">Email</option>
-              <option value="whatsapp">WhatsApp</option>
             </Select>
+            {form.channel === 'whatsapp' && waTemplates.length > 0 && (
+              <Select value={form.template_name}
+                onChange={e => setForm({ ...form, template_name: e.target.value })}>
+                <option value="">— Template WhatsApp (def. test_nvo_partenaire) —</option>
+                {waTemplates.map(t => (
+                  <option key={t.name || t.id} value={t.name || t.id}>{t.name || t.id}</option>
+                ))}
+              </Select>
+            )}
             <textarea
               rows={3}
               placeholder="Message template (ex: Bonjour {{prenom}}, profitez de -{{remise}}% chez {{marchand}} !)"

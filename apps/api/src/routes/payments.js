@@ -14,19 +14,16 @@ const { TX_EXPIRY_MS } = require('../config/constants');
 const { dispatchWebhook, WebhookEvents } = require('../workers/webhook-dispatcher');
 const { notifyPaymentConfirmed, notifyCashbackCredit, notifyPaymentFailed, notifyFraudBlocked, notifyRefundRequested, notifyWalletCapReached } = require('../lib/notifications');
 const { checkTransaction, revokeLoyaltyStatusForFraud } = require('../lib/fraud');
-const cinetpay = require('../lib/adapters/cinetpay');
-const flutterwave = require('../lib/adapters/flutterwave');
+const stripe = require('../lib/adapters/stripe');
 const { emit, SSE_EVENTS } = require('../lib/sse-emitter');
 const { processDisbursementsForMerchant } = require('../workers/disbursement');
-const { triggerPremierAchat } = require('../lib/campaign-engine');
-const { verifyHmac, verifySha256 } = require('../lib/webhook-verify');
+const { triggerPremierAchat, triggerBienvenue, recordConversion } = require('../lib/campaign-engine');
+const { verifyHmac } = require('../lib/webhook-verify');
 const { decrypt } = require('../lib/crypto');
 
-// Sélection du provider carte via CARD_PROVIDER env (défaut: cinetpay)
+// Stripe est l'unique provider carte de la passerelle.
 function getCardProvider() {
-  return (process.env.CARD_PROVIDER || 'cinetpay').toLowerCase() === 'flutterwave'
-    ? flutterwave
-    : cinetpay;
+  return stripe;
 }
 
 // POST /api/v1/payments/initiate
@@ -216,14 +213,14 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
       transactionId: txId, reference, amount: distribution.grossAmount, currency,
       customerName: client ? client.full_name : undefined,
       customerEmail: _customerEmail,
-      customerPhone: client_phone || undefined, description,
+      customerPhone: resolvedPhone || undefined, description,
     });
 
     if (!cardResult.success) {
       await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [cardResult.message, txId]);
       return res.status(422).json({ error: cardResult.error, message: cardResult.message });
     }
-    const cardRef = cardResult.cinetpayRef || cardResult.flutterwaveRef || txId;
+    const cardRef = cardResult.stripeRef || txId;
     await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [cardRef, txId]);
 
   } else if (['ORANGE', 'MTN', 'AIRTEL', 'MPESA', 'WAVE', 'MOOV'].includes((payment_operator || '').toUpperCase())) {
@@ -309,66 +306,64 @@ router.post('/initiate', requireApiKey, verifyHmacSignature, validate(InitiatePa
   });
 });
 
-// POST /api/v1/payments/card/notify (CinetPay webhook)
-router.post('/card/notify', async (req, res) => {
-  const { cpm_trans_id, cpm_site_id, cpm_signature, cpm_amount } = req.body;
-
-  if (process.env.CINETPAY_SITE_ID && cpm_site_id !== process.env.CINETPAY_SITE_ID) {
-    return res.status(403).json({ error: 'Site ID invalide' });
-  }
-
-  // Validation de signature CinetPay (SHA-256 de apikey+site_id+trans_id+amount)
-  if (process.env.CINETPAY_SECRET_KEY) {
-    const sigInput = `${process.env.CINETPAY_API_KEY}${process.env.CINETPAY_SITE_ID}${cpm_trans_id}${cpm_amount}`;
-    if (!verifySha256(sigInput, cpm_signature)) {
-      console.warn('[cinetpay/notify] Signature invalide pour tx:', cpm_trans_id);
-      return res.status(403).json({ error: 'Signature invalide' });
-    }
-  } else if (process.env.NODE_ENV === 'production') {
-    // En production, rejeter si le secret n'est pas configuré
-    console.error('[cinetpay/notify] CINETPAY_SECRET_KEY absent en production — callback rejeté');
-    return res.status(403).json({ error: 'Configuration webhook manquante' });
-  }
-
-  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [cpm_trans_id])).rows[0];
-  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (!['pending', 'processing'].includes(tx.status)) return res.status(200).json({ message: 'Déjà traitée' });
-
-  const statusCheck = await cinetpay.checkPaymentStatus(cpm_trans_id);
-
-  if (statusCheck.success && statusCheck.status === 'ACCEPTED') {
-    await processCompletedPayment(tx);
-  } else if (statusCheck.status === 'REFUSED' || statusCheck.status === 'CANCELLED') {
-    await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`CinetPay: ${statusCheck.status}`, tx.id]);
-    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => { });
-  }
-
-  res.status(200).json({ message: 'OK' });
-});
-
-// POST /api/v1/payments/card/flutterwave/notify (Flutterwave webhook)
-router.post('/card/flutterwave/notify', async (req, res) => {
-  if (!flutterwave.verifyWebhookSignature(req)) {
+// POST /api/v1/payments/card/stripe/notify (Stripe webhook)
+//
+// Stripe envoie des événements signés HMAC-SHA256 via le header `Stripe-Signature`.
+// Configurer côté Stripe Dashboard → Developers → Webhooks :
+//   URL    : https://<gateway>/api/v1/payments/card/stripe/notify
+//   Events : checkout.session.completed, checkout.session.expired,
+//            checkout.session.async_payment_failed, payment_intent.payment_failed
+//   Secret : récupérer le whsec_... et le mettre dans STRIPE_WEBHOOK_SECRET
+//
+// On utilise client_reference_id (= transactionId interne) pour retrouver la transaction.
+router.post('/card/stripe/notify', async (req, res) => {
+  if (!stripe.verifyWebhookSignature(req)) {
     return res.status(403).json({ error: 'Signature webhook invalide' });
   }
 
-  const { data } = req.body;
-  if (!data || !data.tx_ref) return res.status(400).json({ error: 'Payload invalide' });
-
-  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [data.tx_ref])).rows[0];
-  if (!tx) return res.status(404).json({ error: 'Transaction non trouvée' });
-  if (!['pending', 'processing'].includes(tx.status)) return res.status(200).json({ message: 'Déjà traitée' });
-
-  const statusCheck = await flutterwave.checkPaymentStatus(data.tx_ref);
-
-  if (statusCheck.success && statusCheck.status === 'successful') {
-    await processCompletedPayment(tx);
-  } else if (statusCheck.status === 'failed') {
-    await db.query("UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2", [`Flutterwave: ${statusCheck.message}`, tx.id]);
-    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, { transactionId: tx.id, status: statusCheck.status }).catch(() => { });
+  const event = req.body;
+  if (!event?.type || !event?.data?.object) {
+    return res.status(400).json({ error: 'Payload invalide' });
   }
 
-  res.status(200).json({ message: 'OK' });
+  const obj = event.data.object;
+  // transactionId interne = client_reference_id (Checkout) ou metadata.afrikfid_transaction_id (PaymentIntent)
+  const txId = obj.client_reference_id || obj.metadata?.afrikfid_transaction_id;
+  if (!txId) return res.status(200).json({ message: 'Pas de référence Afrik\'Fid, ignoré' });
+
+  const tx = (await db.query('SELECT * FROM transactions WHERE id = $1', [txId])).rows[0];
+  if (!tx) return res.status(200).json({ message: 'Transaction inconnue' });
+  if (!['pending', 'processing'].includes(tx.status)) return res.status(200).json({ message: 'Déjà traitée' });
+
+  // Succès : checkout.session.completed avec payment_status='paid'
+  if (event.type === 'checkout.session.completed' && obj.payment_status === 'paid') {
+    await processCompletedPayment(tx);
+    return res.status(200).json({ message: 'OK' });
+  }
+
+  // Échecs / annulations
+  const failTypes = new Set([
+    'checkout.session.expired',
+    'checkout.session.async_payment_failed',
+    'payment_intent.payment_failed',
+  ]);
+  if (failTypes.has(event.type)) {
+    const reason = obj.last_payment_error?.message
+      || obj.failure_reason
+      || event.type;
+    await db.query(
+      "UPDATE transactions SET status = 'failed', failure_reason = $1 WHERE id = $2",
+      [`Stripe: ${reason}`, tx.id]
+    );
+    dispatchWebhook(tx.merchant_id, WebhookEvents.PAYMENT_FAILED, {
+      transactionId: tx.id, status: 'failed', reason,
+    }).catch(() => {});
+    return res.status(200).json({ message: 'OK' });
+  }
+
+  // Autres events : on accuse réception sans agir (Stripe désactive un endpoint
+  // qui renvoie systématiquement non-2xx).
+  res.status(200).json({ message: 'Ignored', type: event.type });
 });
 
 // POST /api/v1/payments/mm/mpesa/notify (M-Pesa Daraja STK callback)
@@ -1188,13 +1183,19 @@ async function processCompletedPayment(tx) {
 
     // CDC v3 §2.3 — Attribution des points statut et récompense
     await awardPoints(tx.client_id, tx.id, parseFloat(tx.gross_amount));
-
-    // CDC v3 §5.4 — Trigger 1ER_ACHAT automatique
-    const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];
-    if (client) triggerPremierAchat(tx.merchant_id, client).catch(() => { });
   }
 
+  // Marquer complétée avant les triggers : triggerPremierAchat compte les tx completed.
   await db.query("UPDATE transactions SET status = 'completed', completed_at = $1 WHERE id = $2", [now, tx.id]);
+
+  if (tx.client_id) {
+    const client = (await db.query('SELECT * FROM clients WHERE id = $1', [tx.client_id])).rows[0];
+    if (client) {
+      triggerBienvenue(tx.merchant_id, client).catch(() => { });
+      triggerPremierAchat(tx.merchant_id, client).catch(() => { });
+      recordConversion(tx.merchant_id, tx.client_id, tx.id, parseFloat(tx.gross_amount)).catch(() => { });
+    }
+  }
 
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [tx.id])).rows[0];
 

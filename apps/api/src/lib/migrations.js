@@ -1171,6 +1171,77 @@ const MIGRATIONS = [
         ON clients(city) WHERE is_active = TRUE AND city IS NOT NULL;
     `,
   },
+  {
+    version: 33,
+    name: '033_communication_audit_and_retry',
+    up: `
+      -- Audit trail consolidé : toutes communications sortantes (campagnes, triggers,
+      -- notifications transactionnelles) — table unique pour conformité marketing.
+      CREATE TABLE IF NOT EXISTS communication_log (
+        id TEXT PRIMARY KEY,
+        ref_type TEXT,             -- 'campaign' | 'trigger' | 'transactional'
+        ref_id TEXT,               -- id campaign/trigger/etc.
+        merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+        client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+        channel TEXT NOT NULL,     -- 'whatsapp' | 'email' | 'sms' | 'auto'
+        provider TEXT,             -- 'lafricamobile_template' | 'wa_meta' | 'email' | ...
+        status TEXT NOT NULL DEFAULT 'pending',  -- pending|sent|failed|retry
+        external_id TEXT,
+        error_message TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        next_retry_at TIMESTAMPTZ,
+        payload JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        sent_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_comm_log_status ON communication_log(status, next_retry_at);
+      CREATE INDEX IF NOT EXISTS idx_comm_log_ref ON communication_log(ref_type, ref_id);
+      CREATE INDEX IF NOT EXISTS idx_comm_log_client ON communication_log(client_id, created_at DESC);
+
+      -- Retry sur trigger_logs et campaign_actions
+      ALTER TABLE trigger_logs ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE trigger_logs ADD COLUMN IF NOT EXISTS last_error TEXT;
+      ALTER TABLE trigger_logs ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
+      ALTER TABLE campaign_actions ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE campaign_actions ADD COLUMN IF NOT EXISTS last_error TEXT;
+      ALTER TABLE campaign_actions ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
+
+      -- Tracking conversion : un achat post-campagne/trigger (fenêtre 30j) compte.
+      CREATE TABLE IF NOT EXISTS campaign_conversions (
+        id TEXT PRIMARY KEY,
+        ref_type TEXT NOT NULL,    -- 'campaign' | 'trigger'
+        ref_id TEXT NOT NULL,
+        client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        transaction_id TEXT REFERENCES transactions(id) ON DELETE SET NULL,
+        amount NUMERIC,
+        sent_at TIMESTAMPTZ NOT NULL,
+        converted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(ref_type, ref_id, client_id, transaction_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_conv_ref ON campaign_conversions(ref_type, ref_id);
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS total_converted INTEGER NOT NULL DEFAULT 0;
+
+      -- Sécuriser scheduled_at (existant) avec un index pour le scheduler auto.
+      CREATE INDEX IF NOT EXISTS idx_campaigns_scheduled
+        ON campaigns(scheduled_at) WHERE status = 'scheduled' AND scheduled_at IS NOT NULL;
+
+      -- Filtres démographiques étendus : on stocke dans audience_filter JSONB,
+      -- pas de schéma à modifier — keys ajoutées : min_purchases, min_amount, sectors.
+
+      -- Templates WhatsApp Lafricamobile (override par trigger/campagne).
+      ALTER TABLE triggers ADD COLUMN IF NOT EXISTS template_name TEXT;
+      ALTER TABLE triggers ADD COLUMN IF NOT EXISTS template_namespace TEXT;
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_name TEXT;
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_namespace TEXT;
+
+      -- Transitions Frequency / Monetary (en plus de Recency).
+      ALTER TABLE rfm_transitions ADD COLUMN IF NOT EXISTS old_f_score SMALLINT;
+      ALTER TABLE rfm_transitions ADD COLUMN IF NOT EXISTS new_f_score SMALLINT;
+      ALTER TABLE rfm_transitions ADD COLUMN IF NOT EXISTS old_m_score SMALLINT;
+      ALTER TABLE rfm_transitions ADD COLUMN IF NOT EXISTS new_m_score SMALLINT;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

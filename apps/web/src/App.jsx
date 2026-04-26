@@ -59,7 +59,6 @@ import MerchantProfile from './pages/merchant/Profile.jsx'
 import ClientProfile from './pages/client/Profile.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
-import RegisterClient from './pages/RegisterClient.jsx'
 import ClientDashboard from './pages/client/Dashboard.jsx'
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
@@ -316,7 +315,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/register-client" element={<RegisterClient />} />
+            {/* /register-client retiré : inscription client géré côté business-api uniquement */}
+            <Route path="/register-client" element={<Navigate to="/login" replace />} />
             <Route path="/pay/:code" element={<PaymentPage />} />
 
             {/* Admin */}

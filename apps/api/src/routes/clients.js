@@ -14,45 +14,98 @@ const { notifyWelcomeWhatsApp } = require('../lib/whatsapp');
 const { triggerBienvenue } = require('../lib/campaign-engine');
 
 // POST /api/v1/clients
-router.post('/', validate(CreateClientSchema), async (req, res) => {
-  const { full_name, phone, email, country_id, password, birth_date, city, district, country_code } = req.body;
+//
+// L'inscription publique est désactivée : les comptes clients sont créés
+// exclusivement côté business-api (qui détient la table consommateurs et la
+// numérotation des cartes 2014xxxxxxxx). Cet endpoint admin agit comme un
+// proxy : on appelle /external/consommateurs côté Laravel, on récupère le
+// numero_carte généré, puis on provisionne le mirror local.
+//
+// Body attendu : full_name, phone, email?, sexe ('M'|'F'), birth_date?, city?, indicatif?
+// (full_name est décomposé en prenom + nom pour Laravel)
+router.post('/', requireAdmin, async (req, res) => {
+  const afrikfidClient = require('../lib/afrikfid-client');
+  const { upsertClientFromCarteInfo } = require('../lib/business-api-sync');
 
-  const phoneHash = hashField(phone);
-  const existing = await db.query('SELECT id FROM clients WHERE phone_hash = $1', [phoneHash]);
-  if (existing.rows[0]) return res.status(409).json({ error: 'Numéro de téléphone déjà enregistré' });
-
-  const id = uuidv4();
-  const afrikfidId = `AFD-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
-  const passwordHash = password ? await bcrypt.hash(password, 10) : null;
-  const encPhone = encrypt(phone);
-  const encEmail = email ? encrypt(email) : null;
-  const emailHash = email ? hashField(email) : null;
-
-  await db.query(
-    `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash, country_id, password_hash, birth_date, city, district, country_code)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-    [id, afrikfidId, full_name, encPhone, phoneHash, encEmail, emailHash, country_id || null, passwordHash, birth_date || null, city || null, district || null, country_code || country_id || null]
-  );
-
-  await db.query('INSERT INTO wallets (id, client_id) VALUES ($1, $2)', [uuidv4(), id]);
-
-  const client = (await db.query('SELECT * FROM clients WHERE id = $1', [id])).rows[0];
-  notifyClientWelcome({ client: { ...client, phone, email } });
-  // CDC v3 §5.4 — Trigger BIENVENUE automatique (signature: merchantId, client avec phone déchiffré)
-  const merchantId = req.merchant ? req.merchant.id : null;
-  if (merchantId) {
-    let rawPhone = null, rawEmail = null;
-    try { rawPhone = client.phone ? decrypt(client.phone) : null; } catch { /* ignore */ }
-    try { rawEmail = client.email ? decrypt(client.email) : null; } catch { /* ignore */ }
-    const clientWithPlainData = { ...client, phone: rawPhone, email: rawEmail };
-    triggerBienvenue(merchantId, clientWithPlainData).catch(() => { });
-    // WhatsApp bienvenue (Starter Boost —
-    if (rawPhone) {
-      const merchantRow = (await db.query('SELECT name FROM merchants WHERE id = $1', [merchantId])).rows[0];
-      notifyWelcomeWhatsApp(clientWithPlainData, merchantRow?.name || 'le marchand').catch(() => { });
-    }
+  const { full_name, phone, email, sexe, birth_date, city, indicatif, whatsapp } = req.body;
+  if (!full_name || !sexe || !['M', 'F'].includes(sexe)) {
+    return res.status(400).json({ error: 'full_name et sexe (M|F) requis' });
   }
-  res.status(201).json({ client: sanitizeClient(client) });
+
+  // Décomposition full_name → prenom + nom (au minimum)
+  const parts = String(full_name).trim().split(/\s+/);
+  const prenom = parts[0] || '';
+  const nom = parts.slice(1).join(' ') || prenom; // fallback si un seul mot
+
+  // Délégation business-api
+  let bapi;
+  try {
+    bapi = await afrikfidClient.createConsommateur({
+      nom, prenom, sexe,
+      date_naissance: birth_date || null,
+      ville: city || null,
+      telephone: phone || null,
+      whatsapp: whatsapp || null,
+      email: email || null,
+      indicatif: indicatif || null,
+    });
+  } catch (err) {
+    console.error('[POST /clients] business-api unreachable:', err.message);
+    return res.status(503).json({ error: 'BUSINESS_API_UNAVAILABLE', message: 'Service fidélité indisponible.' });
+  }
+
+  // Cas doublon : on rattache (provisioning local sur consommateur existant)
+  if (!bapi.ok && bapi.already_exists) {
+    if (!bapi.numero_carte) {
+      return res.status(409).json({ error: 'consommateur_already_exists_without_card' });
+    }
+    const card = await afrikfidClient.lookupCard(bapi.numero_carte).catch(() => null);
+    const client = card ? await upsertClientFromCarteInfo(card, bapi.numero_carte) : null;
+    return res.status(409).json({
+      error: 'CONSOMMATEUR_ALREADY_EXISTS',
+      message: 'Un consommateur avec ce téléphone ou email existe déjà — il a été rattaché à votre passerelle.',
+      consommateur_id: bapi.consommateur_id,
+      numero_carte: bapi.numero_carte,
+      client: client ? sanitizeClient(client) : null,
+    });
+  }
+
+  if (!bapi.ok) {
+    return res.status(502).json({ error: bapi.error || 'BUSINESS_API_ERROR', message: bapi.message });
+  }
+
+  // Provisioning local : on utilise lookupCard pour récupérer le payload riche
+  // (incluant points = 0, reduction = null, transactions = []) puis upsert.
+  const card = await afrikfidClient.lookupCard(bapi.numero_carte).catch(() => null);
+  let client = null;
+  if (card) {
+    client = await upsertClientFromCarteInfo(card, bapi.numero_carte);
+  } else {
+    // Fallback : création minimaliste du mirror si lookup échoue (ne devrait pas arriver)
+    const id = uuidv4();
+    const encPhone = phone ? encrypt(phone) : null;
+    const phoneHash = phone ? hashField(phone) : null;
+    const encEmail = email ? encrypt(email) : null;
+    const emailHash = email ? hashField(email) : null;
+    await db.query(
+      `INSERT INTO clients (id, afrikfid_id, full_name, phone, phone_hash, email, email_hash,
+                            birth_date, city, gender, business_api_consommateur_id, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE)
+       ON CONFLICT (afrikfid_id) DO NOTHING`,
+      [id, bapi.numero_carte, full_name, encPhone, phoneHash, encEmail, emailHash,
+       birth_date || null, city || null, sexe, bapi.consommateur_id]
+    );
+    client = (await db.query('SELECT * FROM clients WHERE afrikfid_id = $1', [bapi.numero_carte])).rows[0];
+  }
+
+  // Bienvenue : on garde notifyClientWelcome pour cohérence avec l'ancien flow
+  notifyClientWelcome({ client: { ...client, phone, email } }).catch(() => {});
+
+  res.status(201).json({
+    client: sanitizeClient(client),
+    consommateur_id: bapi.consommateur_id,
+    numero_carte: bapi.numero_carte,
+  });
 });
 
 // GET /api/v1/clients (admin)
@@ -244,6 +297,34 @@ router.patch('/:id/profile', requireAuth, validate(UpdateClientProfileSchema), a
   await db.query(`UPDATE clients SET ${updates.join(', ')} WHERE id = $${idx}`, params);
 
   const updated = (await db.query('SELECT * FROM clients WHERE id = $1', [client.id])).rows[0];
+
+  // Sync sortante vers business-api (asynchrone, fail-soft) — uniquement si :
+  //   1. la sync entrante n'est pas en cours d'application (anti-boucle)
+  //   2. le client est lié à un consommateur business-api
+  //   3. au moins un champ partagé a changé
+  const { isPushSuspended } = require('./external-sync');
+  if (!isPushSuspended() && updated.business_api_consommateur_id) {
+    const sharedChanges = {};
+    if (full_name !== undefined) {
+      // Décompose full_name en prenom/nom pour cohérence avec le schéma Laravel
+      const parts = String(full_name || '').trim().split(/\s+/);
+      sharedChanges.prenom = parts[0] || '';
+      sharedChanges.nom = parts.slice(1).join(' ') || '';
+    }
+    if (email !== undefined) sharedChanges.email = email;
+    if (birth_date !== undefined) sharedChanges.date_naissance = birth_date;
+    if (city !== undefined) sharedChanges.ville = city;
+    if (Object.keys(sharedChanges).length > 0) {
+      const afrikfidClient = require('../lib/afrikfid-client');
+      // Fire-and-forget : on ne bloque pas la réponse HTTP sur la latence Laravel.
+      afrikfidClient.pushProfileUpdate({
+        type: 'client',
+        business_api_id: updated.business_api_consommateur_id,
+        changes: sharedChanges,
+      }).catch(err => console.warn('[clients/profile] push to business-api failed:', err.message));
+    }
+  }
+
   res.json({ client: sanitizeClient(updated) });
 });
 

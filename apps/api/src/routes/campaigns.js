@@ -14,7 +14,35 @@ function safeDecrypt(val) {
   try { return decrypt(val); } catch { return null; }
 }
 
+const lam = require('../lib/lafricamobile-whatsapp');
+
 const router = Router();
+
+// GET /campaigns/wa-templates — liste les templates WhatsApp Lafricamobile approuvés
+router.get('/wa-templates', requireAuth, async (req, res) => {
+  if (!lam.isConfigured()) {
+    return res.json({ ok: false, configured: false, templates: [] });
+  }
+  try {
+    const data = await lam.listTemplates();
+    const templates = Array.isArray(data?.templates) ? data.templates : (data?.data || []);
+    res.json({ ok: true, configured: true, templates });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// GET /campaigns/conversions/:type/:id — métriques conversion d'une campagne ou trigger
+router.get('/conversions/:type/:id', requireAuth, async (req, res) => {
+  const { type, id } = req.params;
+  if (!['campaign', 'trigger'].includes(type)) return res.status(400).json({ error: 'type invalide' });
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS conversions, COALESCE(SUM(amount), 0)::numeric AS total_amount
+       FROM campaign_conversions WHERE ref_type = $1 AND ref_id = $2`,
+    [type, id]
+  );
+  res.json(r.rows[0]);
+});
 
 // Helper : vérifie qu'un marchand n'accède qu'à ses propres données
 function assertMerchantOwnership(req, merchantId) {
@@ -55,7 +83,7 @@ router.get('/triggers', requireAuth, async (req, res, next) => {
 // POST /campaigns/triggers — créer un trigger (admin ou marchand propriétaire, GROWTH+ pour segments RFM)
 router.post('/triggers', requireAuth, async (req, res, next) => {
   try {
-    const { trigger_type, target_segment, channel, message_template, cooldown_hours } = req.body;
+    const { trigger_type, target_segment, channel, message_template, cooldown_hours, template_name, template_namespace } = req.body;
     // Le marchand authentifié ne peut créer que pour lui-même
     const merchant_id = req.merchant ? req.merchant.id : req.body.merchant_id;
     if (!merchant_id || !trigger_type || !message_template) {
@@ -85,9 +113,9 @@ router.post('/triggers', requireAuth, async (req, res, next) => {
     }
     const id = uuidv4();
     await pool.query(
-      `INSERT INTO triggers (id, merchant_id, trigger_type, target_segment, channel, message_template, cooldown_hours)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, merchant_id, trigger_type, target_segment || null, channel || 'sms', message_template, cooldown_hours || 24]
+      `INSERT INTO triggers (id, merchant_id, trigger_type, target_segment, channel, message_template, cooldown_hours, template_name, template_namespace)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, merchant_id, trigger_type, target_segment || null, channel || 'whatsapp', message_template, cooldown_hours || 24, template_name || null, template_namespace || null]
     );
     res.status(201).json({ id, message: 'Trigger créé' });
   } catch (err) { next(err); }
@@ -178,7 +206,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 // POST /campaigns — créer une campagne (GROWTH+ requis — CDC v3 §6.1)
 router.post('/', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
-    const { merchant_id, name, target_segment, channel, message_template, scheduled_at } = req.body;
+    const { merchant_id, name, target_segment, channel, message_template, scheduled_at, template_name, template_namespace } = req.body;
     if (!merchant_id || !name || !target_segment || !message_template) {
       return res.status(400).json({ error: 'merchant_id, name, target_segment, message_template requis' });
     }
@@ -187,9 +215,9 @@ router.post('/', requireAuth, requirePackage('GROWTH'), async (req, res, next) =
     }
     const id = uuidv4();
     await pool.query(
-      `INSERT INTO campaigns (id, merchant_id, name, target_segment, channel, message_template, scheduled_at, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, merchant_id, name, target_segment, channel || 'sms', message_template, scheduled_at || null, scheduled_at ? 'scheduled' : 'draft']
+      `INSERT INTO campaigns (id, merchant_id, name, target_segment, channel, message_template, scheduled_at, status, template_name, template_namespace)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [id, merchant_id, name, target_segment, channel || 'whatsapp', message_template, scheduled_at || null, scheduled_at ? 'scheduled' : 'draft', template_name || null, template_namespace || null]
     );
     res.status(201).json({ id, message: 'Campagne créée' });
   } catch (err) { next(err); }
@@ -267,7 +295,7 @@ router.post('/demographic/preview', requireAuth, requirePackage('GROWTH'), async
 // POST /campaigns/demographic — crée une campagne démographique
 router.post('/demographic', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
-    const { merchant_id, name, filter, channel, message_template, scheduled_at } = req.body;
+    const { merchant_id, name, filter, channel, message_template, scheduled_at, template_name, template_namespace } = req.body;
     const effectiveMerchantId = req.merchant ? req.merchant.id : merchant_id;
     if (!effectiveMerchantId) return res.status(400).json({ error: 'merchant_id requis' });
     if (!assertMerchantOwnership(req, effectiveMerchantId)) {
@@ -284,11 +312,12 @@ router.post('/demographic', requireAuth, requirePackage('GROWTH'), async (req, r
     await pool.query(
       `INSERT INTO campaigns
          (id, merchant_id, name, target_segment, audience_type, audience_filter,
-          channel, message_template, scheduled_at, status)
-       VALUES ($1, $2, $3, 'DEMOGRAPHIC', 'DEMOGRAPHIC', $4::jsonb, $5, $6, $7, $8)`,
+          channel, message_template, scheduled_at, status, template_name, template_namespace)
+       VALUES ($1, $2, $3, 'DEMOGRAPHIC', 'DEMOGRAPHIC', $4::jsonb, $5, $6, $7, $8, $9, $10)`,
       [id, effectiveMerchantId, name, JSON.stringify(filter),
-       channel || 'sms', message_template, scheduled_at || null,
-       scheduled_at ? 'scheduled' : 'draft']
+       channel || 'whatsapp', message_template, scheduled_at || null,
+       scheduled_at ? 'scheduled' : 'draft',
+       template_name || null, template_namespace || null]
     );
     res.status(201).json({ id, message: 'Campagne démographique créée' });
   } catch (err) { next(err); }

@@ -384,19 +384,30 @@ router.post('/:code/pay', async (req, res) => {
     await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
   }
 
-  // Paiement par carte : initier via CinetPay
+  // Paiement par carte : Stripe uniquement
   if (isCard) {
     try {
-      const { initiateCardPayment } = require('../lib/adapters/cinetpay');
-      const cardResult = await initiateCardPayment({
+      const stripeAdapter = require('../lib/adapters/stripe');
+      let _customerEmail;
+      try {
+        const { decrypt } = require('../lib/crypto');
+        if (client?.email) _customerEmail = decrypt(client.email);
+      } catch { /* ignore */ }
+      const cardResult = await stripeAdapter.initiateCardPayment({
         transactionId: txId,
         reference,
         amount,
         currency: link.currency,
         customerName: client ? client.full_name : undefined,
+        customerEmail: _customerEmail,
         customerPhone: phone || undefined,
         description: link.description,
       });
+      if (!cardResult.success) {
+        return res.status(502).json({ error: cardResult.error || 'CARD_INIT_FAILED', message: cardResult.message });
+      }
+      const cardRef = cardResult.stripeRef || txId;
+      await db.query("UPDATE transactions SET operator_ref = $1 WHERE id = $2", [cardRef, txId]);
       return res.json({
         transactionId: txId,
         reference,

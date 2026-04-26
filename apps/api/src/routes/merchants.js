@@ -15,6 +15,31 @@ const { kycUpload, toFileMetadata } = require('../lib/upload');
 const { requirePackage } = require('../middleware/require-package');
 const { generateInsights } = require('../lib/ai-insights');
 
+/**
+ * Pousse une mise à jour de profil marchand vers business-api.
+ * Mapping passerelle → Laravel :
+ *   name → designation
+ *   phone → telephone
+ *   email → email (sur User Laravel)
+ * Fire-and-forget : on ne bloque jamais la réponse HTTP du marchand.
+ */
+function pushMerchantSync(merchant, updates) {
+  if (!merchant?.business_api_marchand_id) return;
+  const { isPushSuspended } = require('./external-sync');
+  if (isPushSuspended()) return;
+  const changes = {};
+  if (updates.name !== undefined) changes.designation = updates.name;
+  if (updates.phone !== undefined) changes.telephone = updates.phone;
+  if (updates.email !== undefined) changes.email = updates.email;
+  if (Object.keys(changes).length === 0) return;
+  const afrikfidClient = require('../lib/afrikfid-client');
+  afrikfidClient.pushProfileUpdate({
+    type: 'merchant',
+    business_api_id: merchant.business_api_marchand_id,
+    changes,
+  }).catch(err => console.warn('[merchants] push to business-api failed:', err.message));
+}
+
 // POST /api/v1/merchants (admin)
 router.post('/', requireAdmin, validate(CreateMerchantSchema), async (req, res) => {
   const {
@@ -150,6 +175,10 @@ router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return ne
   if (updates.status === 'suspended') {
     notifyAccountSuspended({ merchant, reason: req.body.suspension_reason || null });
   }
+
+  // Sync sortante vers business-api pour les champs partagés (name → designation, phone → telephone)
+  pushMerchantSync(merchant, updates);
+
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
 

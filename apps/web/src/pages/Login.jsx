@@ -56,13 +56,96 @@ export default function Login() {
   const [afrikfidId, setAfrikfidId]   = useState('')
   const [requires2FA, setRequires2FA] = useState(false)
   const [totpCode, setTotpCode]       = useState('')
+
+  // Login client par OTP : wizard 3 étapes (identifier → channel → otp)
+  const [clientStep, setClientStep]         = useState('identify')
+  const [clientChannels, setClientChannels] = useState([])
+  const [clientConsoId, setClientConsoId]   = useState(null)
+  const [clientChannel, setClientChannel]   = useState(null)
+  const [clientChannelMasked, setClientChannelMasked] = useState('')
+  const [clientFallbackVia, setClientFallbackVia]     = useState(null)
+  const [clientOtp, setClientOtp]           = useState('')
+  const [clientIdentifier, setClientIdentifier] = useState('') // identifier original
+
   const { login } = useAuth()
   const navigate = useNavigate()
 
+  const resetClientWizard = () => {
+    setClientStep('identify'); setClientChannels([]); setClientConsoId(null)
+    setClientChannel(null); setClientChannelMasked(''); setClientOtp('')
+    setClientFallbackVia(null)
+  }
+
   const selectedCountry = COUNTRIES.find(c => c.id === countryId) || COUNTRIES[0]
 
-  const handleTabChange = (r) => { setRole(r); setError(''); setRequires2FA(false); setTotpCode('') }
-  const handleModeChange = (m) => { setClientMode(m); setError('') }
+  const handleTabChange = (r) => { setRole(r); setError(''); setRequires2FA(false); setTotpCode(''); resetClientWizard() }
+  const handleModeChange = (m) => { setClientMode(m); setError(''); resetClientWizard() }
+
+  // Compose l'identifier à envoyer à Laravel selon le mode client
+  const buildClientIdentifier = () => {
+    if (clientMode === 'phone') {
+      const raw = phoneLocal.trim().replace(/\s/g, '')
+      return raw.startsWith('+') ? raw : selectedCountry.prefix + raw.replace(/^0+/, '')
+    }
+    if (clientMode === 'email') return clientEmail.trim()
+    return afrikfidId.trim().replace(/\s/g, '')
+  }
+
+  const requestClientLogin = async () => {
+    setError(''); setLoading(true)
+    try {
+      const identifier = buildClientIdentifier()
+      if (!identifier) { setError('Saisissez votre identifiant.'); return }
+      setClientIdentifier(identifier)
+      const { data } = await api.post('/auth/client/login/request', { identifier })
+      setClientConsoId(data.consommateurId)
+      setClientChannels(data.channels || [])
+      if (!data.channels?.length) {
+        setError('Aucun moyen de contact disponible pour vous. Contactez votre marchand.')
+        return
+      }
+      setClientStep('channel')
+    } catch (err) {
+      const status = err.response?.status
+      if (status === 404) setError('Aucun compte trouvé. Adressez-vous à votre marchand pour vous inscrire.')
+      else setError(err.response?.data?.message || err.response?.data?.error || 'Erreur, réessayez.')
+    } finally { setLoading(false) }
+  }
+
+  const sendClientOtp = async (channelId) => {
+    setError(''); setLoading(true)
+    try {
+      const { data } = await api.post('/auth/client/login/send-otp', {
+        identifier: clientIdentifier,
+        consommateurId: clientConsoId,
+        channel: channelId,
+      })
+      setClientChannel(channelId)
+      setClientChannelMasked(data.masked || '')
+      // Si le serveur a basculé sur un autre canal (ex: WA demandé → SMS), on l'affiche.
+      setClientFallbackVia(data.fallbackUsed ? data.deliveredVia : null)
+      setClientStep('otp')
+    } catch (err) {
+      if (err.response?.status === 429) setError('Veuillez patienter quelques secondes avant de redemander un code.')
+      else setError(err.response?.data?.message || err.response?.data?.error || "Échec de l'envoi du code.")
+    } finally { setLoading(false) }
+  }
+
+  const verifyClientOtp = async () => {
+    setError(''); setLoading(true)
+    try {
+      const { data } = await api.post('/auth/client/login/verify', {
+        identifier: clientIdentifier,
+        consommateurId: clientConsoId,
+        channel: clientChannel,
+        otp: clientOtp,
+      })
+      login({ ...data.client, role: 'client' }, data.accessToken, data.refreshToken)
+      navigate('/client')
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || 'Code incorrect.')
+    } finally { setLoading(false) }
+  }
 
   const buildBody = () => {
     if (role === 'client') {
@@ -83,25 +166,25 @@ export default function Login() {
 
   const handleSubmit = async e => {
     e.preventDefault()
-    setLoading(true)
     setError('')
+
+    // Le client utilise le wizard OTP (pas le formulaire password)
+    if (role === 'client') {
+      if (clientStep === 'identify') return requestClientLogin()
+      if (clientStep === 'otp') return verifyClientOtp()
+      return
+    }
+
+    setLoading(true)
     try {
       const body = buildBody()
       if (requires2FA) body.totp_code = totpCode
-
-      if (role === 'client') {
-        const { data } = await api.post('/auth/client/login', body)
-        if (data.requires2FA) { setRequires2FA(true); setLoading(false); return }
-        login({ ...data.client, role: 'client' }, data.accessToken, data.refreshToken)
-        navigate('/client')
-      } else {
-        const endpoint = role === 'admin' ? '/auth/admin/login' : '/auth/merchant/login'
-        const { data } = await api.post(endpoint, body)
-        if (data.requires2FA) { setRequires2FA(true); setLoading(false); return }
-        const userData = role === 'admin' ? { ...data.admin, role: 'admin' } : { ...data.merchant, role: 'merchant' }
-        login(userData, data.accessToken, data.refreshToken)
-        navigate(role === 'admin' ? '/admin' : '/merchant')
-      }
+      const endpoint = role === 'admin' ? '/auth/admin/login' : '/auth/merchant/login'
+      const { data } = await api.post(endpoint, body)
+      if (data.requires2FA) { setRequires2FA(true); setLoading(false); return }
+      const userData = role === 'admin' ? { ...data.admin, role: 'admin' } : { ...data.merchant, role: 'merchant' }
+      login(userData, data.accessToken, data.refreshToken)
+      navigate(role === 'admin' ? '/admin' : '/merchant')
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || 'Identifiants invalides')
     } finally { setLoading(false) }
@@ -165,70 +248,132 @@ export default function Login() {
               </div>
             ) : role === 'client' ? (
               <>
-                {/* Mode selector */}
-                <div style={{ display: 'flex', background: 'var(--afrikfid-surface-2)', borderRadius: 6, padding: 3, marginBottom: 16, gap: 2, border: '1px solid var(--afrikfid-border)' }}>
-                  {CLIENT_LOGIN_MODES.map(({ id, label, Icon }) => (
-                    <button key={id} type="button" onClick={() => handleModeChange(id)}
-                      style={{
-                        flex: 1, padding: '6px 4px', border: 'none', borderRadius: 4, cursor: 'pointer',
-                        fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-                        background: clientMode === id ? 'var(--afrikfid-secondary)' : 'transparent',
-                        color: clientMode === id ? '#fff' : 'var(--afrikfid-muted)',
-                      }}>
-                      <Icon style={{ width: 12, height: 12 }} />
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {clientStep === 'identify' && (
+                  <>
+                    {/* Mode selector */}
+                    <div style={{ display: 'flex', background: 'var(--afrikfid-surface-2)', borderRadius: 6, padding: 3, marginBottom: 16, gap: 2, border: '1px solid var(--afrikfid-border)' }}>
+                      {CLIENT_LOGIN_MODES.map(({ id, label, Icon }) => (
+                        <button key={id} type="button" onClick={() => handleModeChange(id)}
+                          style={{
+                            flex: 1, padding: '6px 4px', border: 'none', borderRadius: 4, cursor: 'pointer',
+                            fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                            background: clientMode === id ? 'var(--afrikfid-secondary)' : 'transparent',
+                            color: clientMode === id ? '#fff' : 'var(--afrikfid-muted)',
+                          }}>
+                          <Icon style={{ width: 12, height: 12 }} />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
 
-                {clientMode === 'phone' && (
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Téléphone</label>
-                    <select value={countryId} onChange={e => setCountryId(e.target.value)}
-                      style={{ ...inp, marginBottom: 6, padding: '8px 12px' }}>
-                      {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.prefix}</option>)}
-                    </select>
-                    <div style={{ display: 'flex' }}>
-                      <div style={{
-                        padding: '10px 12px', background: 'var(--afrikfid-surface-2)', border: '1px solid var(--afrikfid-border)',
-                        borderRight: 'none', borderRadius: '8px 0 0 8px', color: 'var(--afrikfid-muted)',
-                        fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', userSelect: 'none',
-                        display: 'flex', alignItems: 'center', gap: 4,
-                      }}>
-                        <span>{selectedCountry.flag}</span>
-                        <span>{selectedCountry.prefix}</span>
+                    {clientMode === 'phone' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Téléphone</label>
+                        <select value={countryId} onChange={e => setCountryId(e.target.value)}
+                          style={{ ...inp, marginBottom: 6, padding: '8px 12px' }}>
+                          {COUNTRIES.map(c => <option key={c.id} value={c.id}>{c.flag} {c.prefix}</option>)}
+                        </select>
+                        <div style={{ display: 'flex' }}>
+                          <div style={{
+                            padding: '10px 12px', background: 'var(--afrikfid-surface-2)', border: '1px solid var(--afrikfid-border)',
+                            borderRight: 'none', borderRadius: '8px 0 0 8px', color: 'var(--afrikfid-muted)',
+                            fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', userSelect: 'none',
+                            display: 'flex', alignItems: 'center', gap: 4,
+                          }}>
+                            <span>{selectedCountry.flag}</span>
+                            <span>{selectedCountry.prefix}</span>
+                          </div>
+                          <input type="tel" value={phoneLocal}
+                            onChange={e => setPhoneLocal(e.target.value.replace(/[^\d\s]/g, ''))}
+                            placeholder={'0'.repeat(selectedCountry.digits)}
+                            maxLength={selectedCountry.digits + 2}
+                            autoFocus required
+                            style={{ ...inp, borderRadius: '0 8px 8px 0', flex: 1 }} />
+                        </div>
                       </div>
-                      <input type="tel" value={phoneLocal}
-                        onChange={e => setPhoneLocal(e.target.value.replace(/[^\d\s]/g, ''))}
-                        placeholder={'0'.repeat(selectedCountry.digits)}
-                        maxLength={selectedCountry.digits + 2}
-                        autoFocus required
-                        style={{ ...inp, borderRadius: '0 8px 8px 0', flex: 1 }} />
+                    )}
+
+                    {clientMode === 'email' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Email</label>
+                        <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)}
+                          placeholder="votre@email.com" required autoFocus style={inp} />
+                      </div>
+                    )}
+
+                    {clientMode === 'afrikfid_id' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Numéro de carte fidélité</label>
+                        <input type="text" value={afrikfidId}
+                          onChange={e => setAfrikfidId(e.target.value.replace(/[^\d\s]/g, ''))}
+                          placeholder="2014 1234 5678" required autoFocus inputMode="numeric"
+                          style={{ ...inp, fontFamily: 'monospace', letterSpacing: 1 }} />
+                        <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>
+                          12 chiffres au dos de votre carte
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {clientStep === 'channel' && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, color: 'var(--afrikfid-muted)', marginBottom: 12 }}>
+                      Où voulez-vous recevoir votre code de connexion ?
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>
-                      Saisissez votre numéro local (ex: 0759376464)
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {clientChannels.map(c => (
+                        <button key={c.id} type="button" onClick={() => sendClientOtp(c.id)} disabled={loading}
+                          style={{
+                            padding: '12px 14px', border: '1px solid var(--afrikfid-border)', borderRadius: 8,
+                            background: 'var(--afrikfid-surface-2)', cursor: 'pointer', textAlign: 'left',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                          }}>
+                          <span style={{ fontSize: 18 }}>
+                            {c.id === 'whatsapp' ? '💬' : c.id === 'sms' ? '📱' : '✉️'}
+                          </span>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--afrikfid-text)' }}>
+                              {c.id === 'whatsapp' ? 'WhatsApp' : c.id === 'sms' ? 'SMS' : 'Email'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontFamily: 'monospace' }}>
+                              {c.masked}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
+                    <button type="button" onClick={resetClientWizard}
+                      style={{ marginTop: 14, background: 'none', border: 'none', color: 'var(--afrikfid-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                      ← Modifier mes informations
+                    </button>
                   </div>
                 )}
 
-                {clientMode === 'email' && (
+                {clientStep === 'otp' && (
                   <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Email</label>
-                    <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)}
-                      placeholder="votre@email.com" required autoFocus style={inp} />
-                  </div>
-                )}
-
-                {clientMode === 'afrikfid_id' && (
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Identifiant Afrik'Fid</label>
-                    <input type="text" value={afrikfidId}
-                      onChange={e => setAfrikfidId(e.target.value.toUpperCase())}
-                      placeholder="AFD-XXXXXXXX-XXXX" required autoFocus
-                      style={{ ...inp, fontFamily: 'monospace', letterSpacing: 1 }} />
-                    <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginTop: 4 }}>
-                      L'identifiant reçu lors de votre inscription
+                    <div style={{ fontSize: 13, color: 'var(--afrikfid-muted)', marginBottom: 12 }}>
+                      Un code à 6 chiffres a été envoyé à <strong style={{ color: 'var(--afrikfid-text)' }}>{clientChannelMasked}</strong>.
+                      {clientFallbackVia === 'sms' && (
+                        <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: '#f59e0b', fontSize: 11 }}>
+                          ⚠ WhatsApp indisponible — code envoyé par SMS à la place.
+                        </div>
+                      )}
+                    </div>
+                    <input type="text" inputMode="numeric" autoComplete="one-time-code" autoFocus
+                      value={clientOtp} onChange={e => setClientOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="000000" maxLength={6}
+                      style={{ ...inp, fontFamily: 'monospace', fontSize: 24, letterSpacing: 8, textAlign: 'center' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+                      <button type="button" onClick={() => setClientStep('channel')}
+                        style={{ background: 'none', border: 'none', color: 'var(--afrikfid-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                        ← Changer de canal
+                      </button>
+                      <button type="button" onClick={() => sendClientOtp(clientChannel)} disabled={loading}
+                        style={{ background: 'none', border: 'none', color: 'var(--afrikfid-secondary)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                        Renvoyer le code
+                      </button>
                     </div>
                   </div>
                 )}
@@ -242,7 +387,8 @@ export default function Login() {
               </div>
             )}
 
-            {!requires2FA && (
+            {/* Mot de passe : uniquement admin/marchand. Le client utilise OTP. */}
+            {!requires2FA && role !== 'client' && (
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--afrikfid-muted)', marginBottom: 6 }}>Mot de passe</label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
@@ -257,13 +403,23 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" disabled={loading || (requires2FA && totpCode.length !== 6)}
-              style={{ width: '100%', padding: 12, background: loading ? 'var(--afrikfid-border)' : 'var(--afrikfid-primary)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 15, fontWeight: 600, cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s' }}>
-              {loading ? 'Vérification…' : requires2FA
-                ? (<><ShieldCheckIcon style={{ width: 16, height: 16 }} /><span>Vérifier le code</span></>)
-                : (<><span>Se connecter</span><ChevronRightIcon style={{ width: 16, height: 16 }} /></>)
-              }
-            </button>
+            {/* Bouton submit : caché à l'étape "channel" (les boutons de canal déclenchent eux-mêmes l'envoi) */}
+            {!(role === 'client' && clientStep === 'channel') && (
+              <button type="submit"
+                disabled={loading
+                  || (requires2FA && totpCode.length !== 6)
+                  || (role === 'client' && clientStep === 'otp' && clientOtp.length !== 6)}
+                style={{ width: '100%', padding: 12, background: loading ? 'var(--afrikfid-border)' : 'var(--afrikfid-primary)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 15, fontWeight: 600, cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s' }}>
+                {loading ? 'Vérification…' : requires2FA
+                  ? (<><ShieldCheckIcon style={{ width: 16, height: 16 }} /><span>Vérifier le code</span></>)
+                  : role === 'client' && clientStep === 'otp'
+                  ? (<><ShieldCheckIcon style={{ width: 16, height: 16 }} /><span>Valider le code</span></>)
+                  : role === 'client' && clientStep === 'identify'
+                  ? (<><span>Continuer</span><ChevronRightIcon style={{ width: 16, height: 16 }} /></>)
+                  : (<><span>Se connecter</span><ChevronRightIcon style={{ width: 16, height: 16 }} /></>)
+                }
+              </button>
+            )}
           </form>
 
           {role === 'client' ? (
@@ -294,11 +450,8 @@ export default function Login() {
             </p>
           )}
           {role === 'client' && (
-            <p style={{ fontSize: 13, color: 'var(--afrikfid-muted)', marginBottom: 8 }}>
-              Pas encore de compte ?{' '}
-              <Link to="/register-client" style={{ color: 'var(--afrikfid-accent)', fontWeight: 600, textDecoration: 'none' }}>
-                Créer un compte Afrik'Fid →
-              </Link>
+            <p style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 8 }}>
+              Pas encore inscrit ? Adressez-vous à un marchand partenaire Afrik'Fid pour obtenir votre carte de fidélité.
             </p>
           )}
           {role !== 'client' && (
