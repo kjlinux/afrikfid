@@ -621,7 +621,15 @@ router.post('/client/login/send-otp', loginLimiter, async (req, res) => {
     }
   } catch (err) {
     console.warn('[client/login/send-otp] send failed:', err.message);
-    return res.status(502).json({ error: 'send_failed', message: "Échec de l'envoi du code, réessayez." });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n==========================`);
+      console.log(`[OTP DEV] consommateurId=${consommateurId} channel=${channel}`);
+      console.log(`[OTP DEV] CODE: ${code}`);
+      console.log(`==========================\n`);
+      // En dev, on considère l'envoi comme réussi pour ne pas bloquer les tests
+    } else {
+      return res.status(502).json({ error: 'send_failed', message: "Échec de l'envoi du code, réessayez." });
+    }
   }
 
   // Contrat fixe : `channel` est TOUJOURS celui demandé par l'UI (pour qu'elle

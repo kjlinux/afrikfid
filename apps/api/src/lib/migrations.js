@@ -1242,6 +1242,13 @@ const MIGRATIONS = [
       ALTER TABLE rfm_transitions ADD COLUMN IF NOT EXISTS new_m_score SMALLINT;
     `,
   },
+  {
+    version: 34,
+    name: '034_merchant_logo',
+    up: `
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

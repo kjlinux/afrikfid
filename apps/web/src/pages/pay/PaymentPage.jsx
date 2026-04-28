@@ -258,9 +258,9 @@ export default function PaymentPage() {
   }
   const identifierType = form.mode === 'card' ? detectIdentifierType(form.cardOrId) : 'phone'
 
+  const [identifying, setIdentifying] = useState(false)
+
   const lookupClient = async () => {
-    // Mode téléphone : on envoie le E.164 construit par PhoneInput.
-    // Mode carte/ID : on envoie la saisie brute (détectée côté serveur).
     const payload = {}
     if (form.mode === 'card' && form.cardOrId?.trim()) {
       payload.identifier = form.cardOrId.trim().replace(/\s+/g, '')
@@ -269,6 +269,7 @@ export default function PaymentPage() {
     } else {
       setStep('method'); return
     }
+    setIdentifying(true)
     try {
       const { data } = await api.post('/payment-links/' + code + '/identify-client', payload)
       setClientInfo(data.found ? data.client : null)
@@ -276,6 +277,7 @@ export default function PaymentPage() {
         setForm(f => ({ ...f, afrikfid_id: data.client.afrikfidId }))
       }
     } catch { setClientInfo(null) }
+    finally { setIdentifying(false) }
     setStep('method')
   }
 
@@ -480,8 +482,11 @@ export default function PaymentPage() {
                   </>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={lookupClient} style={btnPrimary}>Continuer</button>
-                  <button onClick={() => setStep('method')} style={btnGhost}>Invité</button>
+                  <button onClick={lookupClient} disabled={identifying} style={{ ...btnPrimary, opacity: identifying ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {identifying && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                    {identifying ? 'Recherche...' : 'Continuer'}
+                  </button>
+                  <button onClick={() => setStep('method')} disabled={identifying} style={{ ...btnGhost, opacity: identifying ? 0.5 : 1 }}>Invité</button>
                 </div>
               </div>
             )}
@@ -519,7 +524,7 @@ export default function PaymentPage() {
                   </button>
                 </div>
                 {clientInfo?.rewardPoints > 0 && (() => {
-                  const POINT_VALUE = 100
+                  const POINT_VALUE = 1
                   const pointsNeeded = Math.ceil(amount / POINT_VALUE)
                   const canPay = clientInfo.rewardPoints >= pointsNeeded && amount > 0
                   return (
@@ -579,7 +584,8 @@ export default function PaymentPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                     <button onClick={payWithWallet} disabled={processing}
-                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}>
+                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      {processing && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
                       {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} via Wallet`}
                     </button>
                   </div>
@@ -589,7 +595,7 @@ export default function PaymentPage() {
 
             {/* ÉTAPE 3c : Points récompense */}
             {step === 'points' && (() => {
-              const POINT_VALUE = 100
+              const POINT_VALUE = 1
               const pointsNeeded = Math.ceil(amount / POINT_VALUE)
               return (
                 <div>
@@ -607,7 +613,8 @@ export default function PaymentPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                     <button onClick={payWithPoints} disabled={processing}
-                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #10b981, #059669)' }}>
+                      style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      {processing && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
                       {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} (${fmt(pointsNeeded)} pts)`}
                     </button>
                   </div>
@@ -666,7 +673,8 @@ export default function PaymentPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payMobile} disabled={processing || !amount || !form.operator}
-                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', opacity: (!amount || !form.operator) ? 0.5 : 1 }}>
+                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', opacity: (!amount || !form.operator) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {processing && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
                     {processing ? 'Traitement...' : 'Payer ' + fmt(toPay) + ' ' + linkInfo.currency}
                   </button>
                 </div>
@@ -691,7 +699,8 @@ export default function PaymentPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setStep('method')} style={btnBack}><ArrowLeftIcon style={{ width: 16, height: 16 }} /></button>
                   <button onClick={payCard} disabled={processing || !amount}
-                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : '#635bff', opacity: !amount ? 0.5 : 1 }}>
+                    style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : '#635bff', opacity: !amount ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {processing && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
                     {processing ? 'Redirection...' : 'Payer ' + fmt(amount) + ' ' + linkInfo.currency + ' par carte'}
                   </button>
                 </div>
@@ -703,10 +712,15 @@ export default function PaymentPage() {
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
                 <CheckCircleSolid style={{ width: 56, height: 56, color: '#10b981', marginBottom: 12 }} />
                 <h3 style={{ fontSize: 17, fontWeight: 700, color: '#10b981', marginBottom: 7 }}>
-                  {paymentType === 'mobile_money' ? 'Paiement initié !' : 'Traitement en cours...'}
+                  {paymentType === 'mobile_money' ? 'Paiement initié !'
+                    : (paymentType === 'reward_points' || paymentType === 'wallet') ? 'Paiement effectué !'
+                    : 'Traitement en cours...'}
                 </h3>
                 <p style={{ color: 'var(--af-text-muted)', fontSize: 13, marginBottom: 12 }}>
-                  {paymentType === 'mobile_money' ? 'Confirmez sur votre téléphone via le menu USSD ou OTP.' : 'Votre paiement est en cours de traitement.'}
+                  {paymentType === 'mobile_money' ? 'Confirmez sur votre téléphone via le menu USSD ou OTP.'
+                    : paymentType === 'reward_points' ? `${result.pointsUsed ?? ''} pts déduits de votre compte fidélité.`
+                    : paymentType === 'wallet' ? 'Montant débité de votre wallet Afrik\'Fid.'
+                    : 'Votre paiement est en cours de traitement.'}
                 </p>
                 <div style={{ background: 'var(--af-surface-3)', borderRadius: 10, padding: 12 }}>
                   <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 3 }}>Référence</div>

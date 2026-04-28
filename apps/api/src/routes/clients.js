@@ -222,6 +222,20 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     }
   }
 
+  // Points réels depuis fidelite-api (source de vérité) — enrichit les valeurs locales
+  let bapiPoints = null;
+  const afrikfidClient = require('../lib/afrikfid-client');
+  if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
+    try {
+      const card = await afrikfidClient.lookupCard(client.afrikfid_id);
+      if (card && card.points_cumules != null) {
+        bapiPoints = parseInt(card.points_cumules) || 0;
+        // Mettre à jour la DB locale en arrière-plan pour cohérence future
+        db.query('UPDATE clients SET reward_points = $1 WHERE id = $2', [bapiPoints, client.id]).catch(() => {});
+      }
+    } catch { /* fail-open : on garde les valeurs locales */ }
+  }
+
   // Pour admin et le client lui-même : déchiffrer et inclure l'email
   let emailDecrypted = null;
   if ((req.admin || req.client?.id === client.id) && client.email) {
@@ -253,8 +267,12 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     )).rows[0] || null;
   }
 
+  const clientData = sanitizeClient(client);
+  // Remplacer les points récompense par la valeur temps-réel fidelite-api si disponible
+  if (bapiPoints !== null) clientData.rewardPoints = bapiPoints;
+
   res.json({
-    client: { ...sanitizeClient(client), email: emailDecrypted },
+    client: { ...clientData, email: emailDecrypted },
     wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.total_earned, currency: wallet.currency } : null,
     stats: txStats,
     nextStatusEligibility,
@@ -774,7 +792,7 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
   const gatewayRes = await db.query(`
     SELECT t.id, t.reference, t.gross_amount, t.client_rebate_amount, t.currency,
            t.status, t.payment_method, t.initiated_at, t.completed_at,
-           m.name AS merchant_name
+           m.name AS merchant_name, m.logo_url AS merchant_logo
       FROM transactions t
       JOIN merchants m ON m.id = t.merchant_id
      WHERE t.client_id = $1
@@ -788,7 +806,7 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
     reference: r.reference,
     date: r.completed_at || r.initiated_at,
     merchantName: r.merchant_name,
-    merchantLogo: null,
+    merchantLogo: r.merchant_logo || null,
     amountXof: Number(r.gross_amount) || 0,
     clientRebateXof: Number(r.client_rebate_amount) || 0,
     currency: r.currency || 'XOF',

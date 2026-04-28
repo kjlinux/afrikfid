@@ -23,6 +23,7 @@ const SYNC_MAX_ATTEMPTS = 6; // doit matcher workers/business-api-sync.js
 
 // GET /api/v1/loyalty-bridge/health
 router.get('/health', requireAdmin, async (req, res) => {
+  try {
   const enabled = (process.env.AFRIKFID_UNIFIED_ID || 'true').toLowerCase() === 'true';
   const configured = Boolean(process.env.BUSINESS_API_URL && process.env.BUSINESS_API_TOKEN && process.env.BUSINESS_API_HMAC_SECRET);
 
@@ -59,10 +60,10 @@ router.get('/health', requireAdmin, async (req, res) => {
      ORDER BY business_api_synced_at DESC LIMIT 1
   `);
   const lastErrRes = await db.query(`
-    SELECT id, reference, business_api_sync_error, business_api_sync_attempts, updated_at
+    SELECT id, reference, business_api_sync_error, business_api_sync_attempts, initiated_at
       FROM transactions
      WHERE business_api_sync_error IS NOT NULL
-     ORDER BY updated_at DESC LIMIT 5
+     ORDER BY initiated_at DESC LIMIT 5
   `);
 
   // Derniers appels HTTP signés (audit)
@@ -106,7 +107,7 @@ router.get('/health', requireAdmin, async (req, res) => {
       reference: r.reference,
       error: r.business_api_sync_error,
       attempts: r.business_api_sync_attempts,
-      at: r.updated_at,
+      at: r.initiated_at,
     })),
     recentCalls: recentCallsRes.rows.map(r => ({
       action: r.action,
@@ -121,6 +122,10 @@ router.get('/health', requireAdmin, async (req, res) => {
       report: safeParse(r.payload),
     })),
   });
+  } catch (err) {
+    console.error('[loyalty-bridge/health]', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/v1/loyalty-bridge/reconcile  { date?: "YYYY-MM-DD" }

@@ -343,7 +343,7 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
 // PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres 
 // Seuls les champs autorisés au marchand : webhook_url, rebate_mode, allow_guest_mode
 router.patch('/me/settings', requireMerchant, async (req, res) => {
-  const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode'];
+  const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode', 'logo_url'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -552,6 +552,7 @@ function sanitizeMerchant(m, includeKeys = false) {
     kycDocuments: m.kyc_documents
       ? (typeof m.kyc_documents === 'string' ? JSON.parse(m.kyc_documents) : m.kyc_documents)
       : null,
+    logoUrl: m.logo_url || null,
     maxTransactionAmount: m.max_transaction_amount ?? null,
     dailyVolumeLimit: m.daily_volume_limit ?? null,
     allowGuestMode: m.allow_guest_mode !== false && m.allow_guest_mode !== 0,

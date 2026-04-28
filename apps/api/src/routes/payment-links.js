@@ -36,29 +36,33 @@ router.get('/', requireMerchant, async (req, res) => {
 });
 
 // GET /api/v1/payment-links/:code/info (public)
-router.get('/:code/info', async (req, res) => {
-  const result = await db.query(`
-    SELECT pl.*, m.name as merchant_name, m.rebate_percent, m.rebate_mode
-    FROM payment_links pl
-    JOIN merchants m ON pl.merchant_id = m.id
-    WHERE pl.code = $1 AND pl.status = 'active'
-  `, [req.params.code]);
-  const link = result.rows[0];
+router.get('/:code/info', async (req, res, next) => {
+  try {
+    const result = await db.query(`
+      SELECT pl.*, m.name as merchant_name, m.rebate_percent, m.rebate_mode
+      FROM payment_links pl
+      JOIN merchants m ON pl.merchant_id = m.id
+      WHERE pl.code = $1 AND pl.status = 'active'
+    `, [req.params.code]);
+    const link = result.rows[0];
 
-  if (!link) return res.status(404).json({ error: 'Lien de paiement invalide ou expiré' });
-  if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Lien expiré' });
-  if (link.uses_count >= link.max_uses) return res.status(410).json({ error: 'Lien déjà utilisé' });
+    if (!link) return res.status(404).json({ error: 'Lien de paiement invalide ou expiré' });
+    if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Lien expiré' });
+    if (link.uses_count >= link.max_uses) return res.status(410).json({ error: 'Lien déjà utilisé' });
 
-  res.json({
-    code: link.code,
-    merchantName: link.merchant_name,
-    amount: link.amount,
-    currency: link.currency,
-    description: link.description,
-    expiresAt: link.expires_at,
-    rebateMode: link.rebate_mode,
-    operators: ['ORANGE', 'MTN', 'WAVE', 'AIRTEL', 'MOOV'],
-  });
+    res.json({
+      code: link.code,
+      merchantName: link.merchant_name,
+      amount: link.amount,
+      currency: link.currency,
+      description: link.description,
+      expiresAt: link.expires_at,
+      rebateMode: link.rebate_mode,
+      operators: ['ORANGE', 'MTN', 'WAVE', 'AIRTEL', 'MOOV'],
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/v1/payment-links/:code/identify-client (public)
@@ -109,7 +113,13 @@ router.post('/:code/identify-client', async (req, res) => {
             `INSERT INTO clients
               (id, afrikfid_id, business_api_consommateur_id, full_name, phone, phone_hash, email, email_hash, loyalty_status, is_active)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'OPEN', TRUE)
-             ON CONFLICT (afrikfid_id) DO NOTHING`,
+             ON CONFLICT (afrikfid_id) DO UPDATE SET
+               business_api_consommateur_id = COALESCE(EXCLUDED.business_api_consommateur_id, clients.business_api_consommateur_id),
+               full_name  = COALESCE(EXCLUDED.full_name, clients.full_name),
+               phone      = COALESCE(EXCLUDED.phone, clients.phone),
+               phone_hash = COALESCE(EXCLUDED.phone_hash, clients.phone_hash),
+               email      = COALESCE(EXCLUDED.email, clients.email),
+               email_hash = COALESCE(EXCLUDED.email_hash, clients.email_hash)`,
             [id, afrikfid_id, c.id || null, fullName, encPhone, phoneH, encEmail, emailH]
           );
         } catch { /* race: we'll re-read below */ }
@@ -123,16 +133,24 @@ router.post('/:code/identify-client', async (req, res) => {
   const loyaltyConfig = (await db.query('SELECT * FROM loyalty_config WHERE status = $1', [client.loyalty_status])).rows[0];
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
 
-  // Si le client a une carte fidélité liée (afrikfid_id format 2014xxxxxxxx),
-  // rapatrier le solde wallet business-api pour permettre le paiement par wallet.
+  // Rapatrier solde wallet ET points depuis business-api (source de vérité).
   let afrikfidWalletBalance = null;
+  let afrikfidRewardPoints = null;
   try {
     const afrikfidClient = require('../lib/afrikfid-client');
     if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
-      const w = await afrikfidClient.getWallet(client.afrikfid_id);
-      if (w && w.solde_xof != null) afrikfidWalletBalance = parseInt(w.solde_xof, 10) || 0;
+      const [w, card] = await Promise.allSettled([
+        afrikfidClient.getWallet(client.afrikfid_id),
+        afrikfidClient.lookupCard(client.afrikfid_id),
+      ]);
+      if (w.status === 'fulfilled' && w.value && w.value.solde_xof != null) {
+        afrikfidWalletBalance = parseInt(w.value.solde_xof, 10) || 0;
+      }
+      if (card.status === 'fulfilled' && card.value && card.value.points_cumules != null) {
+        afrikfidRewardPoints = parseInt(card.value.points_cumules, 10) || 0;
+      }
     }
-  } catch { /* fail-open : pas de wallet business-api dispo */ }
+  } catch { /* fail-open */ }
 
   res.json({
     found: true,
@@ -143,15 +161,15 @@ router.post('/:code/identify-client', async (req, res) => {
       loyaltyStatus: client.loyalty_status,
       clientRebatePercent: loyaltyConfig ? parseFloat(loyaltyConfig.client_rebate_percent) : 0,
       walletBalance: wallet ? wallet.balance : 0,
-      afrikfidWalletBalance, // solde wallet business-api (null si carte non liée ou service indispo)
-      rewardPoints: parseInt(client.reward_points) || 0,
+      afrikfidWalletBalance,
+      rewardPoints: afrikfidRewardPoints !== null ? afrikfidRewardPoints : (parseInt(client.reward_points) || 0),
       currency: 'XOF',
     },
   });
 });
 
 // POST /api/v1/payment-links/:code/pay (public)
-router.post('/:code/pay', async (req, res) => {
+router.post('/:code/pay', async (req, res, next) => { try {
   const link = (await db.query(`
     SELECT pl.*, m.id as merchant_id, m.name as merchant_name, m.rebate_percent, m.rebate_mode,
            m.api_key_public, m.api_key_secret,
@@ -228,23 +246,54 @@ router.post('/:code/pay', async (req, res) => {
 
   // Paiement par points récompense
   if (isRewardPoints) {
-    const { POINTS_PER_REWARD_UNIT } = require('../config/constants');
-    const pointsRequired = Math.ceil(parseFloat(amount) / POINTS_PER_REWARD_UNIT);
-    const availablePoints = parseInt(client.reward_points) || 0;
+    // 1 point = 1 XOF (taux de rachat) — taux d'acquisition : 100 XOF = 1 pt
+    const POINT_REDEMPTION_VALUE = 1;
+    const pointsRequired = Math.ceil(parseFloat(amount) / POINT_REDEMPTION_VALUE);
+
+    // Source de vérité : points depuis la fidelite-api (business-api)
+    const afrikfidClient = require('../lib/afrikfid-client');
+    let availablePoints = parseInt(client.reward_points) || 0;
+    if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
+      try {
+        const card = await afrikfidClient.lookupCard(client.afrikfid_id);
+        if (card && card.points_cumules != null) {
+          availablePoints = parseInt(card.points_cumules) || 0;
+        }
+      } catch { /* conserver la valeur locale en fallback */ }
+    }
+
     if (availablePoints < pointsRequired) {
       return res.status(400).json({
         error: 'INSUFFICIENT_POINTS',
-        message: `Points insuffisants. Vous avez ${availablePoints} pts (${availablePoints * POINTS_PER_REWARD_UNIT} ${link.currency}) mais ${pointsRequired} pts sont requis.`,
+        message: `Points insuffisants. Vous avez ${availablePoints} pts (${availablePoints * POINT_REDEMPTION_VALUE} ${link.currency}) mais ${pointsRequired} pts sont requis.`,
         required: pointsRequired,
         available: availablePoints,
       });
     }
-    // Débiter les points et enregistrer la transaction
+
     const txId = uuidv4();
     const reference = `PLK-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
-    await db.query(`
-      UPDATE clients SET reward_points = reward_points - $1 WHERE id = $2
-    `, [pointsRequired, client.id]);
+
+    // Débiter les points sur la fidelite-api (source de vérité) — fail-closed
+    if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
+      const debitResult = await afrikfidClient.debitPoints({
+        numero: client.afrikfid_id,
+        points: pointsRequired,
+        reference_afrikid: reference,
+      });
+      if (!debitResult.success) {
+        return res.status(400).json({
+          error: debitResult.error || 'POINTS_DEBIT_FAILED',
+          message: debitResult.error === 'points_insuffisants'
+            ? `Points insuffisants côté fidélité. Disponibles : ${debitResult.points_disponibles ?? 0} pts.`
+            : 'Impossible de débiter les points. Réessayez.',
+        });
+      }
+    }
+
+    // Mise à jour locale (reflet) pour cohérence DB afrikid
+    await db.query(`UPDATE clients SET reward_points = $1 WHERE id = $2`,
+      [availablePoints - pointsRequired, client.id]);
     await db.query(`
       INSERT INTO transactions (
         id, reference, merchant_id, client_id,
@@ -301,7 +350,7 @@ router.post('/:code/pay', async (req, res) => {
         numero: client.afrikfid_id,
         montant_xof: Math.round(parseFloat(amount)),
         marchand_id: marchand.business_api_marchand_id,
-        reference_afrikid: txId,
+        reference_afrikid: reference,
       });
     } catch (err) {
       console.warn('[payment-links/pay wallet] debit failed:', err.message);
@@ -432,7 +481,7 @@ router.post('/:code/pay', async (req, res) => {
     },
     message: 'Paiement initié. Confirmez sur votre mobile.',
   });
-});
+} catch (err) { next(err); } });
 
 // DELETE /api/v1/payment-links/:id (marchand)
 router.delete('/:id', requireMerchant, async (req, res) => {

@@ -32,6 +32,7 @@ async function syncPendingTransactions() {
       AND COALESCE(t.business_api_sync_attempts, 0) < $1
       AND c.afrikfid_id ~ '^2014[0-9]{8}$'
       AND m.business_api_marchand_id IS NOT NULL
+      AND t.payment_method != 'REWARD_POINTS'
     ORDER BY t.completed_at ASC NULLS LAST, t.initiated_at ASC
     LIMIT $2
   `, [MAX_ATTEMPTS, BATCH_SIZE]);

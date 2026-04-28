@@ -174,7 +174,9 @@ async function getWallet(numero) {
   try {
     const { status, data } = await request('GET', `/info/wallet/${encodeURIComponent(numero)}`);
     if (status === 404 || !data) return null;
-    return data;
+    const src = data && data.data ? data.data : data;
+    if (!src || src.success === false) return null;
+    return src;
   } catch {
     return null;
   }
@@ -259,6 +261,30 @@ async function debitWallet({ numero, montant_xof, marchand_id, reference_afrikid
     return { status, ...(data || {}) };
   } catch (e) {
     // 404/422 remontent via request() avec err.status/err.data
+    if (e.status === 404 || e.status === 422) {
+      return { status: e.status, success: false, ...(e.data || {}) };
+    }
+    throw e;
+  }
+}
+
+/**
+ * Débite des points fidélité d'une carte via /external/points/debit.
+ * Fail-closed : l'erreur est propagée pour annuler le paiement.
+ */
+async function debitPoints({ numero, points, reference_afrikid }) {
+  if (!isValidCardNumero(numero)) {
+    const err = new Error('numero carte invalide');
+    err.code = 'INVALID_CARD';
+    throw err;
+  }
+  try {
+    const { status, data } = await request('POST', '/external/points/debit', {
+      body: { numero_carte: numero, points, reference_afrikid },
+      retries: 0,
+    });
+    return { status, ...(data || {}) };
+  } catch (e) {
     if (e.status === 404 || e.status === 422) {
       return { status: e.status, success: false, ...(e.data || {}) };
     }
@@ -441,6 +467,7 @@ module.exports = {
   getWallet,
   creditTransaction,
   debitWallet,
+  debitPoints,
   getMerchantLoyaltySummary,
   getDailyReconciliation,
   verifyPassword,

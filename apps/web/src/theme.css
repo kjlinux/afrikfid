@@ -715,6 +715,10 @@ button, input, select, textarea { font-family: inherit; }
   color: var(--af-border-strong);
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Responsive helpers */
 @media (max-width: 768px) {
   .af-topbar { padding: 8px 12px; }
