@@ -93,4 +93,24 @@ function getFileUrl(relativePath) {
   return path.join(UPLOAD_DIR, relativePath);
 }
 
-module.exports = { kycUpload, toFileMetadata, getFileUrl, UPLOAD_DIR };
+const LOGO_DIR = path.join(__dirname, '../../uploads/logos');
+if (!fs.existsSync(LOGO_DIR)) fs.mkdirSync(LOGO_DIR, { recursive: true });
+
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, LOGO_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`);
+  },
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    cb(allowed.includes(file.mimetype) ? null : new Error('Type non autorisé'), allowed.includes(file.mimetype));
+  },
+});
+
+module.exports = { kycUpload, logoUpload, LOGO_DIR, toFileMetadata, getFileUrl, UPLOAD_DIR };

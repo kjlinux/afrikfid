@@ -76,6 +76,11 @@ export default function MerchantSettings() {
   const [allowGuestMode, setAllowGuestMode] = useState(true)
   const [saving, setSaving]                 = useState(false)
   const [msg, setMsg]                       = useState(null)
+  // Logo
+  const [logoFile, setLogoFile]             = useState(null)
+  const [logoPreview, setLogoPreview]       = useState(null)
+  const [uploadingLogo, setUploadingLogo]   = useState(false)
+  const [logoMsg, setLogoMsg]               = useState(null)
 
   useEffect(() => {
     api.get('/merchants/me/profile').then(r => {
@@ -98,6 +103,30 @@ export default function MerchantSettings() {
     } catch (e) {
       setRevealError(e.response?.data?.error || 'Erreur')
     } finally { setRevealing(false) }
+  }
+
+  const onLogoChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+    setLogoMsg(null)
+  }
+
+  const uploadLogo = async () => {
+    if (!logoFile) return
+    setUploadingLogo(true); setLogoMsg(null)
+    try {
+      const form = new FormData()
+      form.append('logo', logoFile)
+      const { data } = await api.post('/merchants/me/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setProfile(p => ({ ...p, logoUrl: data.logoUrl }))
+      setLogoFile(null)
+      setLogoPreview(null)
+      setLogoMsg({ type: 'success', text: 'Logo mis à jour avec succès.' })
+    } catch (e) {
+      setLogoMsg({ type: 'error', text: e.response?.data?.error || 'Erreur lors de l\'upload' })
+    } finally { setUploadingLogo(false) }
   }
 
   const saveSettings = async () => {
@@ -174,15 +203,15 @@ export default function MerchantSettings() {
                 style={{
                   padding: '12px 14px', border: `1px solid ${rebateMode === opt.value ? 'var(--af-accent)' : 'var(--af-border)'}`,
                   borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                  background: rebateMode === opt.value ? 'rgba(245,158,11,0.1)' : 'var(--af-surface-3)',
+                  background: rebateMode === opt.value ? 'var(--af-accent-soft)' : 'var(--af-surface)',
                 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: rebateMode === opt.value ? 'var(--af-accent)' : 'var(--af-text)', marginBottom: 4 }}>{opt.label}</div>
                 <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{opt.desc}</div>
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--af-border-strong)', marginTop: 8, padding: '8px 10px', background: 'var(--af-surface-3)', borderRadius: 6 }}>
-            Taux X actuel : <strong style={{ color: 'var(--af-accent)' }}>{profile.rebatePercent}%</strong> — modifiable uniquement par l'administration Afrik'Fid
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 8, padding: '8px 10px', background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 6 }}>
+            Taux actuel : <strong style={{ color: 'var(--af-accent)' }}>{profile.rebatePercent}%</strong> — modifiable uniquement par l'administration Afrik'Fid
           </div>
         </div>
 
@@ -332,6 +361,41 @@ export default function MerchantSettings() {
       </Card>
 
       </div>
+
+      {/* ─── Logo / Photo de profil ───────────────────────────────────── */}
+      <Card style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <UserGroupIcon style={{ width: 18, height: 18, color: 'var(--af-accent)' }} />
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Logo / Photo de profil</h2>
+        </div>
+        <Msg msg={logoMsg} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {/* Aperçu */}
+          <div style={{ width: 80, height: 80, borderRadius: 12, border: '1px solid var(--af-border)', overflow: 'hidden', flexShrink: 0, background: 'var(--af-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {(logoPreview || profile.logoUrl)
+              ? <img src={logoPreview || profile.logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 28, color: 'var(--af-border-strong)' }}>🏪</span>}
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 10 }}>
+              Format JPEG, PNG ou WEBP. Taille max 10 Mo. Ce logo apparaît sur les liens de paiement et dans le système de fidélité.
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <label style={{ padding: '8px 14px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--af-text)' }}>
+                Choisir un fichier
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onLogoChange} style={{ display: 'none' }} />
+              </label>
+              {logoFile && (
+                <button onClick={uploadLogo} disabled={uploadingLogo}
+                  style={{ padding: '8px 16px', background: 'var(--af-accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600, opacity: uploadingLogo ? 0.7 : 1 }}>
+                  {uploadingLogo ? 'Envoi...' : 'Enregistrer le logo'}
+                </button>
+              )}
+              {logoFile && <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>{logoFile.name}</span>}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ─── Bouton Save (en bas de page) ──────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>

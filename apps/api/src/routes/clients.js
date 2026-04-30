@@ -179,7 +179,7 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
 
   const wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [client.id])).rows[0];
   const txStats = (await db.query(
-    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total FROM transactions WHERE client_id = $1 AND status = 'completed'`,
+    `SELECT COUNT(*) as count, COALESCE(SUM(gross_amount), 0) as total, COALESCE(SUM(client_rebate_amount), 0) as total_rebate FROM transactions WHERE client_id = $1 AND status = 'completed'`,
     [client.id]
   )).rows[0];
 
@@ -268,8 +268,6 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
   }
 
   const clientData = sanitizeClient(client);
-  // Remplacer les points récompense par la valeur temps-réel fidelite-api si disponible
-  if (bapiPoints !== null) clientData.rewardPoints = bapiPoints;
 
   res.json({
     client: { ...clientData, email: emailDecrypted },
@@ -279,6 +277,8 @@ router.get('/:id/profile', requireAuth, async (req, res) => {
     rfmSegment,
     triggerHistory,
     abandonInfo,
+    // Points caisse physique (fidelite-api) — séparés des reward_points passerelle
+    afrikfidPoints: bapiPoints,
   });
 });
 
@@ -791,7 +791,7 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
   // Gateway : transactions locales récentes (toutes statuts)
   const gatewayRes = await db.query(`
     SELECT t.id, t.reference, t.gross_amount, t.client_rebate_amount, t.currency,
-           t.status, t.payment_method, t.initiated_at, t.completed_at,
+           t.status, t.payment_method, t.payment_operator, t.initiated_at, t.completed_at,
            m.name AS merchant_name, m.logo_url AS merchant_logo
       FROM transactions t
       JOIN merchants m ON m.id = t.merchant_id
@@ -812,6 +812,7 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
     currency: r.currency || 'XOF',
     status: r.status,
     paymentMethod: r.payment_method,
+    paymentOperator: r.payment_operator || null,
   }));
 
   // business-api : achats multi-enseignes (depuis normalizeCard)

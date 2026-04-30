@@ -1077,11 +1077,8 @@ router.post('/wallet/pay', requireClient, validate(WalletPaySchema), async (req,
     }
   }
 
-  // Mise à jour stats client
-  await db.query(
-    'UPDATE clients SET total_purchases = total_purchases + 1, total_amount = total_amount + $1, updated_at = NOW() WHERE id = $2',
-    [amount, client.id]
-  );
+  // CDC v3 §2.3 — Points statut et récompense (awardPoints met aussi à jour total_purchases/total_amount)
+  await awardPoints(client.id, txId, amount);
 
   // Webhooks + SSE
   const completedTx = (await db.query('SELECT * FROM transactions WHERE id = $1', [txId])).rows[0];
@@ -1181,7 +1178,10 @@ async function processCompletedPayment(tx) {
       }
     }
 
-    // CDC v3 §2.3 — Attribution des points statut et récompense
+  }
+
+  // CDC v3 §2.3 — Points attribués à tout client identifié, indépendamment du rebate
+  if (tx.client_id) {
     await awardPoints(tx.client_id, tx.id, parseFloat(tx.gross_amount));
   }
 

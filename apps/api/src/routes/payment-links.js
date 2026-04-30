@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { randomBytes } = require('crypto');
 const db = require('../lib/db');
 const { requireApiKey, requireMerchant } = require('../middleware/auth');
-const { calculateDistribution } = require('../lib/loyalty-engine');
+const { calculateDistribution, awardPoints } = require('../lib/loyalty-engine');
 const { decrypt, hashField } = require('../lib/crypto');
 
 // POST /api/v1/payment-links (marchand)
@@ -39,7 +39,7 @@ router.get('/', requireMerchant, async (req, res) => {
 router.get('/:code/info', async (req, res, next) => {
   try {
     const result = await db.query(`
-      SELECT pl.*, m.name as merchant_name, m.rebate_percent, m.rebate_mode
+      SELECT pl.*, m.name as merchant_name, m.rebate_percent, m.rebate_mode, m.logo_url
       FROM payment_links pl
       JOIN merchants m ON pl.merchant_id = m.id
       WHERE pl.code = $1 AND pl.status = 'active'
@@ -53,6 +53,7 @@ router.get('/:code/info', async (req, res, next) => {
     res.json({
       code: link.code,
       merchantName: link.merchant_name,
+      merchantLogo: link.logo_url || null,
       amount: link.amount,
       currency: link.currency,
       description: link.description,
@@ -136,6 +137,7 @@ router.post('/:code/identify-client', async (req, res) => {
   // Rapatrier solde wallet ET points depuis business-api (source de vérité).
   let afrikfidWalletBalance = null;
   let afrikfidRewardPoints = null;
+  let afrikfidGiftCard = null;
   try {
     const afrikfidClient = require('../lib/afrikfid-client');
     if (afrikfidClient.isValidCardNumero(client.afrikfid_id)) {
@@ -148,6 +150,12 @@ router.post('/:code/identify-client', async (req, res) => {
       }
       if (card.status === 'fulfilled' && card.value && card.value.points_cumules != null) {
         afrikfidRewardPoints = parseInt(card.value.points_cumules, 10) || 0;
+        // Lookup carte cadeau via l'ID consommateur retourné par la carte fidélité
+        const consommateurId = card.value?.consommateur?.id;
+        if (consommateurId) {
+          const gc = await afrikfidClient.getCarteCadeauByConsommateur(consommateurId).catch(() => null);
+          if (gc && gc.solde > 0) afrikfidGiftCard = { numero: gc.numero, solde: gc.solde };
+        }
       }
     }
   } catch { /* fail-open */ }
@@ -163,6 +171,7 @@ router.post('/:code/identify-client', async (req, res) => {
       walletBalance: wallet ? wallet.balance : 0,
       afrikfidWalletBalance,
       rewardPoints: afrikfidRewardPoints !== null ? afrikfidRewardPoints : (parseInt(client.reward_points) || 0),
+      giftCard: afrikfidGiftCard,
       currency: 'XOF',
     },
   });
@@ -190,11 +199,16 @@ router.post('/:code/pay', async (req, res, next) => { try {
   const isCard = payment_method === 'card';
   const isRewardPoints = payment_method === 'reward_points';
   const isWallet = payment_method === 'wallet';
-  if (!isCard && !isRewardPoints && !isWallet && (!phone || !payment_operator)) {
+  const isGiftCard = payment_method === 'gift_card';
+  const { gift_card_numero } = req.body;
+  if (!isCard && !isRewardPoints && !isWallet && !isGiftCard && (!phone || !payment_operator)) {
     return res.status(400).json({ error: 'phone et payment_operator requis pour le paiement Mobile Money' });
   }
   if ((isRewardPoints || isWallet) && !afrikfid_id) {
     return res.status(400).json({ error: 'Identification Afrik\'Fid requise pour payer par points ou wallet' });
+  }
+  if (isGiftCard && !gift_card_numero) {
+    return res.status(400).json({ error: 'Numéro de carte cadeau requis' });
   }
 
   // ── Vérification des seuils marchand ──────────────────────────────────────
@@ -315,6 +329,7 @@ router.post('/:code/pay', async (req, res, next) => { try {
     if (link.uses_count + 1 >= link.max_uses) {
       await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
     }
+    await awardPoints(client.id, txId, amount);
     return res.json({
       transactionId: txId,
       reference,
@@ -392,7 +407,7 @@ router.post('/:code/pay', async (req, res, next) => { try {
     if (link.uses_count + 1 >= link.max_uses) {
       await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
     }
-
+    await awardPoints(client.id, txId, amount);
     return res.json({
       transactionId: txId,
       reference,
@@ -400,6 +415,53 @@ router.post('/:code/pay', async (req, res, next) => { try {
       walletBalanceAfter: debit.solde_apres,
       message: `Paiement wallet validé. ${Math.round(parseFloat(amount))} XOF débités. Solde restant : ${debit.solde_apres} XOF.`,
     });
+  }
+
+  // Paiement par carte cadeau
+  if (isGiftCard) {
+    const afrikfidClient = require('../lib/afrikfid-client');
+    const marchand = (await db.query(
+      'SELECT business_api_marchand_id FROM merchants WHERE id = $1', [link.merchant_id]
+    )).rows[0];
+    if (!marchand?.business_api_marchand_id) {
+      return res.status(503).json({ error: 'GIFT_CARD_UNAVAILABLE', message: 'Paiement carte cadeau non disponible pour ce marchand.' });
+    }
+    const txId = uuidv4();
+    const reference = `PLK-GC-${Date.now()}-${txId.slice(0, 6).toUpperCase()}`;
+    const debit = await afrikfidClient.debitCarteCadeau({
+      numero: gift_card_numero,
+      montant_xof: Math.round(parseFloat(amount)),
+      marchand_id: marchand.business_api_marchand_id,
+      reference_afrikid: reference,
+    });
+    if (!debit.success) {
+      if (debit.error === 'solde_insuffisant') {
+        return res.status(400).json({ error: 'INSUFFICIENT_GIFT_CARD_BALANCE', message: `Solde carte cadeau insuffisant : ${debit.solde_disponible} XOF disponibles.`, available: debit.solde_disponible });
+      }
+      return res.status(400).json({ error: debit.error || 'GIFT_CARD_DEBIT_FAILED', message: 'Impossible de débiter la carte cadeau.' });
+    }
+    await db.query(`
+      INSERT INTO transactions (
+        id, reference, merchant_id, client_id,
+        gross_amount, net_client_amount,
+        merchant_rebate_percent, client_rebate_percent, platform_commission_percent,
+        merchant_rebate_amount, client_rebate_amount, platform_commission_amount,
+        merchant_receives, client_loyalty_status, rebate_mode,
+        payment_method, currency, description, status, expires_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'completed',$19)
+    `, [
+      txId, reference, link.merchant_id, client?.id || null,
+      amount, amount, 0, 0, 0, 0, 0, 0,
+      amount, client?.loyalty_status || null, link.rebate_mode,
+      'GIFT_CARD', link.currency, link.description,
+      new Date(Date.now() + 120000).toISOString(),
+    ]);
+    await db.query('UPDATE payment_links SET uses_count = uses_count + 1 WHERE id = $1', [link.id]);
+    if (link.uses_count + 1 >= link.max_uses) {
+      await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
+    }
+    if (client?.id) await awardPoints(client.id, txId, amount);
+    return res.json({ transactionId: txId, reference, status: 'completed', soldeApres: debit.solde_apres, message: 'Paiement par carte cadeau validé.' });
   }
 
   const txId = uuidv4();

@@ -55,7 +55,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline requis pour Swagger UI embarqué
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
+      imgSrc: ["'self'", 'data:', 'https:', 'http:'],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", 'https:', 'data:'],
       objectSrc: ["'none'"],
@@ -148,6 +148,14 @@ app.use('/api/v1/campaigns', require('./routes/campaigns'));
 app.use('/api/v1/merchant-intelligence', require('./routes/merchant-intelligence'));
 app.use('/api/v1/loyalty-bridge', require('./routes/loyalty-bridge'));
 app.use('/api/v1/external', require('./routes/external-sync').router);
+
+// ─── Fichiers statiques uploadés ──────────────────────────────────────────
+// Cross-Origin-Resource-Policy doit être "cross-origin" pour que le frontend
+// (localhost:5173) puisse charger les images servies par l'API (localhost:4001).
+app.use('/uploads/logos', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, require('express').static(require('path').join(__dirname, '../uploads/logos')));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 const _startTime = Date.now();

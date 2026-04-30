@@ -156,61 +156,69 @@ function AiInsightsSection() {
     setError(null)
     api.get('/merchants/me/ai-insights')
       .then(r => setInsights(r.data))
-      .catch(e => setError(e.response?.data?.message || 'Erreur lors de la génération des insights'))
+      .catch(e => setError(e.response?.data?.message || 'Erreur lors de la génération des recommandations'))
       .finally(() => setLoading(false))
   }, [])
 
   return (
-    <div style={{ ...card, borderColor: '#8b5cf6' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CpuChipIcon style={{ width: 28, height: 28, color: '#8b5cf6' }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Recommandations IA</div>
-            <div style={{ fontSize: 11, color: '#8b5cf6' }}>Powered by Claude · Exclusif PREMIUM</div>
-          </div>
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Recommandations</div>
+          <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 2 }}>Analyse personnalisée de votre portefeuille client</div>
         </div>
         <button onClick={loadInsights} disabled={loading}
-          style={{ padding: '8px 16px', background: loading ? 'var(--af-border)' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {loading ? <Spinner size="sm" /> : <SparklesIcon style={{ width: 16, height: 16 }} />}
-          {loading ? 'Analyse...' : insights ? 'Régénérer' : 'Générer les insights'}
+          style={{ padding: '8px 16px', background: 'var(--af-surface-3)', color: 'var(--af-text)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: loading ? 0.6 : 1 }}>
+          <SparklesIcon style={{ width: 15, height: 15 }} />
+          {insights ? 'Actualiser' : 'Générer'}
         </button>
       </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+      {error && (
+        <div style={{ border: '1px solid var(--af-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 12 }}>{error}</div>
+      )}
 
-      {!insights && !loading && !error && (
-        <div style={{ textAlign: 'center', padding: '24px 0', color: '#8b5cf6' }}>
-          <CpuChipIcon style={{ width: 40, height: 40, color: '#8b5cf6', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Cliquez sur "Générer les insights" pour obtenir des recommandations personnalisées basées sur vos données RFM.</p>
+      {loading && (
+        <div style={{ padding: '32px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 32, height: 32, border: '2px solid var(--af-border)', borderTopColor: 'var(--af-text-muted)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Analyse en cours…</span>
         </div>
       )}
 
-      {insights && (
+      {!insights && !loading && !error && (
+        <div style={{ padding: '32px 0', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--af-text-muted)', maxWidth: 380, margin: '0 auto' }}>
+            Cliquez sur Générer pour obtenir une analyse de votre activité et des recommandations adaptées à votre situation.
+          </p>
+        </div>
+      )}
+
+      {insights && !loading && (
         <div>
           {insights.resume && (
-            <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--af-kpi-violet)', fontStyle: 'italic', marginBottom: 14 }}>{insights.resume}</div>
+            <p style={{ fontSize: 13, color: 'var(--af-text-muted)', lineHeight: 1.6, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--af-border)' }}>{insights.resume}</p>
           )}
           {insights.alerte && (
-            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--af-accent)', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{insights.alerte}</div>
+            <div style={{ border: '1px solid var(--af-border)', borderLeft: '3px solid var(--af-accent)', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: 'var(--af-text)', marginBottom: 20 }}>
+              {insights.alerte}
+            </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {(insights.recommandations || []).map((rec, i) => (
-              <div key={i} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{rec.titre}</span>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (SEG_COLOR[rec.segment] || '#6b7280') + '22', color: SEG_COLOR[rec.segment] || '#6b7280', border: '1px solid ' + (SEG_COLOR[rec.segment] || '#6b7280') + '44' }}>{rec.segment}</span>
-                    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: (PRIO_COLOR[rec.priorite] || '#6b7280') + '22', color: PRIO_COLOR[rec.priorite] || '#6b7280', border: '1px solid ' + (PRIO_COLOR[rec.priorite] || '#6b7280') + '44' }}>{rec.priorite}</span>
-                  </div>
+              <div key={i} style={{ padding: '16px 0', borderBottom: i < (insights.recommandations.length - 1) ? '1px solid var(--af-border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)' }}>{rec.titre}</span>
+                  <span style={{ fontSize: 11, color: 'var(--af-text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{rec.segment} · {rec.priorite}</span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 6 }}><ClipboardDocumentListIcon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />{rec.action}</p>
-                <p style={{ fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'flex-start', gap: 6 }}><BoltIcon style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{rec.objectif}</p>
+                <p style={{ fontSize: 13, color: 'var(--af-text-muted)', lineHeight: 1.6, marginBottom: rec.objectif ? 6 : 0 }}>{rec.action}</p>
+                {rec.objectif && (
+                  <p style={{ fontSize: 12, color: 'var(--af-text-muted)', fontStyle: 'italic' }}>{rec.objectif}</p>
+                )}
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--af-border-strong)' }}>
-            <span>Généré le {new Date(insights.generated_at).toLocaleString('fr-FR')}</span>
+          <div style={{ marginTop: 16, fontSize: 11, color: 'var(--af-text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Généré le {insights.generated_at ? new Date(insights.generated_at).toLocaleString('fr-FR') : '—'}</span>
             <span>{insights.context_snapshot?.total_clients_segmented || 0} clients analysés</span>
           </div>
         </div>
@@ -219,60 +227,165 @@ function AiInsightsSection() {
   )
 }
 
-function AfrikFidLoyaltySection({ merchantId }) {
+function Evo({ pct }) {
+  if (pct === null || pct === undefined) return null
+  const up = pct >= 0
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: up ? '#10b981' : '#ef4444', marginLeft: 6 }}>
+      {up ? '▲' : '▼'} {Math.abs(pct)}%
+    </span>
+  )
+}
+
+function KpiBox({ label, value, color, sub, evo }) {
+  return (
+    <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
+      <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}<Evo pct={evo} /></div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function AfrikFidLoyaltySection() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!merchantId) { setLoading(false); return }
-    api.get(`/merchant-intelligence/${merchantId}/loyalty`)
+    api.get('/merchant-intelligence/me/loyalty')
       .then(r => setData(r.data))
       .catch(() => setData({ available: false, reason: 'fetch_error' }))
       .finally(() => setLoading(false))
-  }, [merchantId])
+  }, [])
 
   if (loading) return null
   if (!data || !data.available) {
     return (
       <div style={{ ...card, background: 'var(--af-surface-3)', borderStyle: 'dashed' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Historique fidélité AfrikFid</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 6 }}>Fidélité Afrik'Fid · 360°</div>
         <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
-          {data?.reason === 'merchant_not_linked'
-            ? 'Ce marchand n\'est pas encore lié au SI fidélité AfrikFid. Contactez le support pour activer l\'historique 360°.'
-            : 'Historique fidélité temporairement indisponible.'}
+          {data?.reason === 'merchant_not_linked_to_business_api'
+            ? 'Ce marchand n\'est pas encore lié au SI fidélité. Contactez le support pour activer l\'historique 360°.'
+            : 'Données fidélité temporairement indisponibles.'}
         </div>
       </div>
     )
   }
-  const s = data.summary || {}
+
+  const s   = data.summary   || {}
+  const a   = data.analytics || {}
+  const pl  = a.plus          || {}
+  const gr  = a.growth        || {}
+  const pr  = a.premium       || {}
+  const tier = (data.tier || 'starter').toLowerCase()
+  const isPlus    = ['plus','growth','premium'].includes(tier)
+  const isGrowth  = ['growth','premium'].includes(tier)
+  const isPremium = tier === 'premium'
+
   return (
     <div style={card}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <span style={{ width: 28, height: 28, borderRadius: 6, background: 'linear-gradient(135deg, var(--af-brand), var(--af-accent))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 13 }}>A</span>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Historique fidélité Afrik'Fid</div>
+      {/* En-tête */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Fidélité Afrik'Fid · 360°</div>
         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--af-accent-soft)', color: 'var(--af-accent)', fontWeight: 700, letterSpacing: 0.5 }}>30 JOURS</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Clients fidélisés</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#3b82f6' }}>{Number(s.total_consommateurs_fidelises || 0).toLocaleString('fr-FR')}</div>
-        </div>
-        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Points distribués</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-kpi-yellow)' }}>{Number(s.points_distribues_30j || 0).toLocaleString('fr-FR')}</div>
-        </div>
-        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Transactions caisse</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>{Number(s.transactions_30j || 0).toLocaleString('fr-FR')}</div>
-        </div>
-        <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>CA cumulé (caisse)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--af-accent)' }}>{Number(s.ca_30j || 0).toLocaleString('fr-FR')} <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>XOF</span></div>
-        </div>
+      {/* KPIs base — tous packages */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <KpiBox label="Clients fidélisés" value={Number(s.total_consommateurs_fidelises || a.clients_actifs_30j || 0).toLocaleString('fr-FR')} color="#3b82f6" sub={a.clients_precedents ? `${a.clients_precedents} période préc.` : undefined} />
+        <KpiBox label="Points distribués (caisse)" value={Number(s.points_distribues_30j || a.points_distribues_30j || 0).toLocaleString('fr-FR')} color="var(--af-kpi-yellow)" evo={a.pts_evolution_pct} sub={a.points_precedents ? `${Number(a.points_precedents).toLocaleString('fr-FR')} préc.` : undefined} />
+        <KpiBox label="Transactions caisse" value={Number(s.transactions_30j || a.transactions_30j || 0).toLocaleString('fr-FR')} color="#10b981" evo={a.tx_evolution_pct} sub={a.transactions_precedentes ? `${a.transactions_precedentes} préc.` : undefined} />
+        <KpiBox label="CA caisse" value={Number(s.ca_30j || a.ca_30j || 0).toLocaleString('fr-FR') + ' XOF'} color="var(--af-accent)" evo={a.ca_evolution_pct} sub={a.ca_30j_precedents ? `${Number(a.ca_30j_precedents).toLocaleString('fr-FR')} XOF préc.` : undefined} />
       </div>
 
-      {Array.isArray(s.top_clients) && s.top_clients.length > 0 && (
+      {/* PLUS+ : panier moyen, wallet, conversion points */}
+      {isPlus && (pl.panier_moyen_30j !== undefined) && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Comportement client</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <KpiBox label="Panier moyen (caisse)" value={Number(pl.panier_moyen_30j || 0).toLocaleString('fr-FR') + ' XOF'} color="var(--af-accent)" />
+            <KpiBox label="Wallet capturé (cashback)" value={Number(pl.wallet_credits_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#8b5cf6" sub={`Taux capture : ${pl.wallet_capture_rate_pct ?? 0}% du CA`} />
+            <KpiBox label="Paiements par points" value={Number(pl.paiements_par_points_30j || 0).toLocaleString('fr-FR')} color="#f59e0b" sub={`${pl.taux_conversion_points_pct ?? 0}% des transactions`} />
+            <KpiBox label="Débits wallet (paiements)" value={Number(pl.wallet_debits_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#10b981" />
+          </div>
+
+          {/* Top clients enrichis */}
+          {Array.isArray(pl.top_clients) && pl.top_clients.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Top clients fidèles</div>
+              <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden' }}>
+                {pl.top_clients.slice(0, 5).map((c, i) => (
+                  <div key={c.numero || i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto auto auto', alignItems: 'center', gap: 10, padding: '9px 14px', borderTop: i > 0 ? '1px solid var(--af-surface)' : 'none', fontSize: 12 }}>
+                    <span style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 700 }}>#{i + 1}</span>
+                    <div>
+                      <div style={{ color: 'var(--af-text)', fontWeight: 600 }}>{c.nom || '—'}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--af-text-muted)' }}>{c.numero}</div>
+                    </div>
+                    <span style={{ color: 'var(--af-kpi-yellow)', fontWeight: 700, fontSize: 11 }}>{Number(c.points_cumules || 0).toLocaleString('fr-FR')} pts</span>
+                    <span style={{ color: 'var(--af-text-muted)', fontSize: 11 }}>{c.nb_transactions} achat{c.nb_transactions > 1 ? 's' : ''}</span>
+                    <span style={{ color: '#10b981', fontWeight: 700 }}>{Number(c.montant_30j || 0).toLocaleString('fr-FR')} XOF</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* GROWTH+ : segmentation paliers, churn fidélité, réductions */}
+      {isGrowth && gr.segmentation_paliers && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Segmentation par palier fidélité</div>
+          <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--af-border)', fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              <span>Palier</span><span>Clients</span><span>Remise</span><span>Commission</span>
+            </div>
+            {gr.segmentation_paliers.map((p, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, padding: '9px 14px', borderTop: i > 0 ? '1px solid var(--af-surface)' : 'none', fontSize: 13, alignItems: 'center' }}>
+                <span style={{ color: 'var(--af-text)', fontWeight: 600 }}>{p.label}</span>
+                <span style={{ color: '#3b82f6', fontWeight: 700 }}>{p.nb_clients}</span>
+                <span style={{ color: '#10b981', fontWeight: 700 }}>-{p.reduction_pct}%</span>
+                <span style={{ color: 'var(--af-text-muted)' }}>{p.commission_pct}%</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <KpiBox label="Clients fidélisés (total)" value={Number(gr.total_clients_fidelises || 0).toLocaleString('fr-FR')} color="#3b82f6" />
+            <KpiBox label="Clients à risque churn" value={Number(gr.clients_a_risque_churn || 0).toLocaleString('fr-FR')} color="#f97316" sub={`Taux churn fidélité : ${gr.taux_churn_fidelite_pct ?? 0}%`} />
+            <KpiBox label="Réductions accordées" value={Number(gr.reductions_accordees_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#8b5cf6" sub="Coût du programme fidélité" />
+            <KpiBox label="Revenu net après remises" value={Number(gr.revenu_net_apres_remises || 0).toLocaleString('fr-FR') + ' XOF'} color="#10b981" />
+          </div>
+        </>
+      )}
+
+      {/* PREMIUM : LTV, wallet dormant, clients proches palier */}
+      {isPremium && (pr.ltv_moyenne_xof !== undefined) && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Valeur vie client &amp; opportunités</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <KpiBox label="LTV moyenne (fidélité)" value={Number(pr.ltv_moyenne_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#10b981" />
+            <KpiBox label="LTV médiane" value={Number(pr.ltv_mediane_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#3b82f6" />
+            <KpiBox label="Wallets dormants" value={Number(pr.wallets_dormants_nb || 0).toLocaleString('fr-FR')} color="#f97316" sub={`${Number(pr.wallets_dormants_solde_xof || 0).toLocaleString('fr-FR')} XOF captifs`} />
+            <KpiBox label="Cartes cadeaux actives" value={Number(pr.cartes_cadeaux_outstanding_nb || 0).toLocaleString('fr-FR')} color="#f59e0b" sub="Solde non encore dépensé" />
+          </div>
+
+          {Array.isArray(pr.clients_proches_palier) && pr.clients_proches_palier.length > 0 && (
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 8 }}><span aria-hidden="true">🎯</span> Opportunités palier — Clients proches du seuil suivant</div>
+              {pr.clients_proches_palier.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: i > 0 ? '1px solid rgba(245,158,11,0.15)' : 'none' }}>
+                  <span style={{ color: 'var(--af-text)' }}><strong>{p.nb_clients_proches}</strong> client{p.nb_clients_proches > 1 ? 's' : ''} à moins de 100 pts du palier <strong>{p.prochain_palier_pts} pts</strong></span>
+                  <span style={{ color: '#10b981', fontWeight: 700 }}>→ -{p.reduction_si_atteint}% de remise à la clé</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Top clients basique (STARTER sans plus) */}
+      {!isPlus && Array.isArray(s.top_clients) && s.top_clients.length > 0 && (
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Top clients fidèles</div>
           <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden' }}>
@@ -306,7 +419,7 @@ export default function MerchantIntelligence() {
         setData(r.data)
         const pkgIndex = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'].indexOf(r.data.package)
         if (pkgIndex >= 2) {
-          api.get(`/merchant-intelligence/me/recommendations`).then(rr => setRecommendations(rr.data)).catch(() => {})
+          api.get(`/merchant-intelligence/me/recommendations`).then(rr => setRecommendations(rr.data)).catch(() => setRecommendations({ recommendations: [] }))
         }
       })
       .catch(e => setError(e.response?.data?.error || e.message || 'Erreur inconnue'))
@@ -318,11 +431,6 @@ export default function MerchantIntelligence() {
     <div style={{ padding: '40px 32px' }}>
       <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '16px 20px', color: '#ef4444', fontSize: 14 }}>
         <strong>Erreur :</strong> {error}
-        <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 6 }}>merchantId utilisé : {merchantId || '(non défini)'}</div>
-        <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 4 }}>
-          Token merchant présent : {localStorage.getItem('afrikfid_token_merchant') ? 'OUI' : 'NON'} |
-          User role : {user?.role || '(non défini)'}
-        </div>
         <button onClick={() => { localStorage.removeItem('afrikfid_token_merchant'); localStorage.removeItem('afrikfid_user_merchant'); window.location.href = '/merchant/login'; }}
           style={{ marginTop: 12, padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
           Se reconnecter en tant que marchand
@@ -502,7 +610,7 @@ export default function MerchantIntelligence() {
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4 }}>Prédiction Churn<InfoTooltip text={TOOLTIPS.churn} /> — Top clients à risque</div>
           <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 14 }}>Modèle basé sur 5 signaux RFM —Growth+</div>
           {data.churn_predictions.slice(0, 5).map((p, i) => (
-            <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < 4 ? '1px solid var(--af-surface)' : 'none' }}>
+            <div key={p.client_id} style={{ padding: '12px 0', borderBottom: i < Math.min(data.churn_predictions.length, 5) - 1 ? '1px solid var(--af-surface)' : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)' }}>{p.client_name || 'Client anonyme'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -525,7 +633,7 @@ export default function MerchantIntelligence() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 2 }}>Recommandations IA — Semaine du {recommendations.week}</div>
-              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{recommendations.recommendations.length} actions prioritaires · {recommendations.context?.total_rfm_clients} clients analysés</div>
+              <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{recommendations.recommendations?.length} actions prioritaires · {recommendations.context?.total_rfm_clients} clients analysés</div>
             </div>
             <span style={{ padding: '3px 10px', background: '#8b5cf622', color: '#8b5cf6', border: '1px solid #8b5cf644', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>IA</span>
           </div>
@@ -642,7 +750,7 @@ export default function MerchantIntelligence() {
       )}
 
       {/* Historique fidélité AfrikFid (via business-api) — tous packages */}
-      <AfrikFidLoyaltySection merchantId={merchantId} />
+      <AfrikFidLoyaltySection />
 
       {/* Recommandations IA — PREMIUM */}
       {m.analytics_advanced && <AiInsightsSection />}

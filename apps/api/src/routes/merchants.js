@@ -11,9 +11,10 @@ const {
   notifyKycApproved, notifyKycRejected,
   notifyMerchantWelcome, notifyRefundApproved, notifyRefundRejected, notifyAccountSuspended,
 } = require('../lib/notifications');
-const { kycUpload, toFileMetadata } = require('../lib/upload');
+const { kycUpload, logoUpload, toFileMetadata } = require('../lib/upload');
 const { requirePackage } = require('../middleware/require-package');
 const { generateInsights } = require('../lib/ai-insights');
+const { syncMarchandToFidelite, syncLogoFileToFidelite } = require('../lib/afrikfid-client');
 
 /**
  * Pousse une mise à jour de profil marchand vers business-api.
@@ -152,7 +153,8 @@ router.get('/:id', (req, res, next) => { if (req.params.id === 'me') return next
 router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return next('route'); next() }, requireAdmin, validate(UpdateMerchantSchema), async (req, res) => {
   const allowed = ['name', 'phone', 'rebate_percent', 'rebate_mode', 'status', 'kyc_status',
     'webhook_url', 'settlement_frequency', 'mm_operator', 'mm_phone', 'bank_name',
-    'category', 'address', 'max_transaction_amount', 'daily_volume_limit', 'allow_guest_mode'];
+    'category', 'address', 'max_transaction_amount', 'daily_volume_limit', 'allow_guest_mode',
+    'business_api_marchand_id'];
 
   const updates = {};
   for (const key of allowed) {
@@ -340,7 +342,94 @@ router.get('/me/clients', requireMerchant, async (req, res) => {
   res.json({ clients, total, page: parseInt(page), limit: parseInt(limit), stats: { byStatus: byStatusRes } });
 });
 
-// PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres 
+// POST /api/v1/merchants/backfill-logos — Admin : rattrapage logos depuis fidelite-api
+// Pour chaque marchand lié sans logo local, télécharge le fichier depuis fidelite-api
+// et le stocke dans uploads/logos/.
+router.post('/backfill-logos', requireAdmin, async (req, res) => {
+  const axios = require('axios');
+  const fs = require('fs');
+  const path = require('path');
+  const { LOGO_DIR } = require('../lib/upload');
+  const crypto = require('crypto');
+
+  const bapiUrl = (process.env.BUSINESS_API_URL || '').replace(/\/+$/, '');
+  if (!bapiUrl) return res.status(503).json({ error: 'BUSINESS_API_URL non configuré' });
+
+  // Marchands liés à fidelite-api, sans logo local, ayant un logo dans fidelite-api
+  const rows = (await db.query(`
+    SELECT id, business_api_marchand_id, name
+    FROM merchants
+    WHERE business_api_marchand_id IS NOT NULL
+      AND (logo_url IS NULL OR logo_url = '')
+    LIMIT 100
+  `)).rows;
+
+  if (rows.length === 0) return res.json({ ok: true, updated: 0, message: 'Aucun marchand à rattraper' });
+
+  const baseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 4001}`).replace(/\/$/, '');
+  let updated = 0;
+  const errors = [];
+
+  for (const merchant of rows) {
+    try {
+      // Récupérer le profil marchand via l'endpoint public de fidelite-api (pas de HMAC requis)
+      const fideliteAppUrl = (process.env.FIDELITE_APP_URL || bapiUrl.replace('/api', '')).replace(/\/$/, '');
+      const profileRes = await axios.get(`${bapiUrl}/marchands/${merchant.business_api_marchand_id}`, {
+        headers: { Accept: 'application/json' },
+        timeout: 8000,
+        validateStatus: s => s < 500,
+      });
+
+      if (profileRes.status !== 200) continue;
+      const data = profileRes.data?.data || profileRes.data;
+      const logoPath = data?.logo; // chemin relatif ex: "logos/xxx.png"
+      if (!logoPath) continue;
+
+      // Télécharger le fichier depuis l'URL publique fidelite-api
+      const logoPublicUrl = `${fideliteAppUrl}/storage/${logoPath}`;
+      const ext = path.extname(logoPath) || '.jpg';
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+      const destPath = path.join(LOGO_DIR, filename);
+
+      const imgRes = await axios.get(logoPublicUrl, { responseType: 'stream', timeout: 10000 });
+      await new Promise((resolve, reject) => {
+        const writer = fs.createWriteStream(destPath);
+        imgRes.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+
+      const newLogoUrl = `${baseUrl}/uploads/logos/${filename}`;
+      await db.query('UPDATE merchants SET logo_url = $1, updated_at = NOW() WHERE id = $2', [newLogoUrl, merchant.id]);
+      updated++;
+    } catch (e) {
+      errors.push({ id: merchant.id, name: merchant.name, error: e.message });
+    }
+  }
+
+  res.json({ ok: true, updated, total: rows.length, errors });
+});
+
+// POST /api/v1/merchants/me/logo — Upload logo/photo de profil du marchand
+router.post('/me/logo', requireMerchant, (req, res, next) => {
+  logoUpload.single('logo')(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni' });
+  const baseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 4001}`).replace(/\/$/, '');
+  const logoUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
+  await db.query('UPDATE merchants SET logo_url = $1, updated_at = NOW() WHERE id = $2', [logoUrl, req.merchant.id]);
+  const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.merchant.id])).rows[0];
+  // Sync fichier binaire vers fidelite-api (fire-and-forget)
+  if (merchant.business_api_marchand_id) {
+    syncLogoFileToFidelite(merchant.business_api_marchand_id, req.file.path, req.file.mimetype);
+  }
+  res.json({ logoUrl, merchant: sanitizeMerchant(merchant) });
+});
+
+// PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres
 // Seuls les champs autorisés au marchand : webhook_url, rebate_mode, allow_guest_mode
 router.patch('/me/settings', requireMerchant, async (req, res) => {
   const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode', 'logo_url'];

@@ -20,6 +20,31 @@ const MAX_ATTEMPTS = 6;
 async function syncPendingTransactions() {
   // Sélectionne les tx à synchroniser : completed, avec client, non synchronisées,
   // et qui n'ont pas atteint le plafond de retries.
+  // Résoudre les marchands sans business_api_marchand_id (find-or-create côté fidelite-api)
+  const unmapped = await db.query(`
+    SELECT DISTINCT m.id, m.name, m.phone
+    FROM merchants m
+    JOIN transactions t ON t.merchant_id = m.id
+    JOIN clients c ON c.id = t.client_id
+    WHERE m.business_api_marchand_id IS NULL
+      AND t.status = 'completed'
+      AND c.afrikfid_id ~ '^2014[0-9]{8}$'
+      AND t.payment_method != 'REWARD_POINTS'
+    LIMIT 20
+  `);
+  for (const m of unmapped.rows) {
+    try {
+      const bapiId = await afrikfidClient.findOrCreateMarchand({
+        afrikid_merchant_id: m.id,
+        designation: m.name,
+        telephone: m.phone || null,
+      });
+      if (bapiId) {
+        await db.query('UPDATE merchants SET business_api_marchand_id = $1 WHERE id = $2', [bapiId, m.id]);
+      }
+    } catch { /* fail-open : on retentera au prochain cycle */ }
+  }
+
   const { rows } = await db.query(`
     SELECT t.id, t.merchant_id, t.gross_amount, t.currency, t.completed_at, t.initiated_at,
            c.afrikfid_id, c.business_api_consommateur_id,

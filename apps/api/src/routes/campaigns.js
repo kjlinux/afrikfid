@@ -206,9 +206,14 @@ router.get('/', requireAuth, async (req, res, next) => {
 // POST /campaigns — créer une campagne (GROWTH+ requis — CDC v3 §6.1)
 router.post('/', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
-    const { merchant_id, name, target_segment, channel, message_template, scheduled_at, template_name, template_namespace } = req.body;
+    const { name, target_segment, channel, message_template, scheduled_at, template_name, template_namespace } = req.body;
+    // Un marchand ne peut créer que pour lui-même ; l'admin peut spécifier n'importe quel merchant_id
+    const merchant_id = req.merchant ? req.merchant.id : req.body.merchant_id;
     if (!merchant_id || !name || !target_segment || !message_template) {
       return res.status(400).json({ error: 'merchant_id, name, target_segment, message_template requis' });
+    }
+    if (!assertMerchantOwnership(req, merchant_id)) {
+      return res.status(403).json({ error: 'Accès interdit : vous ne pouvez créer des campagnes que pour votre propre compte' });
     }
     if (!RFM_SEGMENTS.includes(target_segment)) {
       return res.status(400).json({ error: `Segment invalide. Valides: ${RFM_SEGMENTS.join(', ')}` });
@@ -226,6 +231,11 @@ router.post('/', requireAuth, requirePackage('GROWTH'), async (req, res, next) =
 // POST /campaigns/:id/execute — lancer une campagne (GROWTH+ requis)
 router.post('/:id/execute', requireAuth, requirePackage('GROWTH'), async (req, res, next) => {
   try {
+    const campaign = (await pool.query('SELECT merchant_id FROM campaigns WHERE id = $1', [req.params.id])).rows[0];
+    if (!campaign) return res.status(404).json({ error: 'Campagne non trouvée' });
+    if (!assertMerchantOwnership(req, campaign.merchant_id)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
     const sent = await executeCampaign(req.params.id);
     res.json({ message: `Campagne exécutée: ${sent} messages envoyés`, sent });
   } catch (err) { next(err); }

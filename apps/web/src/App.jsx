@@ -54,6 +54,7 @@ import MerchantSettings from './pages/merchant/Settings.jsx'
 import MerchantRefunds from './pages/merchant/Refunds.jsx'
 import MerchantIntelligence from './pages/merchant/Intelligence.jsx'
 import MerchantChurnAlerts from './pages/merchant/ChurnAlerts.jsx'
+import MerchantCampaigns from './pages/merchant/Campaigns.jsx'
 import MerchantKyc from './pages/merchant/Kyc.jsx'
 import MerchantProfile from './pages/merchant/Profile.jsx'
 import ClientProfile from './pages/client/Profile.jsx'
@@ -269,6 +270,7 @@ function MerchantLayout({ children }) {
     { path: '/merchant/links',         label: 'Liens de paiement',            Icon: LinkIcon },
     { path: '/merchant/clients',       label: 'Clients fidélisés',            Icon: UsersIcon },
     { path: '/merchant/intelligence',  label: 'Intelligence',                 Icon: ChartBarIcon },
+    { path: '/merchant/campaigns',    label: 'Campagnes',                    Icon: BellAlertIcon },
     { path: '/merchant/refunds',       label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
     { path: '/merchant/kyc',           label: 'Vérification KYC',             Icon: ShieldCheckIcon },
     { path: '/merchant/settings',      label: 'Paramètres',                   Icon: Cog6ToothIcon },
@@ -347,6 +349,7 @@ export default function App() {
             <Route path="/merchant/clients" element={<Protected role="merchant"><MerchantLayout><MerchantClients /></MerchantLayout></Protected>} />
             <Route path="/merchant/intelligence" element={<Protected role="merchant"><MerchantLayout><MerchantIntelligence /></MerchantLayout></Protected>} />
             <Route path="/merchant/churn-alerts" element={<Protected role="merchant"><MerchantLayout><MerchantChurnAlerts /></MerchantLayout></Protected>} />
+            <Route path="/merchant/campaigns" element={<Protected role="merchant"><MerchantLayout><MerchantCampaigns /></MerchantLayout></Protected>} />
             <Route path="/merchant/refunds" element={<Protected role="merchant"><MerchantLayout><MerchantRefunds /></MerchantLayout></Protected>} />
             <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
             <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />

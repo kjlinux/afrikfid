@@ -21,6 +21,31 @@ const fmt = (n, currency = 'XOF') =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n || 0)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+const PAYMENT_METHOD_LABELS = {
+  mobile_money:  { label: 'Mobile Money', color: '#f59e0b' },
+  card:          { label: 'Carte bancaire', color: '#635bff' },
+  reward_points: { label: 'Points',         color: '#10b981' },
+  wallet:        { label: 'Wallet',         color: '#8b5cf6' },
+  gift_card:     { label: 'Carte cadeau',   color: '#f59e0b' },
+  cash:          { label: 'Espèces',        color: '#6b7280' },
+}
+const OPERATOR_LABELS = {
+  ORANGE: 'Orange Money', MTN: 'MTN MoMo', WAVE: 'Wave',
+  AIRTEL: 'Airtel Money', MOOV: 'Moov Money', MPESA: 'M-Pesa',
+}
+function PaymentMethodBadge({ method, operator }) {
+  const meta = PAYMENT_METHOD_LABELS[method]
+  if (!meta) return null
+  const label = (method === 'mobile_money' && operator)
+    ? (OPERATOR_LABELS[operator] || operator)
+    : meta.label
+  return (
+    <span style={{ background: meta.color + '18', color: meta.color, padding: '1px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>
+      {label}
+    </span>
+  )
+}
+
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 function ProgressBar({ value, color }) {
   return (
@@ -139,6 +164,7 @@ function UnifiedHistorySection({ history }) {
                 <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span>{fmtDate(it.date)}</span>
                   <span style={{ background: meta.bg, color: meta.color, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{meta.label}</span>
+                  <PaymentMethodBadge method={it.paymentMethod} operator={it.paymentOperator} />
                   {it.source === 'gateway' && <TxStatusBadge status={it.status} />}
                   {it.source === 'afrikfid' && it.pointsEarned > 0 && <span style={{ color: '#F59E0B' }}>+{it.pointsEarned} pts</span>}
                 </div>
@@ -290,7 +316,8 @@ export default function ClientDashboard() {
   const status     = client?.loyaltyStatus || 'OPEN'
   const meta       = STATUS_META[status] || STATUS_META.OPEN
   const currentIdx = STATUS_ORDER.indexOf(status)
-  const rebateTotal = (parseFloat(stats?.total || 0) * meta.pct) / 100
+  const rebateTotal = parseFloat(stats?.total_rebate || 0)
+  const rebatePct  = client?.clientRebatePercent ?? meta.pct
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--af-surface-3)', color: 'var(--af-text)', fontFamily: 'system-ui, sans-serif' }}>
@@ -356,7 +383,7 @@ export default function ClientDashboard() {
                     <div>
                       <div style={{ fontSize: 30, fontWeight: 900, color: meta.color, lineHeight: 1 }}>{status}</div>
                       <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 4 }}>
-                        {meta.label} · <span style={{ color: meta.color, fontWeight: 700 }}>{meta.pct}%</span> de remise sur vos achats
+                        {meta.label} · <span style={{ color: meta.color, fontWeight: 700 }}>{rebatePct}%</span> de remise sur vos achats
                       </div>
                     </div>
                   </div>
@@ -399,9 +426,9 @@ export default function ClientDashboard() {
                   <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 6 }}>Total gagné : <span style={{ color: '#10b981', fontWeight: 600 }}>{fmt(wallet?.totalEarned, wallet?.currency || 'XOF')}</span></div>
                 </div>
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Remises reçues (est.) <InfoTooltip text={TOOLTIPS.remise_y} /></div>
+                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Remises reçues <InfoTooltip text={TOOLTIPS.remise_y} /></div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: meta.color }}>{fmt(rebateTotal)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Taux actuel : {meta.pct}% · {status}</div>
+                  <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Taux actuel : {rebatePct}% · {status}</div>
                 </div>
               </div>
 
@@ -424,7 +451,7 @@ export default function ClientDashboard() {
             <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 14, padding: '18px 22px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
               <div style={{ paddingRight: 20 }}>
                 <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-                  Points statut <span style={{ color: 'var(--af-border-strong)', fontWeight: 400, fontSize: 9 }}>· 1 pt = 500 FCFA</span>
+                  Points statut <span style={{ color: 'var(--af-border-strong)', fontWeight: 400, fontSize: 9 }}></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: meta.color }}>{(client?.statusPoints12m || 0).toLocaleString('fr-FR')}</span>
@@ -438,14 +465,14 @@ export default function ClientDashboard() {
 
               <div style={{ borderLeft: '1px solid var(--af-border)', paddingLeft: 20 }}>
                 <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-                  Points récompense <span style={{ color: 'var(--af-border-strong)', fontWeight: 400, fontSize: 9 }}>· 1 pt = 100 FCFA</span>
+                  Points récompense <span style={{ color: 'var(--af-border-strong)', fontWeight: 400, fontSize: 9 }}></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: '#10b981' }}>{(client?.rewardPoints || 0).toLocaleString('fr-FR')}</span>
                   <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>pts disponibles</span>
                 </div>
                 <div style={{ fontSize: 12, color: '#10b981', marginTop: 4, fontWeight: 600 }}>≈ {fmt((client?.rewardPoints || 0) * 100)} utilisables</div>
-                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>Utilisables chez tous les marchands.</div>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>1 pt = 100 FCFA · utilisables chez tous les marchands.</div>
               </div>
             </div>
 
@@ -464,7 +491,7 @@ export default function ClientDashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: 'var(--af-bg)' }}>
-                        {['Date', 'Marchand', 'Montant', 'Remise', 'Statut', ''].map(h => (
+                        {['Date', 'Marchand', 'Moyen', 'Montant', 'Remise', 'Statut', ''].map(h => (
                           <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -474,6 +501,7 @@ export default function ClientDashboard() {
                         <tr key={tx.id} style={{ borderTop: '1px solid var(--af-border)', background: i % 2 === 0 ? 'transparent' : 'var(--af-bg)' }}>
                           <td style={{ padding: '10px 14px', color: 'var(--af-text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(tx.initiated_at)}</td>
                           <td style={{ padding: '10px 14px', fontWeight: 500, color: 'var(--af-text)', whiteSpace: 'nowrap' }}>{tx.merchant_name || '—'}</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}><PaymentMethodBadge method={tx.payment_method} operator={tx.payment_operator} /></td>
                           <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--af-text)', whiteSpace: 'nowrap' }}>{fmt(tx.gross_amount, tx.currency)}</td>
                           <td style={{ padding: '10px 14px', color: '#10b981', fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {tx.client_discount > 0 ? `− ${fmt(tx.client_discount, tx.currency)}` : <span style={{ color: 'var(--af-border)' }}>—</span>}
@@ -574,10 +602,15 @@ export default function ClientDashboard() {
               </div>
             )}
 
-            {/* Royal max badge */}
+            {/* Badges statut haut de gamme */}
             {status === 'ROYAL' && (
               <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 12, padding: '12px 16px', color: '#8B5CF6', fontSize: 12, fontWeight: 600 }}>
-                ♛ Statut maximum — 12% de remise sur chaque achat chez nos marchands partenaires.
+                ♛ Statut Élite — 12% de remise. Maintenez ce niveau 3 ans pour atteindre ROYAL ÉLITE.
+              </div>
+            )}
+            {status === 'ROYAL_ELITE' && (
+              <div style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.3)', borderRadius: 12, padding: '12px 16px', color: '#ec4899', fontSize: 12, fontWeight: 600 }}>
+                ♔ Statut Élite Suprême — remise maximum sur chaque achat chez nos marchands partenaires.
               </div>
             )}
 

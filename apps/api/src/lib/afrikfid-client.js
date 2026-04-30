@@ -449,6 +449,21 @@ async function getMerchantLoyaltySummary(marchandId) {
 }
 
 /**
+ * Récupère les analytics enrichis d'un marchand selon le tier (starter/plus/growth/premium).
+ * null si indisponible.
+ */
+async function getMerchantAnalytics(marchandId, tier = 'starter') {
+  if (!marchandId) return null;
+  try {
+    const { data } = await request('GET', `/external/merchant/${encodeURIComponent(marchandId)}/analytics?tier=${tier}`);
+    const src = data && data.data ? data.data : data;
+    return src || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Récupère l'agrégat quotidien vu côté business-api (transactions reçues d'afrikid),
  * pour croisement avec les données locales dans le job de reconciliation.
  * @param {string} isoDate YYYY-MM-DD
@@ -462,19 +477,127 @@ async function getDailyReconciliation(isoDate) {
   }
 }
 
+/**
+ * Récupère la carte cadeau active d'un consommateur par son ID fidelite-api.
+ * Retourne { numero, solde } ou null.
+ */
+async function getCarteCadeauByConsommateur(consommateurId) {
+  if (!consommateurId) return null;
+  try {
+    const { status, data } = await request('GET', `/info/carte-cadeau-by-consommateur/${consommateurId}`);
+    if (status === 404 || !data) return null;
+    const src = data && data.data ? data.data : data;
+    if (!src || src.success === false) return null;
+    return src;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Débite une carte cadeau via /external/carte-cadeau/debit.
+ * Fail-closed : l'erreur est propagée pour annuler le paiement.
+ */
+async function debitCarteCadeau({ numero, montant_xof, marchand_id, reference_afrikid }) {
+  try {
+    const { status, data } = await request('POST', '/external/carte-cadeau/debit', {
+      body: { numero_carte: numero, montant_xof, marchand_id, reference_afrikid },
+      retries: 0,
+    });
+    return { status, ...(data || {}) };
+  } catch (e) {
+    if (e.status === 404 || e.status === 422) {
+      return { status: e.status, success: false, ...(e.data || {}) };
+    }
+    throw e;
+  }
+}
+
+/**
+ * Trouve ou crée un marchand dans fidelite-api à partir de l'UUID afrikid.
+ * Retourne l'ID (int) du marchand côté fidelite-api, ou null si indisponible.
+ */
+async function findOrCreateMarchand({ afrikid_merchant_id, designation, telephone }) {
+  try {
+    const { data } = await request('POST', '/external/marchands/find-or-create', {
+      body: { afrikid_merchant_id, designation, telephone: telephone || null },
+      retries: 1,
+    });
+    const src = data && data.data ? data.data : data;
+    return src?.marchand_id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function syncMarchandToFidelite(afrikidMerchantId, { logoUrl, designation } = {}) {
+  try {
+    const body = {};
+    if (logoUrl !== undefined) body.logo_url = logoUrl;
+    if (designation !== undefined) body.designation = designation;
+    if (!Object.keys(body).length) return;
+    await request('PATCH', `/external/merchant/${afrikidMerchantId}/sync`, { body, retries: 0 });
+  } catch {
+    // fire-and-forget
+  }
+}
+
+// Envoie le fichier logo binaire vers fidelite-api pour qu'il le stocke localement.
+// filePath : chemin absolu sur disque, mimeType : 'image/jpeg' etc.
+async function syncLogoFileToFidelite(afrikidMerchantId, filePath, mimeType) {
+  try {
+    const cfg = config();
+    if (!cfg.enabled || !cfg.baseURL) return;
+
+    const fs = require('fs');
+    const FormData = require('form-data');
+
+    const form = new FormData();
+    form.append('logo', fs.createReadStream(filePath), {
+      contentType: mimeType,
+      filename: require('path').basename(filePath),
+    });
+    form.append('afrikid_merchant_id', String(afrikidMerchantId));
+
+    const path = `/external/marchands/sync-logo`;
+    const ts = Date.now().toString();
+    // Signature sur path uniquement (body multipart non signable en HMAC texte)
+    const sig = crypto.createHmac('sha256', cfg.hmacSecret).update(`${ts}.${path}.`).digest('hex');
+
+    await axios.post(cfg.baseURL.replace(/\/+$/, '') + path, form, {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: cfg.token ? `Bearer ${cfg.token}` : undefined,
+        'X-AfrikFid-Timestamp': ts,
+        'X-AfrikFid-Signature': sig,
+      },
+      timeout: 10000,
+      maxContentLength: 15 * 1024 * 1024,
+    });
+  } catch {
+    // fire-and-forget
+  }
+}
+
 module.exports = {
   lookupCard,
   getWallet,
   creditTransaction,
   debitWallet,
   debitPoints,
+  getCarteCadeauByConsommateur,
+  debitCarteCadeau,
+  findOrCreateMarchand,
   getMerchantLoyaltySummary,
+  getMerchantAnalytics,
   getDailyReconciliation,
   verifyPassword,
   lookupUserByEmail,
   lookupConsommateurByIdentifier,
   createConsommateur,
   pushProfileUpdate,
+  syncMarchandToFidelite,
+  syncLogoFileToFidelite,
   isValidCardNumero,
   // exposé pour tests
   _sign: sign,

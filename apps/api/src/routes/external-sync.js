@@ -16,6 +16,9 @@ const router = express.Router();
 const db = require('../lib/db');
 const { v4: uuidv4 } = require('uuid');
 const { verifyBapiHmac } = require('../middleware/verify-bapi-hmac');
+const { logoUpload, LOGO_DIR } = require('../lib/upload');
+const path = require('path');
+const crypto = require('crypto');
 
 // Suspension du push sortant pendant l'application (évite la boucle)
 let _suspendOutboundPush = false;
@@ -50,6 +53,7 @@ router.post('/sync/profile-updated', verifyBapiHmac, async (req, res) => {
       if (changes.designation != null) update.name = changes.designation;
       if (changes.telephone != null) update.phone = changes.telephone;
       if (changes.email != null) update.email = changes.email;
+      if (changes.logo_url != null) update.logo_url = changes.logo_url;
       // ville/longitude/latitude : pas de colonnes dédiées sur merchants gateway, on skip
 
       if (Object.keys(update).length === 0) return;
@@ -114,6 +118,57 @@ router.post('/sync/profile-updated', verifyBapiHmac, async (req, res) => {
   );
 
   res.json({ ok: true, applied });
+});
+
+// POST /api/v1/sync/logo — Reçoit un logo depuis fidelite-api et le stocke localement.
+// La signature HMAC est calculée sur body="" (multipart non signable en texte).
+router.post('/sync/logo', (req, res, next) => {
+  // Vérification Bearer + timestamp + signature HMAC (body vide pour multipart)
+  const expectedToken = process.env.BUSINESS_API_INBOUND_TOKEN || process.env.BUSINESS_API_TOKEN || '';
+  const secret = process.env.BUSINESS_API_HMAC_SECRET || '';
+  if (!expectedToken || !secret) return res.status(503).json({ error: 'not_configured' });
+
+  const auth = req.headers['authorization'] || '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const ba = Buffer.from(bearer); const bb = Buffer.from(expectedToken);
+  if (!bearer || ba.length !== bb.length || !crypto.timingSafeEqual(ba, bb)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  const timestamp = String(req.headers['x-afrikfid-timestamp'] || '');
+  const signature = String(req.headers['x-afrikfid-signature'] || '');
+  if (!timestamp || !signature || !/^\d+$/.test(timestamp)) return res.status(401).json({ error: 'bad_timestamp' });
+  if (Math.abs(Date.now() - parseInt(timestamp, 10)) > 5 * 60 * 1000) return res.status(401).json({ error: 'stale_timestamp' });
+
+  let reqPath = req.originalUrl.split('?')[0].replace(/^\/api\/v1/, '');
+  if (!reqPath.startsWith('/')) reqPath = '/' + reqPath;
+  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${reqPath}.`).digest('hex');
+  const sa = Buffer.from(signature, 'hex'); const sb = Buffer.from(expected, 'hex');
+  if (sa.length !== sb.length || !crypto.timingSafeEqual(sa, sb)) return res.status(401).json({ error: 'bad_signature' });
+
+  next();
+}, (req, res, next) => {
+  logoUpload.single('logo')(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni' });
+  const { business_api_marchand_id } = req.body || {};
+  if (!business_api_marchand_id) return res.status(400).json({ error: 'business_api_marchand_id requis' });
+
+  const baseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 4001}`).replace(/\/$/, '');
+  const logoUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
+
+  const r = await db.query(
+    'UPDATE merchants SET logo_url = $1, updated_at = NOW() WHERE business_api_marchand_id = $2 RETURNING id',
+    [logoUrl, business_api_marchand_id]
+  );
+  if (r.rowCount === 0) {
+    return res.status(404).json({ error: 'Marchand introuvable' });
+  }
+
+  res.json({ ok: true, logoUrl });
 });
 
 module.exports = { router, isPushSuspended, withoutPush };

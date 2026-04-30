@@ -8,6 +8,7 @@ const { calculatePriceElasticity } = require('../lib/price-elasticity');
 const { getTradeZoneStats } = require('../lib/trade-zones');
 const { MERCHANT_PACKAGES } = require('../config/constants');
 const { requireAuth } = require('../middleware/auth');
+const afrikfidClient = require('../lib/afrikfid-client');
 
 const router = Router();
 
@@ -604,15 +605,30 @@ router.get('/:merchantId/loyalty', requireAuth, async (req, res, next) => {
     if (req.merchant && req.merchant.id !== merchantId) {
       return res.status(403).json({ error: 'Accès refusé à ce marchand' });
     }
-    const r = await pool.query('SELECT business_api_marchand_id FROM merchants WHERE id = $1', [merchantId]);
+    const r = await pool.query('SELECT business_api_marchand_id, package FROM merchants WHERE id = $1', [merchantId]);
     const mapped = r.rows[0]?.business_api_marchand_id;
+    const pkg    = r.rows[0]?.package || 'STARTER_BOOST';
     if (!mapped) {
       return res.json({ available: false, reason: 'merchant_not_linked_to_business_api' });
     }
-    const afrikfidClient = require('../lib/afrikfid-client');
-    const summary = await afrikfidClient.getMerchantLoyaltySummary(mapped);
-    if (!summary) return res.json({ available: false, reason: 'upstream_unavailable' });
-    res.json({ available: true, summary });
+
+    // Tier selon package
+    const tierMap = { STARTER_BOOST: 'starter', STARTER_PLUS: 'plus', GROWTH: 'growth', PREMIUM: 'premium' };
+    const tier = tierMap[pkg] || 'starter';
+
+    const [summary, analytics] = await Promise.allSettled([
+      afrikfidClient.getMerchantLoyaltySummary(mapped),
+      afrikfidClient.getMerchantAnalytics(mapped, tier),
+    ]);
+
+    const summaryData  = summary.status  === 'fulfilled' ? summary.value  : null;
+    const analyticsData = analytics.status === 'fulfilled' ? analytics.value : null;
+
+    if (!summaryData && !analyticsData) {
+      return res.json({ available: false, reason: 'upstream_unavailable' });
+    }
+
+    res.json({ available: true, tier, summary: summaryData, analytics: analyticsData });
   } catch (err) { next(err); }
 });
 
