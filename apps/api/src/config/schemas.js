@@ -1,7 +1,7 @@
 'use strict';
 
 const { z } = require('zod');
-const { LOYALTY_STATUSES, REBATE_MODES, MM_OPERATORS, CURRENCIES, MERCHANT_STATUSES, KYC_STATUSES } = require('./constants');
+const { LOYALTY_STATUSES, REBATE_MODES, MM_OPERATORS, CURRENCIES, MERCHANT_STATUSES, KYC_STATUSES, MERCHANT_PACKAGES, BILLING_CYCLES } = require('./constants');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -166,8 +166,35 @@ const WalletPaySchema = z.object({
   product_category: z.string().max(100).optional(),
 });
 
+// ─── Subscriptions ───────────────────────────────────────────────────────────
+
+const SubscriptionQuoteSchema = z.object({
+  package: z.enum(MERCHANT_PACKAGES),
+  billing_cycle: z.enum(BILLING_CYCLES).default('monthly'),
+  mode: z.enum(['auto', 'upgrade_prorata', 'renewal', 'advance']).default('auto'),
+});
+
+const SubscriptionCheckoutSchema = z.object({
+  package: z.enum(MERCHANT_PACKAGES),
+  billing_cycle: z.enum(BILLING_CYCLES).default('monthly'),
+  mode: z.enum(['auto', 'upgrade_prorata', 'renewal', 'advance']).default('auto'),
+  provider: z.enum(['stripe', 'mobile_money']),
+  phone: phoneNumber.optional(),
+  operator: z.enum(MM_OPERATORS).optional(),
+});
+
+const SubscriptionAdminPatchSchema = z.object({
+  package: z.enum(MERCHANT_PACKAGES).optional(),
+  status: z.enum(['active', 'suspended', 'cancelled']).optional(),
+  base_monthly_fee: z.number().nonnegative().optional(),
+  reason: z.string().max(500).optional(),
+});
+
 module.exports = {
   WalletPaySchema,
+  SubscriptionQuoteSchema,
+  SubscriptionCheckoutSchema,
+  SubscriptionAdminPatchSchema,
   InitiatePaymentSchema,
   RefundSchema,
   CreateMerchantSchema,

@@ -57,6 +57,7 @@ import MerchantChurnAlerts from './pages/merchant/ChurnAlerts.jsx'
 import MerchantCampaigns from './pages/merchant/Campaigns.jsx'
 import MerchantKyc from './pages/merchant/Kyc.jsx'
 import MerchantProfile from './pages/merchant/Profile.jsx'
+import MerchantSubscription from './pages/merchant/Subscription.jsx'
 import ClientProfile from './pages/client/Profile.jsx'
 import PaymentPage from './pages/pay/PaymentPage.jsx'
 import Register from './pages/Register.jsx'
@@ -288,6 +289,7 @@ function MerchantLayout({ children }) {
     { path: '/merchant/campaigns',    label: 'Campagnes',                    Icon: BellAlertIcon },
     { path: '/merchant/refunds',       label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
     { path: '/merchant/kyc',           label: 'Vérification KYC',             Icon: ShieldCheckIcon },
+    { path: '/merchant/subscription',  label: 'Abonnement',                   Icon: CreditCardIcon },
     { path: '/merchant/settings',      label: 'Paramètres',                   Icon: Cog6ToothIcon },
     { path: '/merchant/profile',       label: 'Profil & Sécurité',            Icon: UserCircleIcon },
   ]
@@ -369,6 +371,7 @@ export default function App() {
             <Route path="/merchant/settings" element={<Protected role="merchant"><MerchantLayout><MerchantSettings /></MerchantLayout></Protected>} />
             <Route path="/merchant/kyc" element={<Protected role="merchant"><MerchantLayout><MerchantKyc /></MerchantLayout></Protected>} />
             <Route path="/merchant/profile" element={<Protected role="merchant"><MerchantLayout><MerchantProfile /></MerchantLayout></Protected>} />
+            <Route path="/merchant/subscription" element={<Protected role="merchant"><MerchantLayout><MerchantSubscription /></MerchantLayout></Protected>} />
 
             {/* Client */}
             <Route path="/client" element={<Protected role="client"><ClientDashboard /></Protected>} />

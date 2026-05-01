@@ -75,6 +75,33 @@ const POINTS_PER_REWARD_UNIT = 100;   // 1 point récompense = 100 FCFA
 // ─── Packages marchands (CDC v3 §1.4) ─────────────────────────────────────
 const MERCHANT_PACKAGES = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'];
 
+// ─── Tarifs mensuels FCFA (source unique de vérité) ───────────────────────
+const PACKAGE_PRICES_FCFA = {
+  STARTER_BOOST: 9900,
+  STARTER_PLUS: 19900,
+  GROWTH: 39900,
+  PREMIUM: 79900,
+};
+
+const PACKAGE_LABELS = {
+  STARTER_BOOST: 'Starter Boost',
+  STARTER_PLUS: 'Starter Plus',
+  GROWTH: 'Growth Intelligent',
+  PREMIUM: 'Premium Performance',
+};
+
+// Index pour comparer les rangs (upgrade vs downgrade)
+const PACKAGE_RANK = { STARTER_BOOST: 0, STARTER_PLUS: 1, GROWTH: 2, PREMIUM: 3 };
+
+// Cycle de facturation
+const BILLING_CYCLES = ['monthly', 'annual'];
+// Annuel = 11 mois payés (1er mois offert)
+const ANNUAL_PAID_MONTHS = 11;
+const FALLBACK_PACKAGE = 'STARTER_BOOST';
+
+// Rappels d'expiration (jours avant current_period_end)
+const SUBSCRIPTION_REMINDER_DAYS = [10, 7, 3];
+
 // ─── Barème Starter Boost — réduction par recrutement (CDC v3 §2.6) ───────
 const STARTER_BOOST_TIERS = [
   { minClients: 100, discountPercent: 50 },
@@ -136,6 +163,13 @@ module.exports = {
   POINTS_PER_STATUS_UNIT,
   POINTS_PER_REWARD_UNIT,
   MERCHANT_PACKAGES,
+  PACKAGE_PRICES_FCFA,
+  PACKAGE_LABELS,
+  PACKAGE_RANK,
+  BILLING_CYCLES,
+  ANNUAL_PAID_MONTHS,
+  FALLBACK_PACKAGE,
+  SUBSCRIPTION_REMINDER_DAYS,
   STARTER_BOOST_TIERS,
   RFM_SEGMENTS,
   RFM_DEFAULT_THRESHOLDS,

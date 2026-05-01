@@ -1,154 +1,117 @@
 'use strict';
 
 /**
- * Worker Prélèvement Abonnements — CDC v3.0 §2.5
+ * Worker quotidien — cycle de vie des abonnements marchands.
  *
- * Prélève mensuellement les frais d'abonnement de chaque marchand actif.
- * Le montant effectif tient compte du bonus recrutement Starter Boost (§2.6).
- * Cron : 2e du mois à 05h00 (après le success-fee du 1er)
+ * Pour chaque subscription active :
+ *  1. Si current_period_end <= NOW() → expireAndAdvance (consomme période, active
+ *     la suivante en file ou bascule en STARTER_BOOST + envoi notif J0).
+ *  2. Sinon, si current_period_end - NOW() ∈ {10, 7, 3} jours → envoi des
+ *     rappels (Email + WhatsApp + SMS) avec idempotence par
+ *     subscription_notifications.
+ *
+ * Cron : 06h00 Africa/Abidjan, tous les jours.
+ *
+ * Le marchand paie via Stripe ou Mobile Money depuis l'espace marchand —
+ * ce worker ne facture rien automatiquement, il orchestre seulement la fin de vie.
  */
 
 const { CronJob } = require('cron');
-const { v4: uuidv4 } = require('uuid');
 const db = require('../lib/db');
-const { calculateStarterBoostDiscount } = require('../lib/loyalty-engine');
+const engine = require('../lib/subscription-engine');
+const subNotif = require('../lib/subscription-notifications');
 const { notifyAdminAlert } = require('../lib/notifications');
+const { SUBSCRIPTION_REMINDER_DAYS } = require('../config/constants');
 
-/**
- * Calcule et enregistre le prélèvement mensuel pour un abonnement donné.
- * Retourne null si rien à facturer (0 FCFA, déjà facturé ce mois, inactif).
- */
-async function billSubscription(sub) {
-  const now = new Date();
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+const MS_DAY = 24 * 60 * 60 * 1000;
 
-  // Déjà facturé ce mois ?
-  if (sub.last_billed_at) {
-    const lastBilled = new Date(sub.last_billed_at);
-    if (
-      lastBilled.getFullYear() === now.getFullYear() &&
-      lastBilled.getMonth() === now.getMonth()
-    ) {
-      return null; // déjà traité
+async function processSubscription(sub) {
+  const now = Date.now();
+  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end).getTime() : null;
+  if (!periodEnd) return { skipped: true };
+
+  // Expiration ?
+  if (periodEnd <= now) {
+    const result = await engine.expireAndAdvance(sub);
+    if (result.changed && result.downgraded) {
+      const merchant = (await db.query(
+        `SELECT id, name, email, phone FROM merchants WHERE id = $1`,
+        [sub.merchant_id]
+      )).rows[0];
+      if (merchant) {
+        try { await subNotif.sendExpired(merchant, sub); } catch (e) { /* fire-and-forget */ }
+      }
     }
+    return { expired: true, ...result };
   }
 
-  const baseFee = parseFloat(sub.base_monthly_fee) || 0;
-  if (baseFee <= 0) return null; // pas de frais (Starter Plus / Growth / Premium sur devis = 0 dans la table)
+  // Rappels J-10 / J-7 / J-3
+  const daysLeft = Math.ceil((periodEnd - now) / MS_DAY);
+  if (!SUBSCRIPTION_REMINDER_DAYS.includes(daysLeft)) return { ok: true };
 
-  // Calcul réduction Starter Boost 
-  let discountPercent = 0;
-  let recruitedCount = 0;
-  if (sub.package === 'STARTER_BOOST') {
-    const boost = await calculateStarterBoostDiscount(sub.merchant_id);
-    discountPercent = boost.discountPercent;
-    recruitedCount = boost.recruitedCount;
+  const merchant = (await db.query(
+    `SELECT id, name, email, phone, package FROM merchants WHERE id = $1`,
+    [sub.merchant_id]
+  )).rows[0];
+  if (!merchant) return { ok: true };
+
+  const kind = `reminder_d${daysLeft}`;
+  const periodEndRef = new Date(sub.current_period_end);
+  // Idempotence par canal : insère préalablement les 3 (chacun unique par canal)
+  const channels = ['email', 'whatsapp', 'sms'];
+  const sendable = [];
+  for (const ch of channels) {
+    if (await engine.alreadySent(sub.id, kind, ch, periodEndRef)) continue;
+    sendable.push(ch);
   }
+  if (sendable.length === 0) return { ok: true, alreadySent: true };
 
-  const effectiveAmount = Math.round(baseFee * (1 - discountPercent / 100));
-  const paymentId = uuidv4();
+  try {
+    await subNotif.sendReminder(merchant, sub, daysLeft);
+  } catch (e) { /* fire-and-forget */ }
 
-  await db.query(
-    `INSERT INTO subscription_payments
-       (id, subscription_id, merchant_id, period_start, period_end,
-        base_amount, discount_percent, effective_amount, recruited_clients_count,
-        status, paid_at, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', NOW(), NOW())`,
-    [
-      paymentId, sub.id, sub.merchant_id,
-      periodStart.toISOString().slice(0, 10),
-      periodEnd.toISOString().slice(0, 10),
-      baseFee, discountPercent, effectiveAmount, recruitedCount,
-    ]
-  );
-
-  // Mettre à jour last_billed_at + effective_monthly_fee sur la subscription
-  const nextBillingAt = new Date(now.getFullYear(), now.getMonth() + 1, 2);
-  await db.query(
-    `UPDATE subscriptions
-     SET last_billed_at = NOW(),
-         effective_monthly_fee = $1,
-         next_billing_at = $2,
-         billing_failure_count = 0,
-         updated_at = NOW()
-     WHERE id = $3`,
-    [effectiveAmount, nextBillingAt.toISOString(), sub.id]
-  );
-
-  console.log(
-    `[SUBSCRIPTION-BILLING] Marchand ${sub.merchant_id} — ${effectiveAmount} FCFA prélevé (base ${baseFee}, -${discountPercent}%, ${recruitedCount} clients recrutés)`
-  );
-
-  return { paymentId, merchantId: sub.merchant_id, effectiveAmount, discountPercent, recruitedCount };
+  for (const ch of sendable) {
+    await engine.recordReminderSent(sub.id, kind, ch, periodEndRef);
+  }
+  return { reminder: kind, channels: sendable };
 }
 
-async function runSubscriptionBilling() {
-  console.log('[SUBSCRIPTION-BILLING] Début du cycle de prélèvement mensuel');
-
+async function runDaily() {
+  console.log('[SUBSCRIPTION-WORKER] Début du cycle quotidien');
   const subs = await db.query(
-    `SELECT s.*, m.package
-     FROM subscriptions s
-     JOIN merchants m ON m.id = s.merchant_id
-     WHERE s.status = 'active'
-       AND m.status = 'active'
-       AND m.is_active = TRUE`
+    `SELECT s.* FROM subscriptions s
+       JOIN merchants m ON m.id = s.merchant_id
+      WHERE s.status = 'active'
+        AND m.is_active = TRUE`
   );
-
-  const results = [];
-  const failures = [];
-
+  let expired = 0, reminders = 0, errors = 0;
   for (const sub of subs.rows) {
     try {
-      const result = await billSubscription(sub);
-      if (result) results.push(result);
+      const r = await processSubscription(sub);
+      if (r.expired) expired++;
+      if (r.reminder) reminders++;
     } catch (err) {
-      console.error(`[SUBSCRIPTION-BILLING] Erreur marchand ${sub.merchant_id}:`, err.message);
-
-      // Incrémenter le compteur d'échecs
-      await db.query(
-        `UPDATE subscriptions
-         SET billing_failure_count = billing_failure_count + 1, updated_at = NOW()
-         WHERE id = $1`,
-        [sub.id]
-      );
-
-      failures.push({ merchantId: sub.merchant_id, error: err.message });
+      errors++;
+      console.error(`[SUBSCRIPTION-WORKER] Erreur sub ${sub.id}:`, err.message);
     }
   }
-
-  if (failures.length > 0) {
-    notifyAdminAlert(
-      `[Prélèvements abonnements] ${failures.length} échec(s) sur ${subs.rows.length} abonnements. ` +
-      `Marchands: ${failures.map(f => f.merchantId).join(', ')}`
-    ).catch(() => { });
+  if (errors > 0) {
+    notifyAdminAlert(`[Worker abonnements] ${errors} erreur(s) sur ${subs.rows.length} subs`).catch(() => { });
   }
-
-  console.log(
-    `[SUBSCRIPTION-BILLING] Terminé — ${results.length} prélèvements effectués, ${failures.length} échec(s)`
-  );
-  return { results, failures };
+  console.log(`[SUBSCRIPTION-WORKER] Terminé — ${expired} expirations, ${reminders} rappels, ${errors} erreurs`);
+  return { expired, reminders, errors, total: subs.rows.length };
 }
 
 let job;
-
 function start() {
   if (process.env.NODE_ENV === 'test') return;
-
-  // Cron : 2e du mois à 05h00 (après success-fee du 1er à 04h00)
-  job = new CronJob('0 5 2 * *', async () => {
-    try {
-      await runSubscriptionBilling();
-    } catch (err) {
-      console.error('[SUBSCRIPTION-BILLING] Erreur critique:', err.message);
-    }
+  job = new CronJob('0 6 * * *', async () => {
+    try { await runDaily(); }
+    catch (err) { console.error('[SUBSCRIPTION-WORKER] Erreur critique:', err.message); }
   }, null, true, 'Africa/Abidjan');
-
-  console.log('[SUBSCRIPTION-BILLING] Cron mensuel programmé (2e du mois à 05h00)');
+  console.log('[SUBSCRIPTION-WORKER] Cron quotidien programmé (06h00 Abidjan)');
 }
 
-function stop() {
-  if (job) job.stop();
-}
+function stop() { if (job) job.stop(); }
 
-module.exports = { start, stop, runSubscriptionBilling, billSubscription };
+module.exports = { start, stop, runDaily, processSubscription };

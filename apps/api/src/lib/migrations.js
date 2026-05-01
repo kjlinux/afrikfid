@@ -1249,6 +1249,78 @@ const MIGRATIONS = [
       ALTER TABLE merchants ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT NULL;
     `,
   },
+  {
+    version: 35,
+    name: '035_subscription_engine',
+    up: `
+      -- Cycle de période + dates exactes (remplace la sémantique de next_billing_at)
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly';
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMPTZ;
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ;
+
+      -- Initialise les périodes pour les subs existantes : période courante = ce mois
+      UPDATE subscriptions
+         SET current_period_start = COALESCE(current_period_start, started_at, NOW()),
+             current_period_end   = COALESCE(current_period_end, next_billing_at, NOW() + INTERVAL '30 days')
+       WHERE current_period_end IS NULL;
+
+      -- File FIFO de périodes payées (active + advances)
+      CREATE TABLE IF NOT EXISTS subscription_periods (
+        id TEXT PRIMARY KEY,
+        subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        package TEXT NOT NULL,
+        billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+        period_start TIMESTAMPTZ NOT NULL,
+        period_end TIMESTAMPTZ NOT NULL,
+        amount_paid NUMERIC NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'XOF',
+        payment_id TEXT,
+        status TEXT NOT NULL DEFAULT 'paid'
+          CHECK (status IN ('paid', 'active', 'consumed', 'cancelled')),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_sub_periods_sub ON subscription_periods(subscription_id, status, period_start);
+      CREATE INDEX IF NOT EXISTS idx_sub_periods_merchant ON subscription_periods(merchant_id, status);
+
+      -- Étendre subscription_payments pour les paiements réels (Stripe / MM)
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS provider TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS provider_ref TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS kind TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS period_id TEXT REFERENCES subscription_periods(id) ON DELETE SET NULL;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS operator TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS package TEXT;
+      ALTER TABLE subscription_payments ADD COLUMN IF NOT EXISTS billing_cycle TEXT;
+      CREATE INDEX IF NOT EXISTS idx_sub_payments_provider_ref ON subscription_payments(provider, provider_ref);
+
+      -- Audit des changements de package
+      CREATE TABLE IF NOT EXISTS subscription_package_changes (
+        id TEXT PRIMARY KEY,
+        subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+        merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        old_package TEXT,
+        new_package TEXT NOT NULL,
+        changed_by TEXT NOT NULL CHECK (changed_by IN ('admin','merchant_upgrade','system_downgrade')),
+        actor_id TEXT,
+        reason TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_sub_pkg_changes_sub ON subscription_package_changes(subscription_id, created_at DESC);
+
+      -- Idempotence des rappels d'expiration
+      CREATE TABLE IF NOT EXISTS subscription_notifications (
+        id TEXT PRIMARY KEY,
+        subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        period_end_ref TIMESTAMPTZ NOT NULL,
+        sent_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_sub_notif
+        ON subscription_notifications(subscription_id, kind, channel, period_end_ref);
+    `,
+  },
 ];
 
 async function getCurrentVersion() {
