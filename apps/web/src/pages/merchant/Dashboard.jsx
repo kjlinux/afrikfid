@@ -416,11 +416,11 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
               <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 8, padding: '10px 12px', textAlign: 'center', border: '1px solid var(--afrikfid-border)' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{fmt(sfData.kpis?.pending || 0)}</div>
-                <div style={{ fontSize: 10, color: 'var(--afrikfid-muted)', textTransform: 'uppercase', marginTop: 2 }}>En attente</div>
+                <div style={{ fontSize: 10, color: 'var(--afrikfid-muted)', marginTop: 2 }}>En attente</div>
               </div>
               <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 8, padding: '10px 12px', textAlign: 'center', border: '1px solid var(--afrikfid-border)' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>{fmt(sfData.kpis?.total_paid || 0)}</div>
-                <div style={{ fontSize: 10, color: 'var(--afrikfid-muted)', textTransform: 'uppercase', marginTop: 2 }}>Payé</div>
+                <div style={{ fontSize: 10, color: 'var(--afrikfid-muted)', marginTop: 2 }}>Payé</div>
               </div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', marginBottom: 8 }}>
@@ -449,7 +449,7 @@ function MerchantIntelligenceSection({ pkg, period, merchantId }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
             {(loyaltyScore.score_breakdown || loyaltyScore.breakdown) && Object.entries(loyaltyScore.score_breakdown || loyaltyScore.breakdown).map(([k, v]) => (
               <div key={k} style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 6, padding: '6px 8px', border: '1px solid var(--afrikfid-border)' }}>
-                <div style={{ fontSize: 9, color: 'var(--afrikfid-muted)', textTransform: 'uppercase', marginBottom: 2 }}>{k.replace(/_/g, ' ')}</div>
+                <div style={{ fontSize: 9, color: 'var(--afrikfid-muted)', marginBottom: 2 }}>{k.replace(/_/g, ' ')}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--afrikfid-text)' }}>{typeof v === 'number' ? (v <= 1 && k.includes('rate') ? Math.round(v * 100) + '%' : fmt(v)) : v ?? '—'}</div>
               </div>
             ))}

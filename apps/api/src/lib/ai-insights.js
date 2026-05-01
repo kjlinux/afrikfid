@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Module IA Insights — appelle Claude Haiku avec le contexte RFM du marchand
- * pour générer des recommandations commerciales en langage naturel.
- * Réservé aux marchands PREMIUM.
- */
-
 const Anthropic = require('@anthropic-ai/sdk');
 const db = require('./db');
 
@@ -14,18 +8,15 @@ let client = null;
 function getClient() {
   if (!client) {
     if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY non configurée');
+      throw new Error('ANTHROPIC_API_KEY non configuree');
     }
     client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
   return client;
 }
 
-/**
- * Récupère le contexte RFM + CA du marchand depuis la DB
- */
 async function getMerchantContext(merchantId) {
-  const [segmentsResult, caResult, topClientsResult] = await Promise.all([
+  const [segmentsResult, caResult] = await Promise.all([
     db.query(`
       SELECT segment, COUNT(*) as count
       FROM rfm_scores
@@ -45,14 +36,6 @@ async function getMerchantContext(merchantId) {
       FROM transactions
       WHERE merchant_id = $1 AND status = 'completed'
     `, [merchantId]),
-    db.query(`
-      SELECT r.segment, r.rfm_total, r.r_score, r.f_score, r.m_score
-      FROM rfm_scores r
-      WHERE r.merchant_id = $1
-        AND r.calculated_at >= NOW() - INTERVAL '30 days'
-      ORDER BY r.rfm_total DESC
-      LIMIT 5
-    `, [merchantId]),
   ]);
 
   const segments = {};
@@ -61,14 +44,9 @@ async function getMerchantContext(merchantId) {
   }
 
   const ca = caResult.rows[0] || {};
-  const topClients = topClientsResult.rows;
-
-  return { segments, ca, topClients };
+  return { segments, ca };
 }
 
-/**
- * Construit le prompt pour Claude
- */
 function buildPrompt(merchantId, context) {
   const { segments, ca } = context;
 
@@ -83,47 +61,27 @@ function buildPrompt(merchantId, context) {
   const panierMoyen = parseFloat(ca.panier_moyen || 0);
   const clientsActifs = parseInt(ca.clients_actifs || 0, 10);
 
-  return `Tu es un conseiller commercial expert en fidélisation client pour des marchands africains.
+  return `Voici les donnees RFM et CA du marchand (ID: ${merchantId}) sur Afrik'Fid :
 
-Voici les données RFM et CA du marchand (ID: ${merchantId}) sur Afrik'Fid :
+Segmentation RFM (${totalClients} clients segmentes) :
+${segmentLines || '  Aucun client segmente pour le moment'}
 
-**Segmentation RFM** (${totalClients} clients segmentés) :
-${segmentLines || '  Aucun client segmenté pour le moment'}
-
-**Chiffre d'affaires** :
+Chiffre d'affaires :
   - CA total : ${caTotal.toLocaleString('fr-FR')} FCFA
   - CA 30 derniers jours : ${ca30j.toLocaleString('fr-FR')} FCFA
   - CA 7 derniers jours : ${ca7j.toLocaleString('fr-FR')} FCFA
   - Panier moyen : ${Math.round(panierMoyen).toLocaleString('fr-FR')} FCFA
   - Clients actifs : ${clientsActifs}
 
-**Ta mission** : Génère 3 à 5 recommandations concrètes et actionnables pour ce marchand. Chaque recommandation doit :
-1. Être basée sur les données RFM ci-dessus
-2. Proposer une action précise (ex: campagne SMS, offre spéciale, relance)
-3. Mentionner le segment ciblé et l'objectif attendu
-4. Être adaptée au marché africain (Mobile Money, disponibilité, prix)
+Genere 3 a 5 recommandations concretes et actionnables. Chaque recommandation doit :
+1. Etre basee sur les donnees RFM ci-dessus
+2. Proposer une action precise (campagne SMS, offre speciale, relance)
+3. Mentionner le segment cible et l'objectif attendu
+4. Etre adaptee au marche africain (Mobile Money, disponibilite, prix)
 
-Réponds en français, de façon concise et professionnelle. Format JSON strict :
-{
-  "resume": "1-2 phrases sur l'état général du portefeuille client",
-  "recommandations": [
-    {
-      "titre": "Titre court",
-      "segment": "Segment cible",
-      "action": "Action concrète à mener",
-      "objectif": "Résultat attendu",
-      "priorite": "haute|moyenne|faible"
-    }
-  ],
-  "alerte": "Message d'alerte si un segment critique dépasse 30% du portefeuille (null sinon)"
-}`;
+Reponds en francais, de facon concise et professionnelle. Appelle l'outil submit_insights.`;
 }
 
-/**
- * Génère les insights IA pour un marchand
- * @param {string} merchantId
- * @returns {Promise<Object>} insights JSON parsé
- */
 async function generateInsights(merchantId) {
   const context = await getMerchantContext(merchantId);
   const prompt = buildPrompt(merchantId, context);
@@ -132,20 +90,51 @@ async function generateInsights(merchantId) {
   const response = await ai.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
+    system: "Tu es un conseiller commercial expert en fidelisation client pour des marchands africains. Reponds UNIQUEMENT en appelant l'outil fourni. Ne genere aucun texte en dehors de l'appel outil.",
+    tools: [
+      {
+        name: 'submit_insights',
+        description: 'Soumet les recommandations commerciales generees',
+        input_schema: {
+          type: 'object',
+          properties: {
+            resume: {
+              type: 'string',
+              description: "1-2 phrases sur l'etat general du portefeuille client",
+            },
+            recommandations: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  titre: { type: 'string' },
+                  segment: { type: 'string' },
+                  action: { type: 'string' },
+                  objectif: { type: 'string' },
+                  priorite: { type: 'string', enum: ['haute', 'moyenne', 'faible'] },
+                },
+                required: ['titre', 'segment', 'action', 'priorite'],
+              },
+            },
+            alerte: {
+              type: ['string', 'null'],
+              description: 'Alerte si un segment critique depasse 30%, null sinon',
+            },
+          },
+          required: ['resume', 'recommandations', 'alerte'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'submit_insights' },
     messages: [{ role: 'user', content: prompt }],
   });
 
-  const text = response.content.find(b => b.type === 'text')?.text || '{}';
-
-  // Extraire le JSON de la réponse (Claude peut ajouter du texte autour)
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('Réponse IA invalide: pas de JSON trouvé');
+  const toolUse = response.content.find(b => b.type === 'tool_use');
+  if (!toolUse) {
+    throw new Error('Reponse IA invalide: aucun appel outil recu');
   }
 
-  const insights = JSON.parse(jsonMatch[0]);
-
-  // Sauvegarder le coût d'utilisation (optionnel, pour tracking)
+  const insights = toolUse.input;
   const inputTokens = response.usage?.input_tokens || 0;
   const outputTokens = response.usage?.output_tokens || 0;
 

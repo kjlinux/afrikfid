@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../lib/db');
 const { requireAdmin } = require('../middleware/auth');
 const { getAllRates, updateExchangeRate, toEUR } = require('../lib/currency');
+const afrikfidClient = require('../lib/afrikfid-client');
 
 // GET /api/v1/reports/daily
 router.get('/daily', requireAdmin, async (req, res) => {
@@ -94,15 +95,37 @@ router.get('/overview', requireAdmin, async (req, res) => {
   `)).rows;
 
   const dailyVolume = (await db.query(`
-    SELECT DATE(initiated_at) as day,
+    SELECT TO_CHAR(DATE(initiated_at), 'YYYY-MM-DD') as day,
       COALESCE(SUM(CASE WHEN status = 'completed' THEN gross_amount ELSE 0 END), 0) as volume,
       COUNT(CASE WHEN status = 'completed' THEN 1 END) as count
     FROM transactions WHERE initiated_at >= $1
     GROUP BY DATE(initiated_at) ORDER BY day
   `, [fromStr])).rows;
 
-  const merchantCount = parseInt((await db.query("SELECT COUNT(*) as c FROM merchants WHERE is_active = TRUE")).rows[0].c);
-  const clientCount = parseInt((await db.query("SELECT COUNT(*) as c FROM clients WHERE is_active = TRUE")).rows[0].c);
+  const [merchantCountRes, clientCountRes, linkedCardsRes, fideliteIntelligence] = await Promise.all([
+    db.query("SELECT COUNT(*) as c FROM merchants WHERE is_active = TRUE"),
+    db.query("SELECT COUNT(*) as c FROM clients WHERE is_active = TRUE"),
+    db.query("SELECT COUNT(*) as c FROM clients WHERE is_active = TRUE AND afrikfid_id ~ '^2014[0-9]{8}$'"),
+    afrikfidClient.getAdminLoyaltyIntelligence().catch(() => null),
+  ]);
+  const merchantCount = parseInt(merchantCountRes.rows[0].c);
+  const clientCount = parseInt(clientCountRes.rows[0].c);
+  const linkedCardsCount = parseInt(linkedCardsRes.rows[0].c);
+
+  const fideliteStats = {
+    totalCartesFidelite: linkedCardsCount,
+    totalCartesCadeau: fideliteIntelligence?.sante_programme?.nb_cartes_cadeaux_actives ?? null,
+    soldeTotalCartesCadeau: fideliteIntelligence?.sante_programme?.solde_total_cartes_cadeaux_xof ?? null,
+    pointsEnCirculation: fideliteIntelligence?.sante_programme?.total_points_en_circulation ?? null,
+    totalWalletsActifs: fideliteIntelligence?.sante_programme?.total_wallets_actifs ?? null,
+    soldeTotalWallets: fideliteIntelligence?.sante_programme?.solde_total_wallets_xof ?? null,
+    tauxUtilisationPoints: fideliteIntelligence?.sante_programme?.taux_utilisation_points_pct ?? null,
+    commissionsDues: fideliteIntelligence?.flux_financier?.compensation_a_recevoir?.montant_total ?? null,
+    compensationsDues: fideliteIntelligence?.flux_financier?.compensation_a_verser?.montant_total ?? null,
+    resultatNet: fideliteIntelligence?.flux_financier?.resultat ?? null,
+    performancePaliers: fideliteIntelligence?.performance_paliers ?? [],
+    available: fideliteIntelligence !== null,
+  };
 
   // KPI taux de conversion OPEN→ROYAL Analytics)
   const conversionStats = (await db.query(`
@@ -184,7 +207,7 @@ router.get('/overview', requireAdmin, async (req, res) => {
     ? Math.round((rfmSummary.aRisque.count + rfmSummary.perdus.count) / totalScored * 100 * 10) / 10
     : 0;
 
-  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary, period: `${days}d` });
+  res.json({ kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary, fideliteStats, period: `${days}d` });
 });
 
 // GET /api/v1/reports/transactions

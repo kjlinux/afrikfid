@@ -1709,6 +1709,18 @@ function notifyRequalificationReminder({ client: _c, daysRemaining, currentStatu
   });
 }
 
+// Alerte interne admin — subject+body ou string brute
+async function notifyAdminAlert(payload) {
+  const subject = typeof payload === 'string' ? 'Alerte système Afrik\'Fid' : payload.subject;
+  const body    = typeof payload === 'string' ? payload : payload.body;
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.MAILGUN_ADMIN_EMAIL;
+  if (adminEmail) {
+    await sendEmail(adminEmail, subject, body, `<pre>${body}</pre>`);
+  } else {
+    console.warn('[NOTIFY] notifyAdminAlert (no ADMIN_EMAIL):', subject, body);
+  }
+}
+
 module.exports = {
   // Existants
   notifyPaymentConfirmed,
@@ -1735,6 +1747,7 @@ module.exports = {
   notifyDisputeOpened,
   notifyWalletCapReached,
   notifyRequalificationReminder,
+  notifyAdminAlert,
   // Exposed for testing
   sendSMS,
   sendEmail,

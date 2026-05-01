@@ -96,7 +96,7 @@ export default function AdminSubscriptions() {
 
   useEffect(() => { load() }, [page, filterPkg])
 
-  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)', textAlign: 'left' }
+  const th = { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-border)', textAlign: 'left' }
   const td = { padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)' }
   const card = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '16px 20px' }
   const PKG_HEX = { STARTER_BOOST: 'var(--af-text-muted)', STARTER_PLUS: '#3b82f6', GROWTH: '#10b981', PREMIUM: 'var(--af-accent)' }

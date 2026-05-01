@@ -464,6 +464,20 @@ async function getMerchantAnalytics(marchandId, tier = 'starter') {
 }
 
 /**
+ * Récupère les agrégats admin plateforme côté fidelite-api :
+ * santé programme (points, wallets, cartes cadeaux), performance paliers, flux financier.
+ * Fail-soft : retourne null si fidelite-api est indisponible.
+ */
+async function getAdminLoyaltyIntelligence() {
+  try {
+    const { data } = await request('GET', '/external/admin/loyalty-intelligence');
+    return (data && data.data) ? data.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Récupère l'agrégat quotidien vu côté business-api (transactions reçues d'afrikid),
  * pour croisement avec les données locales dans le job de reconciliation.
  * @param {string} isoDate YYYY-MM-DD
@@ -590,6 +604,7 @@ module.exports = {
   findOrCreateMarchand,
   getMerchantLoyaltySummary,
   getMerchantAnalytics,
+  getAdminLoyaltyIntelligence,
   getDailyReconciliation,
   verifyPassword,
   lookupUserByEmail,

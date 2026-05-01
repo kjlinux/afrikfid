@@ -71,6 +71,7 @@ import { tokenKey, userKey, roleFromPath } from './auth-storage.js'
 
 function AuthProvider({ children }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const activeRole = roleFromPath(location.pathname)
 
   const [user, setUser] = useState(() => {
@@ -100,6 +101,12 @@ function AuthProvider({ children }) {
     }
     setUser(null)
   }
+
+  useEffect(() => {
+    const onUnauthorized = () => { logout(); navigate('/login', { replace: true }) }
+    window.addEventListener('afrikfid:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('afrikfid:unauthorized', onUnauthorized)
+  }, [activeRole])
 
   const updateUser = (patch) => {
     setUser(prev => {
@@ -136,7 +143,7 @@ function ThemeToggle() {
 }
 
 // ─── Topbar (partagé admin/merchant/client) ──────────────────────────────────
-function Topbar({ user, onLogout, onHome }) {
+function Topbar({ user, logoUrl, onLogout, onHome }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -170,7 +177,9 @@ function Topbar({ user, onLogout, onHome }) {
         {user && (
           <>
             <div className="af-topbar__user" onClick={() => setMenuOpen(v => !v)}>
-              <div className="af-topbar__avatar">{initials}</div>
+              {logoUrl
+                ? <img src={logoUrl} alt="" className="af-topbar__avatar" style={{ objectFit: 'cover', padding: 0 }} />
+                : <div className="af-topbar__avatar">{initials}</div>}
               <div>
                 <div className="af-topbar__user-name">{user.name || user.email?.split('@')[0] || 'Utilisateur'}</div>
                 <div className="af-topbar__user-role">{user.role}</div>
@@ -232,7 +241,7 @@ function AdminLayout({ children }) {
     { path: '/admin/clients',           label: 'Clients',                      Icon: UsersIcon },
     { path: '/admin/transactions',      label: 'Transactions',                 Icon: CreditCardIcon },
     { path: '/admin/loyalty',           label: 'Fidélité',                     Icon: StarIcon },
-    { path: '/admin/loyalty-bridge',    label: 'Pont business-api',            Icon: LinkIcon },
+    { path: '/admin/loyalty-bridge',    label: 'Pont',            Icon: LinkIcon },
     { path: '/admin/webhooks',          label: 'Webhooks',                     Icon: BellIcon },
     { path: '/admin/fraud',             label: 'Fraude',                       Icon: ShieldCheckIcon },
     { path: '/admin/exchange-rates',    label: 'Taux de change',               Icon: ArrowsRightLeftIcon },
@@ -263,6 +272,12 @@ function AdminLayout({ children }) {
 function MerchantLayout({ children }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [merchantLogoUrl, setMerchantLogoUrl] = useState(null)
+  useEffect(() => {
+    import('./api.js').then(m => m.default.get('/merchants/me/profile'))
+      .then(r => setMerchantLogoUrl(r.data.merchant?.logoUrl || null))
+      .catch(() => {})
+  }, [user?.id])
 
   const items = [
     { path: '/merchant',               end: true, label: 'Dashboard',          Icon: ChartBarIcon },
@@ -279,7 +294,7 @@ function MerchantLayout({ children }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--af-bg)', color: 'var(--af-text)', display: 'flex', flexDirection: 'column' }}>
-      <Topbar user={user} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/merchant')} />
+      <Topbar user={user} logoUrl={merchantLogoUrl} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/merchant')} />
       <Navbar items={items} />
       <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         {children}

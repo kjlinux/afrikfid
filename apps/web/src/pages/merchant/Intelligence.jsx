@@ -240,7 +240,7 @@ function Evo({ pct }) {
 function KpiBox({ label, value, color, sub, evo }) {
   return (
     <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, padding: '12px 14px' }}>
-      <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}<Evo pct={evo} /></div>
       {sub && <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>{sub}</div>}
     </div>
@@ -287,7 +287,7 @@ function AfrikFidLoyaltySection() {
       {/* En-tête */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Fidélité Afrik'Fid · 360°</div>
-        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--af-accent-soft)', color: 'var(--af-accent)', fontWeight: 700, letterSpacing: 0.5 }}>30 JOURS</span>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--af-accent-soft)', color: 'var(--af-accent)', fontWeight: 700 }}>30 JOURS</span>
       </div>
 
       {/* KPIs base — tous packages */}
@@ -301,7 +301,7 @@ function AfrikFidLoyaltySection() {
       {/* PLUS+ : panier moyen, wallet, conversion points */}
       {isPlus && (pl.panier_moyen_30j !== undefined) && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Comportement client</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Comportement client</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
             <KpiBox label="Panier moyen (caisse)" value={Number(pl.panier_moyen_30j || 0).toLocaleString('fr-FR') + ' XOF'} color="var(--af-accent)" />
             <KpiBox label="Wallet capturé (cashback)" value={Number(pl.wallet_credits_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#8b5cf6" sub={`Taux capture : ${pl.wallet_capture_rate_pct ?? 0}% du CA`} />
@@ -312,7 +312,7 @@ function AfrikFidLoyaltySection() {
           {/* Top clients enrichis */}
           {Array.isArray(pl.top_clients) && pl.top_clients.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Top clients fidèles</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Top clients fidèles</div>
               <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden' }}>
                 {pl.top_clients.slice(0, 5).map((c, i) => (
                   <div key={c.numero || i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto auto auto', alignItems: 'center', gap: 10, padding: '9px 14px', borderTop: i > 0 ? '1px solid var(--af-surface)' : 'none', fontSize: 12 }}>
@@ -335,9 +335,9 @@ function AfrikFidLoyaltySection() {
       {/* GROWTH+ : segmentation paliers, churn fidélité, réductions */}
       {isGrowth && gr.segmentation_paliers && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Segmentation par palier fidélité</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Segmentation par palier fidélité</div>
           <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--af-border)', fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--af-border)', fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700 }}>
               <span>Palier</span><span>Clients</span><span>Remise</span><span>Commission</span>
             </div>
             {gr.segmentation_paliers.map((p, i) => (
@@ -362,7 +362,7 @@ function AfrikFidLoyaltySection() {
       {/* PREMIUM : LTV, wallet dormant, clients proches palier */}
       {isPremium && (pr.ltv_moyenne_xof !== undefined) && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Valeur vie client &amp; opportunités</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Valeur vie client &amp; opportunités</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
             <KpiBox label="LTV moyenne (fidélité)" value={Number(pr.ltv_moyenne_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#10b981" />
             <KpiBox label="LTV médiane" value={Number(pr.ltv_mediane_xof || 0).toLocaleString('fr-FR') + ' XOF'} color="#3b82f6" />
@@ -387,7 +387,7 @@ function AfrikFidLoyaltySection() {
       {/* Top clients basique (STARTER sans plus) */}
       {!isPlus && Array.isArray(s.top_clients) && s.top_clients.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Top clients fidèles</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Top clients fidèles</div>
           <div style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, overflow: 'hidden' }}>
             {s.top_clients.slice(0, 5).map((c, i) => (
               <div key={c.numero || i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto auto', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i > 0 ? '1px solid var(--af-surface)' : 'none', fontSize: 13 }}>
@@ -460,7 +460,7 @@ export default function MerchantIntelligence() {
           { label: 'Clients uniques', value: Number(data.kpis?.unique_clients || 0).toLocaleString(), color: '#3b82f6', tip: null },
         ].map(k => (
           <div key={k.label} style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>
               {k.label}{k.tip && <InfoTooltip text={k.tip} />}
             </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
@@ -504,7 +504,7 @@ export default function MerchantIntelligence() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--af-border)' }}>
                     {['Segment', 'Clients', 'Montant moyen', 'Achats moy.', 'Action recommandée'].map((h, i) => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: i > 0 && i < 4 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>{h}</th>
+                      <th key={h} style={{ padding: '8px 12px', textAlign: i > 0 && i < 4 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -548,7 +548,7 @@ export default function MerchantIntelligence() {
       {m.return_rate && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
           <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '20px 24px' }}>
-            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>
               Taux de retour clients<InfoTooltip text={TOOLTIPS.taux_retour} />
             </div>
             <div style={{ fontSize: 36, fontWeight: 800, color: data.return_rate >= 50 ? '#10b981' : data.return_rate >= 25 ? 'var(--af-accent)' : '#ef4444' }}>{data.return_rate ?? '—'}%</div>
@@ -689,7 +689,7 @@ export default function MerchantIntelligence() {
               { label: 'Transactions analysées', value: Number(data.price_elasticity.total_transactions).toLocaleString(), color: 'var(--af-text-muted)' },
             ].map(k => (
               <div key={k.label} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 4 }}>{k.label}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: k.color }}>{k.value}</div>
               </div>
             ))}
@@ -712,7 +712,7 @@ export default function MerchantIntelligence() {
               { label: 'CA cartographié', value: Number(data.trade_zones.total_revenue_mapped).toLocaleString() + ' FCFA' },
             ].map(k => (
               <div key={k.label} style={{ background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 4 }}>{k.label}</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text)' }}>{k.value}</div>
               </div>
             ))}

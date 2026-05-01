@@ -83,7 +83,7 @@ export default function AdminWebhooks() {
               <thead>
                 <tr style={{ background: 'var(--af-surface-3)' }}>
                   {['Marchand', 'Type', 'Statut', 'Tentatives', 'Créé', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
               </thead>

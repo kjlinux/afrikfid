@@ -23,11 +23,18 @@ import {
 const LOYALTY_COLORS = { OPEN: '#9CA3AF', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#EC4899' }
 
 // KPI card avec sparkline intégrée (match captures 1/10)
-function KpiSparkCard({ label, value, color, gradientId, Icon, series }) {
+function KpiSparkCard({ label, value, color, gradientId, Icon, series, source }) {
   return (
     <div className="af-kpi">
       <div style={{ position: 'relative', zIndex: 2 }}>
-        <div className="af-kpi__label">{label}</div>
+        <div className="af-kpi__label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {label}
+          {source && (
+            <span style={{ fontSize: 9, fontWeight: 700, background: `${color}22`, color, borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              {source}
+            </span>
+          )}
+        </div>
         <div className="af-kpi__value" style={{ color }}>{value}</div>
       </div>
       {Icon && <Icon className="af-kpi__icon" style={{ color }} />}
@@ -139,22 +146,29 @@ export default function AdminDashboard() {
   if (loading && !data) return <div style={{ padding: 40 }}><Spinner /></div>
   if (!data) return null
 
-  const { kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary } = data
+  const { kpis, topMerchants, loyaltyDistribution, dailyVolume, merchantCount, clientCount, conversionRates, rfmSummary, fideliteStats } = data
 
   // Séries pour sparklines KPI (on utilise dailyVolume si disponible, sinon synthétique)
   const volSeries = dailyVolume?.slice(-18).map((d, i) => ({ i, v: Number(d.volume) || 0 })) || makeSeries(1, 50)
   const merchSeries = makeSeries(merchantCount, Math.max(merchantCount, 5))
   const clientSeries = makeSeries(clientCount, Math.max(clientCount / 10, 5))
-  const cardSeries = makeSeries(clientCount + 1, Math.max(clientCount / 10, 5))
-  const giftSeries = makeSeries(7, 6)
+  const totalCartes = fideliteStats?.totalCartesFidelite ?? clientCount
+  const cardSeries = makeSeries(totalCartes + 1, Math.max(totalCartes / 10, 5))
+  const totalCC = fideliteStats?.totalCartesCadeau
+  const giftSeries = totalCC != null ? makeSeries(totalCC + 2, Math.max(totalCC, 3)) : makeSeries(7, 6)
 
   const loyaltyPieData = loyaltyDistribution.map(d => ({
     name: d.loyalty_status, value: d.count, color: LOYALTY_COLORS[d.loyalty_status] || '#9CA3AF'
   }))
 
-  // Donut Commission/Compensation (match capture dashboard)
-  const commissionValue = Number(kpis.platform_revenue) || 0
-  const compensationValue = Number(kpis.client_rebates) || 0
+  // Donut Commission/Compensation — source: fidelite-api si disponible, sinon passerelle
+  const commissionValue = fideliteStats?.available
+    ? (Number(fideliteStats.commissionsDues) || 0)
+    : (Number(kpis.platform_revenue) || 0)
+  const compensationValue = fideliteStats?.available
+    ? (Number(fideliteStats.compensationsDues) || 0)
+    : (Number(kpis.client_rebates) || 0)
+  const donutSource = fideliteStats?.available ? 'Fidélité' : 'Passerelle'
   const ratioData = [
     { name: 'Commissions dues', value: commissionValue, color: tokens.accent },
     { name: 'Compensations dues', value: compensationValue, color: tokens.kpi.green },
@@ -208,27 +222,33 @@ export default function AdminDashboard() {
         />
         <KpiSparkCard
           label="Cartes fidélité"
-          value={fmt(clientCount)}
+          value={fmt(totalCartes)}
           color={tokens.kpi.yellow}
           gradientId="kpiCards"
           Icon={CreditCardIcon}
           series={cardSeries}
+          source="Fidélité"
         />
         <KpiSparkCard
           label="Cartes cadeaux"
-          value={fmt(conversionRates?.counts?.royal_elite || 6)}
+          value={totalCC != null ? fmt(totalCC) : '—'}
           color={tokens.kpi.green}
           gradientId="kpiGifts"
           Icon={GiftIcon}
           series={giftSeries}
+          source={totalCC != null ? 'Fidélité' : null}
         />
       </div>
 
       {/* Donut Commission / Compensation + Table dernières transactions (match capture principale) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, marginBottom: 20 }}>
         <Card title="Répartition Commission / Compensation">
-          <div style={{ position: 'relative' }}>
-            {/* Légende au-dessus (match capture) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', marginBottom: 4 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: fideliteStats?.available ? tokens.kpi.green : tokens.textMuted, background: fideliteStats?.available ? `${tokens.kpi.green}22` : 'var(--af-surface-2)', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase' }}>
+                Source : {donutSource}
+              </span>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 18, marginBottom: 8 }}>
               {ratioData.map(d => (
                 <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
@@ -237,71 +257,70 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
                   data={ratioData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={70}
-                  outerRadius={110}
+                  innerRadius={65}
+                  outerRadius={100}
                   startAngle={90}
                   endAngle={-270}
                   dataKey="value"
-                  stroke="none"
-                  paddingAngle={ratioTotal > 0 ? 0 : 0}>
+                  stroke="none">
                   {ratioData.map((e, i) => <Cell key={i} fill={e.color} />)}
                 </Pie>
-                <Tooltip
-                  contentStyle={chartTooltipStyle}
-                  formatter={v => [`${fmt(v)} FCFA`]}
-                />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={v => [`${fmt(v)} FCFA`]} />
               </PieChart>
             </ResponsiveContainer>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', marginTop: 4 }}>
+              {ratioData.map(d => (
+                <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--af-border)' }}>
+                  <span style={{ color: 'var(--af-text-muted)' }}>{d.name}</span>
+                  <span style={{ fontWeight: 700, color: d.color }}>{fmt(d.value)} FCFA</span>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
 
-        <Card title="10 dernières transactions">
-          <div style={{ overflowX: 'auto', margin: -20 }}>
-            <table className="af-table">
-              <thead>
-                <tr>
-                  <th>Consommateur</th>
-                  <th>Marchand</th>
-                  <th style={{ textAlign: 'right' }}>Montant</th>
-                  <th style={{ textAlign: 'right' }}>Points</th>
-                  <th>Paiement</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(topMerchants?.slice(0, 10) || []).map((m, i) => (
-                  <tr key={`${m.id}-${i}`}>
-                    <td style={{ color: 'var(--af-text)' }}>{m.client_name || m.name}</td>
-                    <td style={{ color: 'var(--af-text-muted)', textTransform: 'uppercase', fontSize: 12 }}>{m.name}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--af-success)', fontWeight: 600 }}>
-                      {fmt(m.volume)} FCFA
-                    </td>
-                    <td style={{ textAlign: 'right', color: 'var(--af-kpi-violet)', fontWeight: 700 }}>
-                      {m.tx_count}
-                    </td>
-                    <td>
-                      <span className="af-badge-status">Crédit Carte fidélité</span>
-                    </td>
-                  </tr>
-                ))}
-                {(!topMerchants || topMerchants.length === 0) && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--af-text-muted)' }}>Aucune transaction récente</td></tr>
-                )}
-              </tbody>
-            </table>
+        <RecentTransactionsCard period={period} tokens={tokens} />
+      </div>
+
+      {/* Santé programme fidélité — section conditionnelle si fidelite-api disponible */}
+      {fideliteStats?.available && (
+        <Card title="Santé programme fidélité" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {[
+              { label: 'Points en circulation', value: fmt(fideliteStats.pointsEnCirculation), unit: 'pts', color: tokens.kpi.yellow },
+              { label: 'Wallets actifs', value: fmt(fideliteStats.totalWalletsActifs), unit: `${fmt(fideliteStats.soldeTotalWallets)} XOF`, color: tokens.kpi.blue },
+              { label: 'Cartes cadeaux actives', value: fmt(fideliteStats.totalCartesCadeau), unit: `${fmt(fideliteStats.soldeTotalCartesCadeau)} XOF`, color: tokens.kpi.green },
+              { label: 'Taux utilisation points', value: `${fideliteStats.tauxUtilisationPoints}%`, unit: 'des transactions', color: tokens.kpi.violet },
+              ...(fideliteStats.resultatNet ? [{
+                label: 'Résultat net fidélité',
+                value: `${fideliteStats.resultatNet.type === 'benefice' ? '+' : '-'}${fmt(fideliteStats.resultatNet.montant)}`,
+                unit: 'XOF · ' + (fideliteStats.resultatNet.type === 'benefice' ? 'Bénéfice' : 'Déficit'),
+                color: fideliteStats.resultatNet.type === 'benefice' ? tokens.success : tokens.danger,
+              }] : []),
+            ].map(k => (
+              <div key={k.label} style={{ background: 'var(--af-surface-2)', borderRadius: 'var(--af-radius)', padding: '12px 14px', border: '1px solid var(--af-border)' }}>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{k.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: k.color }}>{k.value}</div>
+                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>{k.unit}</div>
+              </div>
+            ))}
           </div>
         </Card>
-      </div>
+      )}
 
       {/* Volume quotidien — grand graphique */}
       <Card title={`Volume quotidien (XOF) · ${period}j`} style={{ marginBottom: 20 }}>
         <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={dailyVolume} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={dailyVolume.map(d => ({ ...d, dayLabel: d.day ? d.day.toString().slice(0, 10) : '' }))}
+            margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+          >
             <defs>
               <linearGradient id="vGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={tokens.accent} stopOpacity={0.35} />
@@ -309,10 +328,31 @@ export default function AdminDashboard() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={tokens.border} />
-            <XAxis dataKey="day" tick={{ fill: tokens.textMuted, fontSize: 11 }} tickLine={false} axisLine={{ stroke: tokens.border }} />
-            <YAxis tick={{ fill: tokens.textMuted, fontSize: 11 }} tickLine={false} axisLine={{ stroke: tokens.border }} tickFormatter={v => `${Math.round(v / 1000)}k`} />
-            <Tooltip contentStyle={chartTooltipStyle} formatter={v => [`${fmt(v)} XOF`]} />
-            <Area type="monotone" dataKey="volume" stroke={tokens.accent} strokeWidth={2.5} fill="url(#vGrad)" />
+            <XAxis
+              dataKey="dayLabel"
+              tick={{ fill: tokens.textMuted, fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: tokens.border }}
+              interval={Math.max(Math.floor(dailyVolume.length / 7) - 1, 0)}
+              tickFormatter={v => {
+                if (!v || v.length < 10) return v
+                const [, m, d] = v.split('-')
+                return `${d}/${m}`
+              }}
+            />
+            <YAxis
+              tick={{ fill: tokens.textMuted, fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: tokens.border }}
+              tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v}
+              width={40}
+            />
+            <Tooltip
+              contentStyle={chartTooltipStyle}
+              labelFormatter={v => v}
+              formatter={v => [`${fmt(v)} XOF`]}
+            />
+            <Area type="monotone" dataKey="volume" stroke={tokens.accent} strokeWidth={2.5} fill="url(#vGrad)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </Card>
@@ -329,13 +369,16 @@ export default function AdminDashboard() {
       {/* Distribution loyalty */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
         <Card title="Clients par statut fidélité">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={loyaltyPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" stroke="none">
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={loyaltyPieData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke={tokens.border} vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: tokens.textMuted, fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: tokens.textMuted, fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+              <Tooltip contentStyle={chartTooltipStyle} formatter={v => [`${v} clients`]} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {loyaltyPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip contentStyle={chartTooltipStyle} />
-            </PieChart>
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10, justifyContent: 'center' }}>
             {loyaltyPieData.map(d => (
@@ -456,6 +499,72 @@ export default function AdminDashboard() {
         ))}
       </div>
     </div>
+  )
+}
+
+function RecentTransactionsCard({ period, tokens }) {
+  const [txs, setTxs] = React.useState(null)
+
+  React.useEffect(() => {
+    api.get(`/reports/transactions?status=completed&limit=10`).then(r => setTxs(r.data.transactions || [])).catch(() => setTxs([]))
+  }, [period])
+
+  const METHOD_LABEL = {
+    mobile_money: 'Mobile Money',
+    MOBILE_MONEY: 'Mobile Money',
+    card: 'Carte bancaire',
+    CARD: 'Carte bancaire',
+    wallet: 'Wallet fidélité',
+    WALLET: 'Wallet fidélité',
+    points: 'Points fidélité',
+    POINTS: 'Points fidélité',
+    reward_points: 'Points fidélité',
+    REWARD_POINTS: 'Points fidélité',
+    gift_card: 'Carte cadeau',
+    GIFT_CARD: 'Carte cadeau',
+    cash: 'Espèces',
+    CASH: 'Espèces',
+  }
+
+  return (
+    <Card title="10 dernières transactions">
+      <div style={{ overflowX: 'auto', margin: -20 }}>
+        <table className="af-table">
+          <thead>
+            <tr>
+              <th>Consommateur</th>
+              <th>Marchand</th>
+              <th style={{ textAlign: 'right' }}>Montant</th>
+              <th style={{ textAlign: 'right' }}>Points</th>
+              <th>Paiement</th>
+            </tr>
+          </thead>
+          <tbody>
+            {txs === null && (
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--af-text-muted)' }}>Chargement...</td></tr>
+            )}
+            {txs !== null && txs.map((t) => (
+              <tr key={t.id}>
+                <td style={{ color: 'var(--af-text)' }}>{t.client_name || '—'}</td>
+                <td style={{ color: 'var(--af-text-muted)', textTransform: 'uppercase', fontSize: 12 }}>{t.merchant_name}</td>
+                <td style={{ textAlign: 'right', color: 'var(--af-success)', fontWeight: 600 }}>
+                  {fmt(t.gross_amount)} FCFA
+                </td>
+                <td style={{ textAlign: 'right', color: tokens.kpi.violet, fontWeight: 700 }}>
+                  {t.business_api_points_awarded != null ? `+${t.business_api_points_awarded}` : '—'}
+                </td>
+                <td>
+                  <span className="af-badge-status">{METHOD_LABEL[t.payment_method] || t.payment_method || '—'}</span>
+                </td>
+              </tr>
+            ))}
+            {txs !== null && txs.length === 0 && (
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--af-text-muted)' }}>Aucune transaction récente</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   )
 }
 

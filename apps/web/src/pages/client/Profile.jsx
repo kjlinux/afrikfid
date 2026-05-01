@@ -259,19 +259,19 @@ export default function ClientProfile() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                         <QrCodeIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>1. Scanner le QR code</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)' }}>1. Scanner le QR code</span>
                       </div>
                       {qrCode && <img src={qrCode} alt="QR Code 2FA" style={{ width: '100%', maxWidth: 180, borderRadius: 8, border: '1px solid var(--af-border)' }} />}
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                         <KeyIcon style={{ width: 14, height: 14, color: 'var(--af-text-muted)' }} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>Ou saisie manuelle</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)' }}>Ou saisie manuelle</span>
                       </div>
                       <code style={{ display: 'block', fontSize: 11, color: 'var(--af-accent)', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '10px 12px', wordBreak: 'break-all', fontFamily: 'monospace' }}>{secret}</code>
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', marginBottom: 8 }}>
                     <DevicePhoneMobileIcon style={{ width: 13, height: 13, display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
                     2. Entrez le code généré<InfoTooltip text={TOOLTIPS.totp} />
                   </div>

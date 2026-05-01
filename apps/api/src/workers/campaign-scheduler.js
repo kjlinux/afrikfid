@@ -31,7 +31,12 @@ async function tick() {
   }
 }
 
-const campaignSchedulerWorker = new CronJob('*/5 * * * *', tick, null, false, 'Africa/Abidjan');
+async function safeTick() {
+  try { await tick(); }
+  catch (err) { console.error('[CAMPAIGN-SCHEDULER] Erreur tick:', err.message); }
+}
+
+const campaignSchedulerWorker = new CronJob('*/5 * * * *', safeTick, null, false, 'Africa/Abidjan');
 
 module.exports = campaignSchedulerWorker;
 module.exports.tick = tick;

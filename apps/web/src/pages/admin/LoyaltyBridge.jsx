@@ -67,7 +67,7 @@ export default function AdminLoyaltyBridge() {
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      <Breadcrumb title="Pont fidélité business-api" segments={[{ label: 'Supervision' }]} />
+      <Breadcrumb title="Pont plateforme fidélité" segments={[{ label: 'Supervision' }]} />
 
       {/* Config & état global */}
       <div style={S.card}>

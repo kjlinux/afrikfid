@@ -331,7 +331,7 @@ export default function RegisterClient() {
 
             {/* Avantages fidélité */}
             <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 10, padding: 14, marginBottom: 20, border: '1px solid var(--afrikfid-border)' }}>
-              <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>PROGRAMME DE FIDÉLITÉ AFRIK'FID</div>
+              <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, marginBottom: 8 }}>PROGRAMME DE FIDÉLITÉ AFRIK'FID</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[
                   { status: 'OPEN',  color: '#6B7280', icon: '○', pct: '0%',  label: 'Démarrage' },

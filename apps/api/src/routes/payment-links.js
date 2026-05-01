@@ -7,6 +7,30 @@ const { requireApiKey, requireMerchant } = require('../middleware/auth');
 const { calculateDistribution, awardPoints } = require('../lib/loyalty-engine');
 const { decrypt, hashField } = require('../lib/crypto');
 
+// Crédite le cashback fidélité sur le wallet local du client après un paiement complété.
+// Miroir de la logique dans payments.js processCompletedPayment — à garder en sync.
+async function creditCashback(clientId, txId, txCurrency, clientRebateAmount) {
+  if (!clientId || !clientRebateAmount || clientRebateAmount <= 0) return;
+  let wallet = (await db.query('SELECT * FROM wallets WHERE client_id = $1', [clientId])).rows[0];
+  if (!wallet) {
+    const wid = uuidv4();
+    await db.query('INSERT INTO wallets (id, client_id, currency) VALUES ($1, $2, $3)', [wid, clientId, txCurrency]);
+    wallet = (await db.query('SELECT * FROM wallets WHERE id = $1', [wid])).rows[0];
+  }
+  const walletCfg = (await db.query("SELECT default_max_balance FROM wallet_config WHERE id = 'global'")).rows[0];
+  const globalCap = walletCfg?.default_max_balance != null ? parseFloat(walletCfg.default_max_balance) : null;
+  const effectiveCap = wallet.max_balance != null ? parseFloat(wallet.max_balance) : globalCap;
+  const currentBalance = parseFloat(wallet.balance);
+  const toCredit = effectiveCap != null ? Math.max(0, Math.min(clientRebateAmount, effectiveCap - currentBalance)) : clientRebateAmount;
+  if (toCredit <= 0) return;
+  const newBalance = currentBalance + toCredit;
+  await db.query('UPDATE wallets SET balance = $1, total_earned = total_earned + $2, updated_at = NOW() WHERE id = $3', [newBalance, toCredit, wallet.id]);
+  await db.query(
+    `INSERT INTO wallet_movements (id, wallet_id, transaction_id, type, amount, balance_before, balance_after, description) VALUES ($1, $2, $3, 'credit', $4, $5, $6, $7)`,
+    [uuidv4(), wallet.id, txId, toCredit, currentBalance, newBalance, `Cashback - tx ${txId.slice(0, 8)}`]
+  );
+}
+
 // POST /api/v1/payment-links (marchand)
 router.post('/', requireMerchant, async (req, res) => {
   const { amount, currency = 'XOF', description, expires_in_hours = 24, max_uses = 1 } = req.body;
@@ -88,10 +112,54 @@ router.post('/:code/identify-client', async (req, res) => {
   }
   if (!phone && !afrikfid_id) return res.status(400).json({ found: false });
 
+  // Normalisation identique à auth.js : supprimer espaces, conserver le +
+  if (phone) phone = phone.trim().replace(/\s/g, '');
+
   // afrikfid_id couvre désormais carte 2014xxxxxxxx (depuis migration 031) ET legacy AFD-*
   let client = afrikfid_id
     ? (await db.query("SELECT * FROM clients WHERE (afrikfid_id = $1 OR legacy_afrikfid_id = $1) AND is_active = TRUE", [afrikfid_id])).rows[0]
     : (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(phone)])).rows[0];
+
+  // Fallback : le numéro peut être stocké dans un format différent (local vs E164).
+  // Si le hash a été créé avec 0712345678 mais qu'on cherche +225712345678, on rate le client.
+  if (!client && phone) {
+    const { normalizePhoneForSearch } = require('../lib/crypto');
+    const local = normalizePhoneForSearch(phone); // ex: "712345678"
+    const phoneVariants = new Set();
+    if (local) {
+      phoneVariants.add(local);           // sans 0 ni indicatif
+      phoneVariants.add('0' + local);     // format local avec 0
+      if (phone.startsWith('+')) {
+        phoneVariants.add(phone.slice(1)); // sans le + (ex: 225712345678)
+      }
+    }
+    phoneVariants.delete(phone); // déjà testé ci-dessus
+    for (const variant of phoneVariants) {
+      client = (await db.query("SELECT * FROM clients WHERE phone_hash = $1 AND is_active = TRUE", [hashField(variant)])).rows[0];
+      if (client) break;
+    }
+  }
+
+  // Fallback : phone_hash absent pour les anciens comptes — comparer le téléphone décrypté
+  if (!client && phone) {
+    const allClients = (await db.query("SELECT * FROM clients WHERE phone IS NOT NULL AND is_active = TRUE AND phone_hash IS NULL")).rows;
+    client = allClients.find(c => { try { return decrypt(c.phone) === phone; } catch { return false; } }) || null;
+    if (client) await db.query("UPDATE clients SET phone_hash = $1 WHERE id = $2", [hashField(phone), client.id]);
+  }
+
+  // Fallback décrypté : phone_hash présent mais format différent — comparer le décrypté normalisé
+  if (!client && phone) {
+    const { normalizePhoneForSearch } = require('../lib/crypto');
+    const normPhone = normalizePhoneForSearch(phone);
+    if (normPhone) {
+      const allClients = (await db.query("SELECT * FROM clients WHERE phone IS NOT NULL AND is_active = TRUE")).rows;
+      client = allClients.find(c => {
+        try { return normalizePhoneForSearch(decrypt(c.phone)) === normPhone; } catch { return false; }
+      }) || null;
+      // Harmoniser le hash pour les prochaines recherches
+      if (client) await db.query("UPDATE clients SET phone_hash = $1 WHERE id = $2", [hashField(phone), client.id]);
+    }
+  }
 
   // Fallback : carte fidélité historique AfrikFid (format 2014xxxxxxx) côté business-api.
   // Provisioning lazy du client local si inconnu ici mais existant dans le SI fidélité.
@@ -320,8 +388,9 @@ router.post('/:code/pay', async (req, res, next) => { try {
     `, [
       txId, reference, link.merchant_id, client.id,
       amount, amount,
-      0, 0, 0, 0, 0, 0,
-      amount, client.loyalty_status, link.rebate_mode,
+      distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
+      distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
+      distribution.merchantReceives, client.loyalty_status, link.rebate_mode,
       'REWARD_POINTS', link.currency, link.description,
       new Date(Date.now() + 120000).toISOString(),
     ]);
@@ -329,6 +398,7 @@ router.post('/:code/pay', async (req, res, next) => { try {
     if (link.uses_count + 1 >= link.max_uses) {
       await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
     }
+    if (link.rebate_mode === 'cashback') await creditCashback(client.id, txId, link.currency, distribution.clientRebateAmount);
     await awardPoints(client.id, txId, amount);
     return res.json({
       transactionId: txId,
@@ -397,8 +467,9 @@ router.post('/:code/pay', async (req, res, next) => { try {
     `, [
       txId, reference, link.merchant_id, client.id,
       amount, amount,
-      0, 0, 0, 0, 0, 0,
-      amount, client.loyalty_status, link.rebate_mode,
+      distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
+      distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
+      distribution.merchantReceives, client.loyalty_status, link.rebate_mode,
       'WALLET', link.currency, link.description,
       new Date(Date.now() + 120000).toISOString(),
       debit.transaction_id || null,
@@ -407,6 +478,7 @@ router.post('/:code/pay', async (req, res, next) => { try {
     if (link.uses_count + 1 >= link.max_uses) {
       await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
     }
+    if (link.rebate_mode === 'cashback') await creditCashback(client.id, txId, link.currency, distribution.clientRebateAmount);
     await awardPoints(client.id, txId, amount);
     return res.json({
       transactionId: txId,
@@ -451,8 +523,10 @@ router.post('/:code/pay', async (req, res, next) => { try {
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'completed',$19)
     `, [
       txId, reference, link.merchant_id, client?.id || null,
-      amount, amount, 0, 0, 0, 0, 0, 0,
-      amount, client?.loyalty_status || null, link.rebate_mode,
+      amount, amount,
+      distribution.merchantRebatePercent, distribution.clientRebatePercent, distribution.platformCommissionPercent,
+      distribution.merchantRebateAmount, distribution.clientRebateAmount, distribution.platformCommissionAmount,
+      distribution.merchantReceives, client?.loyalty_status || null, link.rebate_mode,
       'GIFT_CARD', link.currency, link.description,
       new Date(Date.now() + 120000).toISOString(),
     ]);
@@ -460,7 +534,10 @@ router.post('/:code/pay', async (req, res, next) => { try {
     if (link.uses_count + 1 >= link.max_uses) {
       await db.query("UPDATE payment_links SET status = 'used' WHERE id = $1", [link.id]);
     }
-    if (client?.id) await awardPoints(client.id, txId, amount);
+    if (client?.id) {
+      if (link.rebate_mode === 'cashback') await creditCashback(client.id, txId, link.currency, distribution.clientRebateAmount);
+      await awardPoints(client.id, txId, amount);
+    }
     return res.json({ transactionId: txId, reference, status: 'completed', soldeApres: debit.solde_apres, message: 'Paiement par carte cadeau validé.' });
   }
 

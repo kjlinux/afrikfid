@@ -70,6 +70,10 @@ async function upsertClientFromCarteInfo(info, numeroCarte) {
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'OPEN', TRUE, $11, NOW(), NOW())
      ON CONFLICT (afrikfid_id) DO UPDATE SET
        business_api_consommateur_id = EXCLUDED.business_api_consommateur_id,
+       phone      = COALESCE(clients.phone,      EXCLUDED.phone),
+       phone_hash = COALESCE(clients.phone_hash, EXCLUDED.phone_hash),
+       email      = COALESCE(clients.email,      EXCLUDED.email),
+       email_hash = COALESCE(clients.email_hash, EXCLUDED.email_hash),
        birth_date = COALESCE(clients.birth_date, EXCLUDED.birth_date),
        city       = COALESCE(clients.city,       EXCLUDED.city),
        gender     = COALESCE(clients.gender,     EXCLUDED.gender),

@@ -136,18 +136,18 @@ export default function MerchantLinks() {
             </div>
             <form onSubmit={create}>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Montant (laisser vide = libre)</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600 }}>Montant (laisser vide = libre)</label>
                 <input type="number" min="0" step="100" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Ex: 50000"
                   style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Description</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600 }}>Description</label>
                 <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Ex: Commande #123"
                   style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Durée (heures)</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600 }}>Durée (heures)</label>
                   <select value={form.expires_in_hours} onChange={e => setForm(f => ({ ...f, expires_in_hours: parseInt(e.target.value) }))}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14 }}>
                     <option value={1}>1 heure</option>
@@ -158,7 +158,7 @@ export default function MerchantLinks() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Nb utilisations</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 6, fontWeight: 600 }}>Nb utilisations</label>
                   <input type="number" min="1" max="100" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: parseInt(e.target.value) }))}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
                 </div>

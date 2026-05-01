@@ -83,4 +83,20 @@ function hashField(value) {
     .digest('hex');
 }
 
-module.exports = { encrypt, decrypt, hashField };
+/**
+ * Réduit un numéro de téléphone à ses chiffres significatifs (sans indicatif pays)
+ * pour comparer deux formats différents du même numéro.
+ * Ex: +225712345678, 0712345678, 225712345678 → "712345678"
+ */
+function normalizePhoneForSearch(phone) {
+  if (!phone) return '';
+  let n = String(phone).replace(/\s/g, '').replace(/^\+/, '');
+  // Retirer indicatifs pays connus (2-3 chiffres) si le numéro est assez long (>= 10 chiffres)
+  if (n.length >= 10) {
+    n = n.replace(/^(225|221|226|223|224|228|229|237|254|255|233|235)/, '');
+  }
+  if (n.startsWith('0')) n = n.slice(1);
+  return n;
+}
+
+module.exports = { encrypt, decrypt, hashField, normalizePhoneForSearch };

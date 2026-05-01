@@ -9,9 +9,6 @@ import {
   ArrowLeftIcon,
   XCircleIcon,
   StarIcon,
-  TrophyIcon,
-  ShieldCheckIcon,
-  UserCircleIcon,
   WalletIcon,
   GiftIcon,
   LockClosedIcon,
@@ -137,13 +134,8 @@ function getUssdInstructions(operator, countryCode) {
   return opInstructions[countryCode] || opInstructions['*'] || null
 }
 
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6' }
-const LOYALTY_ICON  = {
-  OPEN:  <UserCircleIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
-  LIVE:  <StarIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
-  GOLD:  <ShieldCheckIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
-  ROYAL: <TrophyIcon style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle' }} />,
-}
+const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#EC4899' }
+const LOYALTY_ICON  = { OPEN: '○', LIVE: '★', GOLD: '◎', ROYAL: '♛', ROYAL_ELITE: '♔' }
 
 const COUNTRIES = [
   { code: 'CI', flag: '🇨🇮', name: 'Côte d\'Ivoire', dial: '+225', digits: 10 },
@@ -154,6 +146,7 @@ const COUNTRIES = [
   { code: 'TG', flag: '🇹🇬', name: 'Togo',            dial: '+228', digits: 8  },
   { code: 'BJ', flag: '🇧🇯', name: 'Bénin',           dial: '+229', digits: 8  },
   { code: 'CM', flag: '🇨🇲', name: 'Cameroun',        dial: '+237', digits: 9  },
+  { code: 'TD', flag: '🇹🇩', name: 'Tchad',           dial: '+235', digits: 8  },
   { code: 'KE', flag: '🇰🇪', name: 'Kenya',           dial: '+254', digits: 9  },
   { code: 'TZ', flag: '🇹🇿', name: 'Tanzanie',        dial: '+255', digits: 9  },
   { code: 'GH', flag: '🇬🇭', name: 'Ghana',           dial: '+233', digits: 9  },
@@ -425,7 +418,7 @@ export default function PaymentPage() {
 
           {/* Montant */}
           <div style={{ padding: '22px 26px 16px', borderBottom: '1px solid var(--af-border)', textAlign: 'center', background: 'linear-gradient(180deg, rgba(var(--af-accent-rgb,99,102,241),0.06) 0%, transparent 100%)' }}>
-            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Montant à payer</div>
+            <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Montant à payer</div>
             {linkInfo.amount ? (
               <div style={{ fontSize: 38, fontWeight: 800, color: 'var(--af-accent)', letterSpacing: -1, lineHeight: 1 }}>
                 {fmt(linkInfo.amount)}<span style={{ fontSize: 16, color: 'var(--af-text-muted)', fontWeight: 600, marginLeft: 6 }}>{linkInfo.currency}</span>
@@ -536,7 +529,7 @@ export default function PaymentPage() {
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{clientInfo.fullName}</div>
                       <div style={{ fontSize: 11, color: LOYALTY_COLOR[clientInfo.loyaltyStatus], fontWeight: 600, marginTop: 1 }}>
-                        {clientInfo.loyaltyStatus} · {clientInfo.clientRebatePercent}% de remise appliquée
+                        {clientInfo.loyaltyStatus?.replace('_', ' ')} · {clientInfo.clientRebatePercent}% de remise appliquée
                       </div>
                     </div>
                   </div>
@@ -547,7 +540,7 @@ export default function PaymentPage() {
                   </div>
                 )}
 
-                <p style={{ fontSize: 10, color: 'var(--af-text-muted)', marginBottom: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>Choisissez votre méthode</p>
+                <p style={{ fontSize: 10, color: 'var(--af-text-muted)', marginBottom: 12, fontWeight: 700 }}>Choisissez votre méthode</p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <button className="pay-method-btn" onClick={() => { setPaymentType('mobile_money'); setStep('mobile') }}
@@ -560,11 +553,11 @@ export default function PaymentPage() {
                   </button>
                   <button className="pay-method-btn" onClick={() => { setPaymentType('card'); setStep('card') }}
                     style={{ padding: '16px 10px', border: '1.5px solid var(--af-border)', borderRadius: 14, background: 'var(--af-surface-3)', cursor: 'pointer', textAlign: 'center' }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(99,91,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                      <CreditCardIcon style={{ width: 24, height: 24, color: '#635bff' }} />
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(99,91,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', overflow: 'hidden', padding: 6 }}>
+                      <img src="/operators/stripe-logo.png" alt="Stripe" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 2 }}>Carte bancaire</div>
-                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>Visa, Mastercard</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--af-text)', marginBottom: 2 }}>Stripe</div>
+                    <div style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>Visa, Mastercard · 3D Secure</div>
                   </button>
                 </div>
 
@@ -609,7 +602,7 @@ export default function PaymentPage() {
 
                 {clientInfo?.giftCard?.solde > 0 && (() => {
                   const gc = clientInfo.giftCard
-                  const canPay = gc.solde >= amount && amount > 0
+                  const canPay = gc.solde >= toPay && toPay > 0
                   return (
                     <button className="pay-method-btn" onClick={() => { if (canPay) { setPaymentType('gift_card'); setStep('gift_card') } }} disabled={!canPay}
                       style={{ width: '100%', padding: '13px 16px', border: '1.5px solid ' + (canPay ? '#f59e0b' : 'var(--af-border)'), borderRadius: 12, background: canPay ? 'rgba(245,158,11,0.07)' : 'var(--af-surface-3)', cursor: canPay ? 'pointer' : 'not-allowed', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, opacity: canPay ? 1 : 0.5 }}>
@@ -688,14 +681,14 @@ export default function PaymentPage() {
             {/* ÉTAPE 3b : Carte bancaire */}
             {step === 'card' && (
               <div>
-                <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                <AmountRecap amount={amount} rebateAmount={rebateAmount} Y={Y} toPay={toPay} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
                 <div style={{ background: 'rgba(99,91,255,0.07)', border: '1px solid rgba(99,91,255,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(99,91,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <LockClosedIcon style={{ width: 20, height: 20, color: '#635bff' }} />
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(99,91,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: 6 }}>
+                    <img src="/operators/stripe-logo.png" alt="Stripe" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, color: 'var(--af-text)', fontWeight: 700, marginBottom: 2 }}>Paiement sécurisé 3D Secure</div>
-                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Visa et Mastercard · Redirection vers Stripe</div>
+                    <div style={{ fontSize: 13, color: 'var(--af-text)', fontWeight: 700, marginBottom: 2 }}>Paiement sécurisé via Stripe</div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>Visa et Mastercard · 3D Secure · Redirection sécurisée</div>
                   </div>
                 </div>
                 {pageError && <ErrorBox>{pageError}</ErrorBox>}
@@ -704,7 +697,7 @@ export default function PaymentPage() {
                   <button onClick={payCard} disabled={processing || !amount}
                     style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : '#635bff', opacity: !amount ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                     {processing && <Spinner />}
-                    {processing ? 'Redirection...' : `Payer ${fmt(amount)} ${linkInfo.currency} par carte`}
+                    {processing ? 'Redirection vers Stripe...' : `Payer ${fmt(toPay)} ${linkInfo.currency} via Stripe`}
                   </button>
                 </div>
               </div>
@@ -716,7 +709,7 @@ export default function PaymentPage() {
               const pointsNeeded = Math.ceil(amount / POINT_VALUE)
               return (
                 <div>
-                  <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                  <AmountRecap amount={amount} rebateAmount={rebateAmount} Y={Y} toPay={toPay} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
                   <div style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>Paiement par points récompense</div>
                     <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
@@ -742,13 +735,13 @@ export default function PaymentPage() {
               const balance = clientInfo?.afrikfidWalletBalance || 0
               return (
                 <div>
-                  <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                  <AmountRecap amount={amount} rebateAmount={rebateAmount} Y={Y} toPay={toPay} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
                   <div style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6', marginBottom: 4 }}>Paiement par Wallet Afrik'Fid</div>
                     <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(amount)} {linkInfo.currency}</span> débités du wallet
+                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(toPay)} {linkInfo.currency}</span> débités du wallet
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Solde après : {fmt(balance - amount)} {linkInfo.currency}</div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Solde après : {fmt(balance - toPay)} {linkInfo.currency}</div>
                   </div>
                   {pageError && <ErrorBox>{pageError}</ErrorBox>}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -756,7 +749,7 @@ export default function PaymentPage() {
                     <button onClick={payWithWallet} disabled={processing}
                       style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                       {processing && <Spinner />}
-                      {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} via Wallet`}
+                      {processing ? 'Traitement...' : `Payer ${fmt(toPay)} ${linkInfo.currency} via Wallet`}
                     </button>
                   </div>
                 </div>
@@ -768,15 +761,15 @@ export default function PaymentPage() {
               const gc = clientInfo?.giftCard || {}
               return (
                 <div>
-                  <AmountRecap amount={amount} rebateAmount={0} Y={0} toPay={amount} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
+                  <AmountRecap amount={amount} rebateAmount={rebateAmount} Y={Y} toPay={toPay} rebateMode={linkInfo.rebateMode} currency={linkInfo.currency} />
                   <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <GiftIcon style={{ width: 14, height: 14 }} />Paiement par carte cadeau
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(amount)} {linkInfo.currency}</span> débités de votre carte
+                      <span style={{ fontWeight: 600, color: 'var(--af-text)' }}>{fmt(toPay)} {linkInfo.currency}</span> débités de votre carte
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Solde après : {fmt((gc.solde || 0) - amount)} {linkInfo.currency}</div>
+                    <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3 }}>Solde après : {fmt((gc.solde || 0) - toPay)} {linkInfo.currency}</div>
                   </div>
                   {pageError && <ErrorBox>{pageError}</ErrorBox>}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -784,7 +777,7 @@ export default function PaymentPage() {
                     <button onClick={payWithGiftCard} disabled={processing}
                       style={{ ...btnPrimary, flex: 1, background: processing ? 'var(--af-border)' : 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                       {processing && <Spinner />}
-                      {processing ? 'Traitement...' : `Payer ${fmt(amount)} ${linkInfo.currency} via Carte Cadeau`}
+                      {processing ? 'Traitement...' : `Payer ${fmt(toPay)} ${linkInfo.currency} via Carte Cadeau`}
                     </button>
                   </div>
                 </div>
@@ -810,7 +803,7 @@ export default function PaymentPage() {
                     : 'Votre paiement est en cours de traitement.'}
                 </p>
                 <div style={{ background: 'var(--af-surface-3)', borderRadius: 12, padding: '12px 16px', border: '1px solid var(--af-border)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Référence de transaction</div>
+                  <div style={{ fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 4 }}>Référence de transaction</div>
                   <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--af-accent)', fontWeight: 700 }}>{result.reference || result.transaction?.reference}</div>
                 </div>
               </div>
@@ -870,13 +863,14 @@ function Screen({ children }) {
 
 function AmountRecap({ amount, rebateAmount, Y, toPay, rebateMode, currency }) {
   if (!amount) return null
+  const isCashback = rebateMode === 'cashback'
   return (
     <div style={{ background: 'var(--af-surface-3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, border: '1px solid var(--af-border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Montant brut</span>
         <span style={{ fontSize: 12, color: 'var(--af-text)', fontWeight: 600 }}>{fmt(amount)} {currency}</span>
       </div>
-      {rebateAmount > 0 && (
+      {rebateAmount > 0 && !isCashback && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Remise fidélité ({Y}%)</span>
           <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>− {fmt(rebateAmount)} {currency}</span>
@@ -884,11 +878,12 @@ function AmountRecap({ amount, rebateAmount, Y, toPay, rebateMode, currency }) {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--af-border)', paddingTop: 8, marginTop: 2 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>Vous payez</span>
-        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--af-accent)' }}>{fmt(toPay)} {currency}</span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--af-accent)' }}>{fmt(isCashback ? amount : toPay)} {currency}</span>
       </div>
-      {rebateMode === 'cashback' && rebateAmount > 0 && (
-        <div style={{ fontSize: 11, color: '#10b981', marginTop: 6, textAlign: 'center', paddingTop: 6, borderTop: '1px dashed rgba(16,185,129,0.25)' }}>
-          + {fmt(rebateAmount)} {currency} remboursés sur votre portefeuille Afrik'Fid
+      {isCashback && rebateAmount > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, padding: '8px 12px', marginTop: 10 }}>
+          <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>Cashback fidélité ({Y}%)</span>
+          <span style={{ fontSize: 13, color: '#10b981', fontWeight: 800 }}>+ {fmt(rebateAmount)} {currency}</span>
         </div>
       )}
     </div>
@@ -896,7 +891,7 @@ function AmountRecap({ amount, rebateAmount, Y, toPay, rebateMode, currency }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const labelStyle = { display: 'block', fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }
+const labelStyle = { display: 'block', fontSize: 10, color: 'var(--af-text-muted)', fontWeight: 700, marginBottom: 6 }
 const btnPrimary = { flex: 1, padding: '13px', background: 'linear-gradient(135deg, var(--af-accent), var(--af-brand))', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }
 const btnGhost = { padding: '13px 16px', background: 'transparent', border: '1.5px solid var(--af-border)', borderRadius: 10, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }
 const btnBack = { padding: '12px 16px', background: 'transparent', border: '1.5px solid var(--af-border)', borderRadius: 10, color: 'var(--af-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }

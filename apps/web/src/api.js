@@ -16,26 +16,22 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// Sur 401 : redirection immédiate vers la page de connexion
+// Sur 401 : émet un événement que AuthProvider intercepte pour logout + navigate
 api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401 && !window.location.pathname.startsWith('/pay/')) {
       const role = roleFromPath(window.location.pathname)
-      redirectToLogin(role)
+      if (role) {
+        localStorage.removeItem(tokenKey(role))
+        localStorage.removeItem(userKey(role))
+        localStorage.removeItem(`afrikfid_refresh_${role}`)
+      }
+      window.dispatchEvent(new CustomEvent('afrikfid:unauthorized'))
     }
     return Promise.reject(err)
   }
 )
-
-function redirectToLogin(role) {
-  if (role) {
-    localStorage.removeItem(tokenKey(role))
-    localStorage.removeItem(userKey(role))
-    localStorage.removeItem(`afrikfid_refresh_${role}`)
-  }
-  window.location.href = '/login'
-}
 
 // Instance publique sans intercepteur (pour /pay/:code)
 export const publicApi = axios.create({

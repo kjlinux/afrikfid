@@ -154,15 +154,22 @@ router.post('/sync/logo', (req, res, next) => {
   });
 }, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni' });
-  const { business_api_marchand_id } = req.body || {};
-  if (!business_api_marchand_id) return res.status(400).json({ error: 'business_api_marchand_id requis' });
+  const { business_api_marchand_id, merchant_id } = req.body || {};
+  if (!business_api_marchand_id && !merchant_id) return res.status(400).json({ error: 'business_api_marchand_id ou merchant_id requis' });
 
   const baseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 4001}`).replace(/\/$/, '');
   const logoUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
 
+  // Accepte l'UUID interne (merchant_id) ou l'entier business-api
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const lookupVal = merchant_id || business_api_marchand_id;
+  const whereClause = isUuid.test(String(lookupVal))
+    ? 'id = $2'
+    : 'business_api_marchand_id = $2';
+
   const r = await db.query(
-    'UPDATE merchants SET logo_url = $1, updated_at = NOW() WHERE business_api_marchand_id = $2 RETURNING id',
-    [logoUrl, business_api_marchand_id]
+    `UPDATE merchants SET logo_url = $1, updated_at = NOW() WHERE ${whereClause} RETURNING id`,
+    [logoUrl, lookupVal]
   );
   if (r.rowCount === 0) {
     return res.status(404).json({ error: 'Marchand introuvable' });

@@ -11,6 +11,7 @@ const COUNTRIES = [
   { id: 'TG', name: 'Togo',          currency: 'XOF', flag: '🇹🇬' },
   { id: 'GN', name: 'Guinée',        currency: 'XOF', flag: '🇬🇳' },
   { id: 'CM', name: 'Cameroun',      currency: 'XAF', flag: '🇨🇲' },
+  { id: 'TD', name: 'Tchad',         currency: 'XAF', flag: '🇹🇩' },
   { id: 'CG', name: 'Congo',         currency: 'XAF', flag: '🇨🇬' },
   { id: 'GA', name: 'Gabon',         currency: 'XAF', flag: '🇬🇦' },
   { id: 'KE', name: 'Kenya',         currency: 'KES', flag: '🇰🇪' },
@@ -213,7 +214,7 @@ export default function Register() {
 
               {/* Visuel X/Y/Z */}
               <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 10, padding: 16, marginBottom: 20, border: '1px solid var(--afrikfid-border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--afrikfid-accent)', marginBottom: 10, fontWeight: 700, letterSpacing: '0.05em' }}>RÈGLE FONDAMENTALE : X = Y + Z</div>
+                <div style={{ fontSize: 11, color: 'var(--afrikfid-accent)', marginBottom: 10, fontWeight: 700 }}>RÈGLE FONDAMENTALE : X = Y + Z</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                   <div style={{ textAlign: 'center', background: 'var(--afrikfid-surface)', borderRadius: 8, padding: 10, border: '1px solid rgba(239,68,68,0.2)' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#ef4444' }}>X = {form.rebate_percent}%</div>
@@ -343,7 +344,7 @@ export default function Register() {
 
               {/* Récap */}
               <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 10, padding: 14, marginBottom: 16, border: '1px solid var(--afrikfid-border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>RÉCAPITULATIF</div>
+                <div style={{ fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, marginBottom: 10 }}>RÉCAPITULATIF</div>
                 {[
                   ['Entreprise', form.name],
                   ['Email', form.email],

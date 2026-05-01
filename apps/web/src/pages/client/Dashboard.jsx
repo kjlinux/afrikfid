@@ -34,9 +34,10 @@ const OPERATOR_LABELS = {
   AIRTEL: 'Airtel Money', MOOV: 'Moov Money', MPESA: 'M-Pesa',
 }
 function PaymentMethodBadge({ method, operator }) {
-  const meta = PAYMENT_METHOD_LABELS[method]
+  const key = method?.toLowerCase()
+  const meta = PAYMENT_METHOD_LABELS[key]
   if (!meta) return null
-  const label = (method === 'mobile_money' && operator)
+  const label = (key === 'mobile_money' && operator)
     ? (OPERATOR_LABELS[operator] || operator)
     : meta.label
   return (
@@ -103,7 +104,7 @@ function AfrikFidCardBlock({ data }) {
             {card?.numero?.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')}
           </div>
         </div>
-        <div style={{ width: 40, height: 26, background: 'linear-gradient(135deg, var(--af-accent), var(--af-kpi-yellow))', borderRadius: 4, opacity: 0.9 }} />
+        <img src="/favicon.png" alt="AfrikFid" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'contain', opacity: 0.92 }} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
         <div>
@@ -153,25 +154,30 @@ function UnifiedHistorySection({ history }) {
         {history.items.map((it) => {
           const meta = sourceMeta[it.source]
           return (
-            <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', borderBottom: '1px solid var(--af-surface)' }}>
+            <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', borderBottom: '1px solid var(--af-border)' }}>
               {it.merchantLogo
-                ? <img src={it.merchantLogo} alt="" style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', background: 'var(--af-surface-3)' }} />
-                : <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--af-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--af-text-muted)', fontWeight: 700 }}>
+                ? <img src={it.merchantLogo} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: 'var(--af-surface-3)' }} />
+                : <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'var(--af-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--af-text-muted)', fontWeight: 700 }}>
                     {(it.merchantName || '?').slice(0, 1).toUpperCase()}
                   </div>}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.merchantName || '—'}</div>
-                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.merchantName || '—'}</div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{fmt(it.amountXof, it.currency)}</div>
+                    {it.clientRebateXof > 0 && <div style={{ fontSize: 10, color: '#10b981' }}>− {fmt(it.clientRebateXof, it.currency)}</div>}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 3, display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span>{fmtDate(it.date)}</span>
                   <span style={{ background: meta.bg, color: meta.color, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{meta.label}</span>
-                  <PaymentMethodBadge method={it.paymentMethod} operator={it.paymentOperator} />
+                  {it.paymentMethod
+                    ? <PaymentMethodBadge method={it.paymentMethod} operator={it.paymentOperator} />
+                    : <span style={{ background: '#8b5cf618', color: '#8b5cf6', padding: '1px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Réseau AfrikFid</span>
+                  }
                   {it.source === 'gateway' && <TxStatusBadge status={it.status} />}
-                  {it.source === 'afrikfid' && it.pointsEarned > 0 && <span style={{ color: '#F59E0B' }}>+{it.pointsEarned} pts</span>}
+                  {it.source === 'afrikfid' && it.pointsEarned > 0 && <span style={{ color: '#F59E0B', fontWeight: 600 }}>+{it.pointsEarned} pts</span>}
                 </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{fmt(it.amountXof, it.currency)}</div>
-                {it.clientRebateXof > 0 && <div style={{ fontSize: 11, color: '#10b981', marginTop: 2 }}>− {fmt(it.clientRebateXof, it.currency)}</div>}
               </div>
             </div>
           )
@@ -455,10 +461,7 @@ export default function ClientDashboard() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: meta.color }}>{(client?.statusPoints12m || 0).toLocaleString('fr-FR')}</span>
-                  <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>pts (12 mois)</span>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--af-border-strong)', marginTop: 4 }}>
-                  Lifetime : {(client?.lifetimeStatusPoints || 0).toLocaleString('fr-FR')} pts
+                  <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>pts</span>
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>Servent à la qualification statut uniquement.</div>
               </div>
@@ -472,64 +475,11 @@ export default function ClientDashboard() {
                   <span style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>pts disponibles</span>
                 </div>
                 <div style={{ fontSize: 12, color: '#10b981', marginTop: 4, fontWeight: 600 }}>≈ {fmt((client?.rewardPoints || 0) * 100)} utilisables</div>
-                <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 3 }}>1 pt = 100 FCFA · utilisables chez tous les marchands.</div>
               </div>
             </div>
 
-            {/* Dernières transactions — table compacte */}
-            <div style={{ background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--af-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--af-text)' }}>Dernières transactions</div>
-                <div style={{ fontSize: 11, color: 'var(--af-text-muted)' }}>{transactions.length} affichées</div>
-              </div>
-              {transactions.length === 0 ? (
-                <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--af-text-muted)', fontSize: 13 }}>
-                  Aucune transaction.<br /><span style={{ fontSize: 12 }}>Effectuez votre premier achat chez un marchand partenaire.</span>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--af-bg)' }}>
-                        {['Date', 'Marchand', 'Moyen', 'Montant', 'Remise', 'Statut', ''].map(h => (
-                          <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.map((tx, i) => (
-                        <tr key={tx.id} style={{ borderTop: '1px solid var(--af-border)', background: i % 2 === 0 ? 'transparent' : 'var(--af-bg)' }}>
-                          <td style={{ padding: '10px 14px', color: 'var(--af-text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(tx.initiated_at)}</td>
-                          <td style={{ padding: '10px 14px', fontWeight: 500, color: 'var(--af-text)', whiteSpace: 'nowrap' }}>{tx.merchant_name || '—'}</td>
-                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}><PaymentMethodBadge method={tx.payment_method} operator={tx.payment_operator} /></td>
-                          <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--af-text)', whiteSpace: 'nowrap' }}>{fmt(tx.gross_amount, tx.currency)}</td>
-                          <td style={{ padding: '10px 14px', color: '#10b981', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {tx.client_discount > 0 ? `− ${fmt(tx.client_discount, tx.currency)}` : <span style={{ color: 'var(--af-border)' }}>—</span>}
-                          </td>
-                          <td style={{ padding: '10px 14px' }}><TxStatusBadge status={tx.status} /></td>
-                          <td style={{ padding: '10px 14px' }}>
-                            {tx.status === 'completed' && (
-                              <div style={{ display: 'flex', gap: 5 }}>
-                                <button onClick={() => { setRefundModal(tx); setRefundReason(''); setRefundMsg('') }}
-                                  style={{ fontSize: 10, padding: '3px 7px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 5, color: '#3b82f6', cursor: 'pointer' }}>
-                                  Remb.
-                                </button>
-                                <Tooltip text={TOOLTIPS.litige}>
-                                  <button onClick={() => { setDisputeModal(tx); setDisputeMsg(''); setDisputeForm({ reason: '', description: '' }) }}
-                                    style={{ fontSize: 10, padding: '3px 7px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, color: '#ef4444', cursor: 'pointer' }}>
-                                    Litige
-                                  </button>
-                                </Tooltip>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* Historique unifié */}
+            <UnifiedHistorySection history={unifiedHistory} />
 
             {/* Litiges */}
             {disputes.length > 0 && (
@@ -608,17 +558,9 @@ export default function ClientDashboard() {
                 ♛ Statut Élite — 12% de remise. Maintenez ce niveau 3 ans pour atteindre ROYAL ÉLITE.
               </div>
             )}
-            {status === 'ROYAL_ELITE' && (
-              <div style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.3)', borderRadius: 12, padding: '12px 16px', color: '#ec4899', fontSize: 12, fontWeight: 600 }}>
-                ♔ Statut Élite Suprême — remise maximum sur chaque achat chez nos marchands partenaires.
-              </div>
-            )}
 
             {/* RFM / offres */}
             <ClientRfmSection rfmSegment={profile.rfmSegment} triggerHistory={profile.triggerHistory} />
-
-            {/* Historique unifié — colonne droite, scrollable */}
-            <UnifiedHistorySection history={unifiedHistory} />
 
           </div>{/* fin col droite */}
 

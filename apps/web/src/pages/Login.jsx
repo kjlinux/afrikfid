@@ -12,6 +12,7 @@ import {
   ChevronRightIcon,
   ExclamationCircleIcon,
   ShieldCheckIcon,
+  ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 
 const TABS = [
@@ -330,8 +331,12 @@ export default function Login() {
                             background: 'var(--afrikfid-surface-2)', cursor: 'pointer', textAlign: 'left',
                             display: 'flex', alignItems: 'center', gap: 12,
                           }}>
-                          <span style={{ fontSize: 18 }}>
-                            {c.id === 'whatsapp' ? '💬' : c.id === 'sms' ? '📱' : '✉️'}
+                          <span style={{ display: 'flex', alignItems: 'center' }}>
+                            {c.id === 'whatsapp'
+                              ? <ChatBubbleLeftEllipsisIcon style={{ width: 20, height: 20 }} />
+                              : c.id === 'sms'
+                              ? <DevicePhoneMobileIcon style={{ width: 20, height: 20 }} />
+                              : <EnvelopeIcon style={{ width: 20, height: 20 }} />}
                           </span>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--afrikfid-text)' }}>

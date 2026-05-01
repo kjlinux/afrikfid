@@ -815,6 +815,14 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
     paymentOperator: r.payment_operator || null,
   }));
 
+  // Index logo local par nom de marchand (normalisé) pour unifier les logos entre sources
+  const localLogoByName = {};
+  for (const gi of gatewayItems) {
+    if (gi.merchantName && gi.merchantLogo) {
+      localLogoByName[gi.merchantName.toLowerCase().trim()] = gi.merchantLogo;
+    }
+  }
+
   // business-api : achats multi-enseignes (depuis normalizeCard)
   let afrikfidSource = { available: false, reason: 'card_not_linked' };
   let afrikfidItems = [];
@@ -823,17 +831,21 @@ router.get('/me/unified-history', requireClient, async (req, res) => {
       const card = await afrikfidClient.lookupCard(afrikfidId);
       if (card) {
         afrikfidSource = { available: true, numero: card.numero, points: card.points_cumules };
-        afrikfidItems = (card.transactions || []).map((t, i) => ({
-          source: 'afrikfid',
-          id: `bapi-${afrikfidId}-${i}-${t.date || ''}`,
-          date: t.date,
-          merchantName: t.merchant,
-          merchantLogo: t.logo,
-          amountXof: t.amountXof,
-          pointsEarned: t.pointsEarned,
-          currency: 'XOF',
-          status: 'completed',
-        }));
+        afrikfidItems = (card.transactions || []).map((t, i) => {
+          const nameKey = (t.merchant || '').toLowerCase().trim();
+          const logo = localLogoByName[nameKey] || t.logo || null;
+          return {
+            source: 'afrikfid',
+            id: `bapi-${afrikfidId}-${i}-${t.date || ''}`,
+            date: t.date,
+            merchantName: t.merchant,
+            merchantLogo: logo,
+            amountXof: t.amountXof,
+            pointsEarned: t.pointsEarned,
+            currency: 'XOF',
+            status: 'completed',
+          };
+        });
       } else {
         afrikfidSource = { available: false, reason: 'upstream_404' };
       }

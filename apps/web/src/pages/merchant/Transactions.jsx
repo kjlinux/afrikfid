@@ -113,7 +113,7 @@ export default function MerchantTransactions() {
                 { label: 'Date', tip: null },
                 { label: '', tip: null },
               ].map(h => (
-                <th key={h.label} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                <th key={h.label} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600 }}>
                   {h.tip ? <>{h.label}<InfoTooltip text={h.tip} /></> : h.label}
                 </th>
               ))}
@@ -180,7 +180,7 @@ export default function MerchantTransactions() {
             <thead>
               <tr style={{ background: 'var(--af-surface-3)' }}>
                 {['Transaction', 'Client', 'Montant', 'Motif', 'Date demande', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -227,7 +227,7 @@ export default function MerchantTransactions() {
               <div style={{ color: 'var(--af-text)', fontWeight: 700, marginTop: 6 }}>{fmt(refundModal.gross_amount)} {refundModal.currency || 'XOF'}</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Type de remboursement</label>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Type de remboursement</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[['full', 'Remboursement total'], ['partial', 'Partiel']].map(([val, label]) => (
                   <button key={val} onClick={() => setRefundType(val)}
@@ -239,14 +239,14 @@ export default function MerchantTransactions() {
             </div>
             {refundType === 'partial' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Montant à rembourser</label>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Montant à rembourser</label>
                 <input type="number" value={refundPartialAmount} onChange={e => setRefundPartialAmount(e.target.value)}
                   placeholder={`Max: ${fmt(refundModal.gross_amount)}`}
                   style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
               </div>
             )}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase' }}>Motif *</label>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 6 }}>Motif *</label>
               <textarea value={refundReason} onChange={e => setRefundReason(e.target.value)} rows={3}
                 placeholder="Ex: Client n'a pas reçu la commande, erreur de facturation..."
                 style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />

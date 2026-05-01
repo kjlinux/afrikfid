@@ -17,7 +17,7 @@ const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Pro
 
 const S = {
   sel: { padding: '10px 14px', background: 'var(--afrikfid-surface)', border: '1px solid var(--afrikfid-border)', borderRadius: 8, color: 'var(--afrikfid-muted)', fontSize: 14, outline: 'none' },
-  th: { padding: '11px 10px', textAlign: 'left', fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' },
+  th: { padding: '11px 10px', textAlign: 'left', fontSize: 11, color: 'var(--afrikfid-muted)', fontWeight: 600, whiteSpace: 'nowrap' },
   td: { padding: '12px 10px' },
   infoCell: { background: 'var(--afrikfid-surface-2)', borderRadius: 8, padding: '10px 12px' },
 }
@@ -106,7 +106,7 @@ export default function AdminTransactions() {
         {/* Zone filtres + table à droite */}
         <div>
           <div className="af-card" style={{ marginBottom: 12, padding: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>Opération</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)' }}>Opération</div>
             <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="af-field" style={{ width: 'auto', marginBottom: 0 }}>
               <option value="">Peu importe</option>
               <option value="completed">Complétées</option>
@@ -114,7 +114,7 @@ export default function AdminTransactions() {
               <option value="failed">Échouées</option>
               <option value="refunded">Remboursées</option>
             </select>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase' }}>Statut client</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--af-text-muted)' }}>Statut client</div>
             <select value={filters.loyalty_status} onChange={e => setFilters(f => ({ ...f, loyalty_status: e.target.value }))} className="af-field" style={{ width: 'auto', marginBottom: 0 }}>
               <option value="">Peu importe</option>
               <option value="OPEN">Open</option>
@@ -194,7 +194,7 @@ export default function AdminTransactions() {
             </div>
 
             <div style={{ background: 'var(--afrikfid-surface-2)', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid var(--afrikfid-border)' }}>
-              <div style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 16, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>RÉPARTITION X/Y/Z</div>
+              <div style={{ fontSize: 12, color: 'var(--afrikfid-muted)', marginBottom: 16, fontWeight: 600 }}>RÉPARTITION X/Y/Z</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div style={{ textAlign: 'center', background: 'var(--afrikfid-surface)', borderRadius: 8, padding: 12, border: '1px solid rgba(239,68,68,0.25)' }}>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#ef4444' }}>X = {selected.merchant_rebate_percent}%</div>

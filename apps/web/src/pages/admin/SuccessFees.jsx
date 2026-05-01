@@ -29,7 +29,7 @@ export default function AdminSuccessFees() {
     } catch { /* ignore */ }
   }
 
-  const th = (align = 'left') => ({ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--af-border)', textAlign: align })
+  const th = (align = 'left') => ({ padding: '10px 14px', fontSize: 11, fontWeight: 600, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-border)', textAlign: align })
   const td = (align = 'left') => ({ padding: '10px 14px', fontSize: 13, color: 'var(--af-text-muted)', borderBottom: '1px solid var(--af-surface)', textAlign: align })
   const kpiCard = { background: 'var(--af-surface)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '16px 20px' }
 

@@ -11,7 +11,8 @@ const {
   notifyKycApproved, notifyKycRejected,
   notifyMerchantWelcome, notifyRefundApproved, notifyRefundRejected, notifyAccountSuspended,
 } = require('../lib/notifications');
-const { kycUpload, logoUpload, toFileMetadata } = require('../lib/upload');
+const { kycUpload, logoUpload, toFileMetadata, LOGO_DIR } = require('../lib/upload');
+const path = require('path');
 const { requirePackage } = require('../middleware/require-package');
 const { generateInsights } = require('../lib/ai-insights');
 const { syncMarchandToFidelite, syncLogoFileToFidelite } = require('../lib/afrikfid-client');
@@ -24,6 +25,11 @@ const { syncMarchandToFidelite, syncLogoFileToFidelite } = require('../lib/afrik
  *   email → email (sur User Laravel)
  * Fire-and-forget : on ne bloque jamais la réponse HTTP du marchand.
  */
+function getMimeTypeFromFilename(filename) {
+  const ext = path.extname(filename).toLowerCase();
+  return { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[ext] || 'image/jpeg';
+}
+
 function pushMerchantSync(merchant, updates) {
   if (!merchant?.business_api_marchand_id) return;
   const { isPushSuspended } = require('./external-sync');
@@ -168,6 +174,12 @@ router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return ne
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'Aucune donnée à mettre à jour' });
 
+  // Activer automatiquement le marchand si son KYC est approuvé via ce PATCH
+  if (updates.kyc_status === 'approved') {
+    const current = (await db.query('SELECT status FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+    if (current && current.status === 'pending') updates.status = 'active';
+  }
+
   updates.updated_at = new Date().toISOString();
   const keys = Object.keys(updates);
   const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -180,6 +192,13 @@ router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return ne
 
   // Sync sortante vers business-api pour les champs partagés (name → designation, phone → telephone)
   pushMerchantSync(merchant, updates);
+
+  // Sync logo binaire si logo_url a changé et que le marchand est lié à fidelite-api
+  if (updates.logo_url && merchant.business_api_marchand_id) {
+    const filename = path.basename(updates.logo_url);
+    const filePath = path.join(LOGO_DIR, filename);
+    syncLogoFileToFidelite(merchant.business_api_marchand_id, filePath, getMimeTypeFromFilename(filename));
+  }
 
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
@@ -445,6 +464,14 @@ router.patch('/me/settings', requireMerchant, async (req, res) => {
   const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
   await db.query(`UPDATE merchants SET ${setClause} WHERE id = $${keys.length + 1}`, [...Object.values(updates), req.merchant.id]);
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.merchant.id])).rows[0];
+
+  // Sync logo binaire si logo_url a changé directement via settings (sans upload)
+  if (updates.logo_url && merchant.business_api_marchand_id) {
+    const filename = path.basename(updates.logo_url);
+    const filePath = path.join(LOGO_DIR, filename);
+    syncLogoFileToFidelite(merchant.business_api_marchand_id, filePath, getMimeTypeFromFilename(filename));
+  }
+
   res.json({ merchant: sanitizeMerchant(merchant, true) });
 });
 

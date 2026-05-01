@@ -191,7 +191,7 @@ export default function MerchantSettings() {
 
         {/* Mode de remise */}
         <div style={{ marginBottom: 18 }}>
-          <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <label style={{ display: 'block', fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>
             Mode de remise client
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -236,14 +236,14 @@ export default function MerchantSettings() {
           Afrik'Fid enverra des notifications signées (<Tooltip text={TOOLTIPS.hmac}>HMAC-SHA256</Tooltip>) à cette URL pour chaque événement de paiement.
         </p>
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>URL de callback</label>
+          <label style={{ fontSize: 11, color: 'var(--af-text-muted)', display: 'block', marginBottom: 6, fontWeight: 600 }}>URL de callback</label>
           <input type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)}
             placeholder="https://votre-site.com/api/webhook/afrikfid"
             style={inp} />
         </div>
         {/* Événements */}
         <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '12px 14px' }}>
-          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Événements reçus</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 10 }}>Événements reçus</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
             {[
               ['payment.success', 'Paiement confirmé'],
@@ -273,7 +273,7 @@ export default function MerchantSettings() {
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>
             Clé publique (Sandbox)<InfoTooltip text={TOOLTIPS.sandbox} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -288,7 +288,7 @@ export default function MerchantSettings() {
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>
             Clé publique (Production)<InfoTooltip text={TOOLTIPS.production} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -300,7 +300,7 @@ export default function MerchantSettings() {
         </div>
 
         <div>
-          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clé secrète (Production)</div>
+          <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>Clé secrète (Production)</div>
           {profile.kycStatus !== 'approved' ? (
             <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <LockClosedIcon style={{ width: 18, height: 18, color: 'var(--af-accent)', flexShrink: 0 }} />
