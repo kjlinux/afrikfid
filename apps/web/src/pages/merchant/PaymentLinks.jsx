@@ -50,12 +50,12 @@ export default function MerchantLinks() {
         </button>
       </div>
 
-      {msg && <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: '10px 14px', color: '#10b981', marginBottom: 16, fontSize: 13 }}>{msg}</div>}
+      {msg && <div style={{ background: 'var(--af-success-soft)', border: '1px solid var(--af-success)', borderRadius: 8, padding: '10px 14px', color: 'var(--af-success)', marginBottom: 16, fontSize: 13 }}>{msg}</div>}
 
       {/* Nouveau lien généré */}
       {newLink && (
-        <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircleIcon style={{ width: 16, height: 16 }} />Lien créé avec succès !</div>
+        <div style={{ background: 'var(--af-success-soft)', border: '1px solid var(--af-success)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--af-success)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircleIcon style={{ width: 16, height: 16 }} />Lien créé avec succès !</div>
           <div style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <code style={{ fontSize: 13, color: 'var(--af-accent)', wordBreak: 'break-all' }}>{newLink.payUrl}</code>
             <button onClick={() => copyToClipboard(newLink.payUrl)}
@@ -86,7 +86,7 @@ export default function MerchantLinks() {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--af-accent)', fontWeight: 700 }}>{link.code}</span>
-                    <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: isActive ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', color: isActive ? '#10b981' : '#6B7280' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: isActive ? 'var(--af-success-soft)' : 'var(--af-surface-2)', color: isActive ? 'var(--af-success)' : 'var(--af-text-muted)' }}>
                       {isExpired ? 'Expiré' : isUsed ? 'Utilisé' : link.status}
                     </span>
                   </div>
@@ -116,7 +116,7 @@ export default function MerchantLinks() {
 
                 {isActive && (
                   <button onClick={() => cancel(link.id)}
-                    style={{ marginLeft: 16, padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+                    style={{ marginLeft: 16, padding: '6px 12px', background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)', borderRadius: 6, color: 'var(--af-danger)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
                     Annuler
                   </button>
                 )}
@@ -163,7 +163,7 @@ export default function MerchantLinks() {
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text)', fontSize: 14, outline: 'none' }} />
                 </div>
               </div>
-              {msg && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{msg}</div>}
+              {msg && <div style={{ color: 'var(--af-danger)', fontSize: 13, marginBottom: 12 }}>{msg}</div>}
               <button type="submit" disabled={saving}
                 style={{ width: '100%', padding: '12px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: 'var(--af-surface-3)', fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
                 {saving ? 'Création...' : 'Créer le lien'}

@@ -6,7 +6,7 @@ import { Breadcrumb } from '../../App.jsx'
 const PKG_LABELS = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth Intelligent', PREMIUM: 'Premium Performance' }
 const PKG_RANK = { STARTER_BOOST: 0, STARTER_PLUS: 1, GROWTH: 2, PREMIUM: 3 }
 const PKG_COLORS = { STARTER_BOOST: 'yellow', STARTER_PLUS: 'blue', GROWTH: 'green', PREMIUM: 'purple' }
-const PKG_HEX = { STARTER_BOOST: 'var(--af-text-muted)', STARTER_PLUS: '#3b82f6', GROWTH: '#10b981', PREMIUM: 'var(--af-accent)' }
+const PKG_HEX = { STARTER_BOOST: 'var(--af-text-muted)', STARTER_PLUS: 'var(--af-text-muted)', GROWTH: 'var(--af-text-muted)', PREMIUM: 'var(--af-accent)' }
 
 const MM_OPERATORS = [
   { code: 'ORANGE', label: 'Orange Money' },
@@ -75,8 +75,8 @@ function CheckoutModal({ open, target, cycle, sub, onClose, onSuccess }) {
               </div>
             )}
             {quote.kind === 'renewal' && cycle === 'annual' && (
-              <div style={{ fontSize: 11, color: '#10b981', marginTop: 6, fontWeight: 600 }}>
-                ✓ 1 mois offert (11 mois facturés)
+              <div style={{ fontSize: 11, color: 'var(--af-success)', marginTop: 6, fontWeight: 600 }}>
+                1 mois offert (11 mois facturés)
               </div>
             )}
           </div>
@@ -92,7 +92,7 @@ function CheckoutModal({ open, target, cycle, sub, onClose, onSuccess }) {
                   style={{
                     padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
                     border: `2px solid ${provider === p.code ? 'var(--af-accent)' : 'var(--af-border)'}`,
-                    background: provider === p.code ? 'rgba(245,158,11,0.08)' : 'var(--af-surface-3)',
+                    background: provider === p.code ? 'var(--af-accent-soft)' : 'var(--af-surface-3)',
                     color: provider === p.code ? 'var(--af-accent)' : 'var(--af-text-muted)',
                     fontWeight: 600, fontSize: 13,
                   }}>{p.label}</button>
@@ -176,7 +176,7 @@ export default function MerchantSubscription() {
       {success && <Alert type="success" onClose={() => setSuccess('')}>{success}</Alert>}
 
       {showWarning && (
-        <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, color: 'var(--af-accent)', fontSize: 13 }}>
+        <div style={{ background: 'var(--af-warning-soft)', borderLeft: '4px solid var(--af-warning)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, color: 'var(--af-text)', fontSize: 13 }}>
           ⚠️ Votre abonnement expire dans <b>{daysLeft} jour{daysLeft > 1 ? 's' : ''}</b> ({fmtDate(sub.current_period_end)}). Renouvelez-le pour éviter la bascule automatique sur Starter Boost.
         </div>
       )}
@@ -202,8 +202,8 @@ export default function MerchantSubscription() {
           </div>
         </div>
         {data.recruitmentBonus && data.recruitmentBonus.discountPercent > 0 && (
-          <div style={{ marginTop: 14, padding: 10, background: 'rgba(16,185,129,0.08)', borderRadius: 8, fontSize: 12, color: '#10b981' }}>
-            🎁 Bonus recrutement Starter Boost : <b>-{data.recruitmentBonus.discountPercent}%</b> ({data.recruitmentBonus.clientsRecruitedThisMonth} clients recrutés ce mois)
+          <div style={{ marginTop: 14, padding: 10, background: 'var(--af-surface-2)', borderLeft: '4px solid var(--af-success)', borderRadius: 8, fontSize: 12, color: 'var(--af-text-muted)' }}>
+            Bonus recrutement Starter Boost : <b style={{ color: 'var(--af-success)' }}>-{data.recruitmentBonus.discountPercent}%</b> ({data.recruitmentBonus.clientsRecruitedThisMonth} clients recrutés ce mois)
           </div>
         )}
       </Card>
@@ -234,7 +234,7 @@ export default function MerchantSubscription() {
               style={{
                 padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 border: `1px solid ${cycle === c ? 'var(--af-accent)' : 'var(--af-border)'}`,
-                background: cycle === c ? 'rgba(245,158,11,0.1)' : 'transparent',
+                background: cycle === c ? 'var(--af-accent-soft)' : 'transparent',
                 color: cycle === c ? 'var(--af-accent)' : 'var(--af-text-muted)',
               }}>
               {c === 'monthly' ? 'Mensuel' : 'Annuel (-1 mois offert)'}

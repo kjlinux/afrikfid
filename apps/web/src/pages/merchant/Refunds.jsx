@@ -8,14 +8,14 @@ const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
 const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
 const STATUS_STYLE = {
-  completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'Complété' },
-  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',  label: 'En attente' },
-  failed:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   label: 'Échoué' },
-  overdue:   { color: '#f97316', bg: 'rgba(249,115,22,0.1)',  label: 'En retard' },
+  completed: { color: 'var(--af-success)', bg: 'var(--af-success-soft)', label: 'Complété' },
+  pending:   { color: 'var(--af-warning)', bg: 'var(--af-warning-soft)', label: 'En attente' },
+  failed:    { color: 'var(--af-danger)',  bg: 'var(--af-danger-soft)',  label: 'Échoué' },
+  overdue:   { color: 'var(--af-warning)', bg: 'var(--af-warning-soft)', label: 'En retard' },
 }
 
 const TYPE_LABEL = { full: 'Total', partial: 'Partiel' }
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
+
 
 export default function MerchantRefunds() {
   const [refunds, setRefunds] = useState([])
@@ -84,19 +84,19 @@ export default function MerchantRefunds() {
                     <td style={{ padding: '12px', color: 'var(--af-text-muted)', fontFamily: 'monospace', fontSize: 12 }}>{r.transaction_reference}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-                        background: r.refund_type === 'full' ? 'rgba(139,92,246,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: r.refund_type === 'full' ? '#8b5cf6' : 'var(--af-accent)' }}>
+                        background: 'var(--af-surface-2)',
+                        color: 'var(--af-text-muted)' }}>
                         {TYPE_LABEL[r.refund_type] || r.refund_type}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', color: '#ef4444', fontWeight: 600 }}>-{fmt(r.amount)} {r.currency}</td>
+                    <td style={{ padding: '12px', color: 'var(--af-danger)', fontWeight: 600 }}>-{fmt(r.amount)} {r.currency}</td>
                     <td style={{ padding: '12px', color: 'var(--af-text-muted)' }}>{fmt(r.original_amount)} {r.currency}</td>
                     <td style={{ padding: '12px' }}>
                       {r.client_name ? (
                         <span>
                           <span style={{ color: 'var(--af-text)' }}>{r.client_name}</span>
                           {r.client_status && (
-                            <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: LOYALTY_COLOR[r.client_status] || 'var(--af-text-muted)' }}>
+                            <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--af-text-muted)' }}>
                               {r.client_status}
                             </span>
                           )}
@@ -111,7 +111,7 @@ export default function MerchantRefunds() {
                     <td style={{ padding: '12px', color: 'var(--af-text-muted)', fontSize: 12 }}>{fmtDate(r.created_at)}</td>
                     <td style={{ padding: '12px' }}>
                       <button onClick={() => setSelected(r)}
-                        style={{ padding: '4px 10px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 5, color: '#818cf8', cursor: 'pointer', fontSize: 12 }}>
+                        style={{ padding: '4px 10px', background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderRadius: 5, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12 }}>
                         Détail
                       </button>
                     </td>

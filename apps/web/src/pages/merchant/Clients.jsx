@@ -6,8 +6,7 @@ import { TOOLTIPS } from '../../lib/tooltips.js'
 import { TrophyIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/solid'
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
-const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
+const RFM_DANGER = new Set(['A_RISQUE', 'PERDUS'])
 const RFM_LABELS = { CHAMPIONS: 'Champions', FIDELES: 'Fidèles', PROMETTEURS: 'Prometteurs', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernants', PERDUS: 'Perdus' }
 const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
 
@@ -22,9 +21,9 @@ const RFM_TIPS = {
 
 function RfmBadge({ segment }) {
   if (!segment) return null
-  const color = RFM_COLORS[segment] || '#6B7280'
+  const color = RFM_DANGER.has(segment) ? 'var(--af-danger)' : 'var(--af-text-muted)'
   const badge = (
-    <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
+    <span style={{ background: 'var(--af-surface-2)', color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: '1px solid var(--af-border)' }}>
       {RFM_LABELS[segment] || segment}
     </span>
   )
@@ -35,10 +34,10 @@ function RfmBadge({ segment }) {
 
 function AbandonBadge({ step, status }) {
   if (!step || status !== 'active') return null
-  const color = step >= 4 ? '#ef4444' : 'var(--af-accent)'
+  const color = step >= 4 ? 'var(--af-danger)' : 'var(--af-warning)'
   return (
     <Tooltip text={TOOLTIPS.protocole_abandon}>
-      <span style={{ background: `${color}22`, color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: `1px solid ${color}44` }}>
+      <span style={{ background: 'var(--af-surface-2)', color, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, border: '1px solid var(--af-border)' }}>
         Abandon S{step}
       </span>
     </Tooltip>
@@ -100,19 +99,18 @@ export default function MerchantClients() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
           {['OPEN', 'LIVE', 'GOLD', 'ROYAL'].map(s => {
             const count = stats.byStatus?.find(b => b.loyalty_status === s)?.count || 0
-            const color = LOYALTY_COLOR[s]
             const Icon = s === 'ROYAL' ? TrophyIcon : s === 'GOLD' ? StarIcon : s === 'LIVE' ? SparklesIcon : null
             return (
               <button key={s} onClick={() => { setFilter(s === filter ? 'all' : s); setPage(1) }}
                 style={{
-                  background: filter === s ? `${color}22` : 'var(--af-surface)',
-                  border: `1px solid ${filter === s ? color : 'var(--af-border)'}`,
+                  background: filter === s ? 'var(--af-surface-2)' : 'var(--af-surface)',
+                  border: `1px solid ${filter === s ? 'var(--af-accent)' : 'var(--af-border)'}`,
                   borderRadius: 12, padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
                 }}>
-                <div style={{ marginBottom: 6, color }}>
-                  {Icon ? <Icon style={{ width: 20, height: 20 }} /> : <span style={{ width: 14, height: 14, borderRadius: '50%', background: color, display: 'inline-block' }} />}
+                <div style={{ marginBottom: 6, color: 'var(--af-text-muted)' }}>
+                  {Icon ? <Icon style={{ width: 20, height: 20 }} /> : <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--af-border-strong)', display: 'inline-block' }} />}
                 </div>
-                <div style={{ fontSize: 24, fontWeight: 800, color }}>{count}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: filter === s ? 'var(--af-accent)' : 'var(--af-text)' }}>{count}</div>
                 <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 2 }}>{s}</div>
               </button>
             )
@@ -124,7 +122,7 @@ export default function MerchantClients() {
       {filter !== 'all' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Filtré par :</span>
-          <span style={{ background: `${LOYALTY_COLOR[filter]}22`, color: LOYALTY_COLOR[filter], padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{filter}</span>
+          <span style={{ background: 'var(--af-surface-2)', color: 'var(--af-accent)', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{filter}</span>
           <button onClick={() => { setFilter('all'); setPage(1) }}
             style={{ background: 'none', border: 'none', color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12 }}>✕ effacer</button>
         </div>
@@ -171,8 +169,8 @@ export default function MerchantClients() {
                     </td>
                   )}
                   <td style={{ padding: '12px 12px', color: 'var(--af-text)', fontWeight: 600 }}>{c.txCount}</td>
-                  <td style={{ padding: '12px 12px', color: '#10b981', fontWeight: 600 }}>{fmt(c.totalVolume)} XOF</td>
-                  <td style={{ padding: '12px 12px', color: '#3b82f6' }}>{fmt(c.totalRebates)} XOF</td>
+                  <td style={{ padding: '12px 12px', color: 'var(--af-text)', fontWeight: 600 }}>{fmt(c.totalVolume)} XOF</td>
+                  <td style={{ padding: '12px 12px', color: 'var(--af-text-muted)' }}>{fmt(c.totalRebates)} XOF</td>
                   <td style={{ padding: '12px 12px', color: 'var(--af-text-muted)', fontSize: 12 }}>
                     {c.lastTx ? new Date(c.lastTx).toLocaleDateString('fr-FR') : '—'}
                   </td>

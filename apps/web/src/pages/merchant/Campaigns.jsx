@@ -28,15 +28,15 @@ const tdBold = { ...td, color: 'var(--af-text)', fontWeight: 600 }
 function UpgradeWall({ requiredPackage }) {
   const labels = { STARTER_BOOST: 'Starter Boost', STARTER_PLUS: 'Starter Plus', GROWTH: 'Growth Intelligent', PREMIUM: 'Premium' }
   return (
-    <div style={{ background: 'var(--af-surface)', border: '1px dashed #8b5cf6', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
-      <BellAlertIcon style={{ width: 48, height: 48, color: '#8b5cf6', margin: '0 auto 16px' }} />
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#8b5cf6', marginBottom: 8 }}>Fonctionnalité réservée au package Growth</div>
+    <div style={{ background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderRadius: 12, padding: '40px 32px', textAlign: 'center' }}>
+      <BellAlertIcon style={{ width: 40, height: 40, color: 'var(--af-text-muted)', margin: '0 auto 16px' }} />
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)', marginBottom: 8 }}>Fonctionnalité réservée au package Growth</div>
       <p style={{ fontSize: 13, color: 'var(--af-text-muted)', marginBottom: 20 }}>
         La gestion des campagnes et des triggers est disponible à partir du package{' '}
         <strong style={{ color: 'var(--af-text)' }}>{labels[requiredPackage] || requiredPackage}</strong>.
         Passez à un package supérieur pour envoyer des campagnes ciblées à vos clients fidélité.
       </p>
-      <a href="/merchant/settings" style={{ padding: '10px 24px', background: '#8b5cf6', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <a href="/merchant/subscription" style={{ padding: '10px 24px', background: 'var(--af-accent)', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <ArrowUpCircleIcon style={{ width: 18, height: 18 }} />
         Upgrader mon package
       </a>
@@ -227,7 +227,7 @@ export default function MerchantCampaigns() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {['campaigns', 'triggers'].map(t => (
             <button key={t} onClick={() => { setTab(t); setPage(1) }}
-              style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? 'var(--af-kpi-violet)' : 'var(--af-surface)', color: tab === t ? '#fff' : 'var(--af-text-muted)' }}>
+              style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: `1px solid ${tab === t ? 'var(--af-accent)' : 'var(--af-border)'}`, cursor: 'pointer', background: tab === t ? 'var(--af-accent)' : 'var(--af-surface)', color: tab === t ? '#fff' : 'var(--af-text-muted)' }}>
               {t === 'campaigns' ? 'Campagnes' : 'Triggers automatiques'}
             </button>
           ))}
@@ -238,11 +238,11 @@ export default function MerchantCampaigns() {
           {tab === 'campaigns' && (
             <>
               <button onClick={() => setShowCampModal(true)}
-                style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ padding: '8px 16px', background: 'var(--af-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                 + Campagne RFM<InfoTooltip text={TOOLTIPS.campagne_rfm} />
               </button>
               <button onClick={() => setShowDemoModal(true)}
-                style={{ padding: '8px 16px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ padding: '8px 16px', background: 'var(--af-surface)', color: 'var(--af-text)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                 + Campagne ciblée<InfoTooltip text={TOOLTIPS.campagne_ciblee} />
               </button>
             </>
@@ -289,7 +289,7 @@ export default function MerchantCampaigns() {
                     <td style={td}>
                       {(c.status === 'draft' || c.status === 'scheduled') && (
                         <button onClick={() => executeCampaign(c.id)}
-                          style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                          style={{ background: 'none', border: 'none', color: 'var(--af-accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                           Lancer
                         </button>
                       )}
@@ -337,7 +337,7 @@ export default function MerchantCampaigns() {
                     <td style={td}><Badge color={t.is_active ? 'green' : 'red'}>{t.is_active ? 'Actif' : 'Inactif'}</Badge></td>
                     <td style={td}>
                       <button onClick={() => toggleTrigger(t.id, t.is_active)}
-                        style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        style={{ background: 'none', border: 'none', color: 'var(--af-accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                         {t.is_active ? 'Désactiver' : 'Activer'}
                       </button>
                     </td>
@@ -422,7 +422,7 @@ export default function MerchantCampaigns() {
       {showDemoModal && (
         <Modal open onClose={() => { setShowDemoModal(false); setDemoPreview(null); setDemoError('') }} title="Campagne ciblée (démographique)">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '70vh', overflowY: 'auto' }}>
-            <div style={{ padding: '8px 12px', background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--af-text-muted)', lineHeight: 1.6 }}>
+            <div style={{ padding: '8px 12px', background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 12, color: 'var(--af-text-muted)', lineHeight: 1.6 }}>
               {TOOLTIPS.campagne_ciblee}
             </div>
             <Input placeholder="Nom de la campagne" value={demoForm.name}
@@ -435,7 +435,7 @@ export default function MerchantCampaigns() {
                   const num = i + 1; const on = demoForm.birth_months.includes(num)
                   return (
                     <button key={num} type="button" onClick={() => toggleDemoArr('birth_months', num)}
-                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', background: on ? '#8b5cf6' : 'var(--af-surface-3)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>
+                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', background: on ? 'var(--af-accent)' : 'var(--af-surface-2)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? 'var(--af-accent)' : 'var(--af-border)') }}>
                       {m}
                     </button>
                   )
@@ -456,7 +456,7 @@ export default function MerchantCampaigns() {
                   const on = demoForm.genders.includes(k)
                   return (
                     <button key={k} type="button" onClick={() => toggleDemoArr('genders', k)}
-                      style={{ padding: '5px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer', background: on ? '#8b5cf6' : 'var(--af-surface-3)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>{l}</button>
+                      style={{ padding: '5px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer', background: on ? 'var(--af-accent)' : 'var(--af-surface-2)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? 'var(--af-accent)' : 'var(--af-border)') }}>{l}</button>
                   )
                 })}
               </div>
@@ -482,7 +482,7 @@ export default function MerchantCampaigns() {
                   const on = demoForm.loyalty_statuses.includes(s)
                   return (
                     <button key={s} type="button" onClick={() => toggleDemoArr('loyalty_statuses', s)}
-                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', background: on ? '#8b5cf6' : 'var(--af-surface-3)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? '#8b5cf6' : 'var(--af-border)') }}>{s}</button>
+                      style={{ padding: '5px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', background: on ? 'var(--af-accent)' : 'var(--af-surface-2)', color: on ? '#fff' : 'var(--af-text-muted)', border: '1px solid ' + (on ? 'var(--af-accent)' : 'var(--af-border)') }}>{s}</button>
                   )
                 })}
               </div>
@@ -550,8 +550,8 @@ export default function MerchantCampaigns() {
             </div>
 
             {demoPreview && (
-              <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#8b5cf6', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderLeft: '3px solid var(--af-accent)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                   Audience estimée : {demoPreview.total} client{demoPreview.total > 1 ? 's' : ''}<InfoTooltip text={TOOLTIPS.audience_estimee} />
                 </div>
                 {demoPreview.sample?.length > 0 && (
@@ -569,7 +569,7 @@ export default function MerchantCampaigns() {
                 style={{ flex: 1, background: 'var(--af-surface-3)', color: 'var(--af-text)' }}>
                 {demoPreviewLoading ? 'Calcul...' : "Prévisualiser l'audience"}
               </Button>
-              <Button onClick={submitDemo} disabled={demoSubmitting || !demoPreview} style={{ flex: 1, background: '#8b5cf6' }}>
+              <Button onClick={submitDemo} disabled={demoSubmitting || !demoPreview} style={{ flex: 1 }}>
                 {demoSubmitting ? 'Création...' : 'Créer la campagne'}
               </Button>
             </div>
@@ -581,7 +581,7 @@ export default function MerchantCampaigns() {
       {showTrigModal && (
         <Modal open onClose={() => { setShowTrigModal(false); setTrigError('') }} title="Nouveau trigger automatique">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--af-text-muted)', lineHeight: 1.6 }}>
+            <div style={{ padding: '8px 12px', background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderRadius: 8, fontSize: 12, color: 'var(--af-text-muted)', lineHeight: 1.6 }}>
               {TOOLTIPS.trigger}
             </div>
             <div>

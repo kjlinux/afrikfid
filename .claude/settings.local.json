@@ -6,7 +6,10 @@
       "PowerShell(Get-Process -Id 8824 -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Id 8824 -Force -ErrorAction SilentlyContinue)",
       "PowerShell(Start-Process php -ArgumentList \"artisan\",\"serve\",\"--port=8000\" -WorkingDirectory \"C:\\\\Users\\\\GHOST\\\\Documents\\\\afrikfid global\\\\Fidelite\\\\fidelite-api\" -WindowStyle Hidden; Start-Sleep 3; \\(Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue\\))",
-      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Start-Sleep 1; Start-Process php -ArgumentList \"artisan\",\"serve\",\"--port=8000\" -WorkingDirectory \"C:\\\\Users\\\\GHOST\\\\Documents\\\\afrikfid global\\\\Fidelite\\\\fidelite-api\" -WindowStyle Hidden; Start-Sleep 3; \\(Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue\\))"
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Start-Sleep 1; Start-Process php -ArgumentList \"artisan\",\"serve\",\"--port=8000\" -WorkingDirectory \"C:\\\\Users\\\\GHOST\\\\Documents\\\\afrikfid global\\\\Fidelite\\\\fidelite-api\" -WindowStyle Hidden; Start-Sleep 3; \\(Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue\\))",
+      "WebSearch",
+      "PowerShell(netstat -ano)",
+      "PowerShell(taskkill /PID 4124 /F)"
     ]
   }
 }

@@ -28,7 +28,7 @@ function Toggle({ checked, onChange, label, description }) {
       <button type="button" onClick={() => onChange(!checked)}
         style={{
           width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-          background: checked ? '#10b981' : 'var(--af-border)',
+          background: checked ? 'var(--af-success)' : 'var(--af-border)',
           position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginLeft: 16,
         }}>
         <span style={{
@@ -47,9 +47,9 @@ function Msg({ msg }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
-      background: ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-      border: `1px solid ${ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-      color: ok ? '#10b981' : '#ef4444',
+      background: ok ? 'var(--af-success-soft)' : 'var(--af-danger-soft)',
+      border: `1px solid ${ok ? 'var(--af-success)' : 'var(--af-danger)'}`,
+      color: ok ? 'var(--af-success)' : 'var(--af-danger)',
       borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
     }}>
       {ok
@@ -159,12 +159,12 @@ export default function MerchantSettings() {
           onKeyDown={e => e.key === 'Enter' && revealSecret()}
           placeholder="Mot de passe" autoFocus
           style={{ width: '100%', padding: '10px 12px', background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 8 }} />
-        {revealError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 8 }}>{revealError}</p>}
+        {revealError && <p style={{ color: 'var(--af-danger)', fontSize: 12, marginBottom: 8 }}>{revealError}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => { setShowPasswordModal(false); setPasswordInput(''); setRevealError('') }}
             style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid var(--af-border)', borderRadius: 6, color: 'var(--af-text-muted)', cursor: 'pointer' }}>Annuler</button>
           <button onClick={revealSecret} disabled={revealing}
-            style={{ flex: 1, padding: '9px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, color: 'var(--af-accent)', cursor: 'pointer', fontWeight: 600, opacity: revealing ? 0.7 : 1 }}>
+            style={{ flex: 1, padding: '9px', background: 'var(--af-accent-soft)', border: '1px solid var(--af-accent)', borderRadius: 6, color: 'var(--af-accent)', cursor: 'pointer', fontWeight: 600, opacity: revealing ? 0.7 : 1 }}>
             {revealing ? 'Vérification...' : 'Confirmer'}
           </button>
         </div>
@@ -254,7 +254,7 @@ export default function MerchantSettings() {
               ['loyalty.status_changed', 'Changement statut fidélité'],
             ].map(([event, desc]) => (
               <div key={event} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                <span style={{ color: '#10b981', fontSize: 10, marginTop: 2, flexShrink: 0 }}>●</span>
+                <span style={{ color: 'var(--af-text-muted)', fontSize: 10, marginTop: 2, flexShrink: 0 }}>●</span>
                 <div>
                   <code style={{ fontSize: 10, color: 'var(--af-accent)' }}>{event}</code>
                   <div style={{ fontSize: 10, color: 'var(--af-text-muted)' }}>{desc}</div>
@@ -292,7 +292,7 @@ export default function MerchantSettings() {
             Clé publique (Production)<InfoTooltip text={TOOLTIPS.production} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <code style={{ flex: 1, background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: '#10b981', wordBreak: 'break-all' }}>
+            <code style={{ flex: 1, background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: 'var(--af-text-muted)', wordBreak: 'break-all' }}>
               {profile.apiKeyPublic}
             </code>
             <CopyButton text={profile.apiKeyPublic} />
@@ -302,7 +302,7 @@ export default function MerchantSettings() {
         <div>
           <div style={{ fontSize: 11, color: 'var(--af-text-muted)', fontWeight: 600, marginBottom: 8 }}>Clé secrète (Production)</div>
           {profile.kycStatus !== 'approved' ? (
-            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ background: 'var(--af-accent-soft)', border: '1px solid var(--af-accent)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <LockClosedIcon style={{ width: 18, height: 18, color: 'var(--af-accent)', flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-accent)' }}>KYC requis<InfoTooltip text={TOOLTIPS.KYC} /></div>
@@ -315,7 +315,7 @@ export default function MerchantSettings() {
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <code style={{ flex: 1, background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: secretValue && showSecret ? '#ef4444' : 'var(--af-text-muted)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                <code style={{ flex: 1, background: 'var(--af-surface-3)', border: '1px solid var(--af-border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: secretValue && showSecret ? 'var(--af-danger)' : 'var(--af-text-muted)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
                   {secretValue && showSecret ? secretValue : '••••••••••••••••••••••••••••••••••••••••'}
                 </code>
                 {secretValue && <CopyButton text={secretValue} />}

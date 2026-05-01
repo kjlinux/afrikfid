@@ -6,10 +6,10 @@ import { TOOLTIPS } from '../../lib/tooltips.js'
 import { ShieldCheckIcon, DocumentArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 const STATUS_CONFIG = {
-  pending:   { label: 'Non soumis',    color: 'var(--af-text-muted)', bg: 'rgba(156,163,175,0.1)',  icon: ClockIcon },
-  submitted: { label: 'En cours d\'examen', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', icon: ClockIcon },
-  approved:  { label: 'Approuvé',      color: '#10b981', bg: 'rgba(16,185,129,0.1)',   icon: CheckCircleIcon },
-  rejected:  { label: 'Rejeté',        color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    icon: XCircleIcon },
+  pending:   { label: 'Non soumis',         color: 'var(--af-text-muted)', bg: 'var(--af-surface-2)',    icon: ClockIcon },
+  submitted: { label: 'En cours d\'examen', color: 'var(--af-warning)',    bg: 'var(--af-warning-soft)', icon: ClockIcon },
+  approved:  { label: 'Approuvé',           color: 'var(--af-success)',    bg: 'var(--af-success-soft)', icon: CheckCircleIcon },
+  rejected:  { label: 'Rejeté',             color: 'var(--af-danger)',     bg: 'var(--af-danger-soft)',  icon: XCircleIcon },
 }
 
 const inp = {
@@ -32,16 +32,16 @@ function FileDropZone({ label, accept, file, onChange, required }) {
 
   return (
     <div>
-      <label style={lbl}>{label} {required && <span style={{ color: '#ef4444' }}>*</span>}</label>
+      <label style={lbl}>{label} {required && <span style={{ color: 'var(--af-danger)' }}>*</span>}</label>
       <div
         onClick={() => ref.current.click()}
         onDragOver={e => { e.preventDefault(); setDrag(true) }}
         onDragLeave={() => setDrag(false)}
         onDrop={handleDrop}
         style={{
-          border: `2px dashed ${drag ? 'var(--af-accent)' : file ? '#10b981' : 'var(--af-border)'}`,
+          border: `2px dashed ${drag ? 'var(--af-accent)' : file ? 'var(--af-success)' : 'var(--af-border)'}`,
           borderRadius: 10, padding: '20px 16px', textAlign: 'center', cursor: 'pointer',
-          background: file ? 'rgba(16,185,129,0.05)' : drag ? 'rgba(245,158,11,0.05)' : 'var(--af-surface-3)',
+          background: file ? 'var(--af-success-soft)' : drag ? 'var(--af-accent-soft)' : 'var(--af-surface-3)',
           transition: 'all 0.2s',
         }}
       >
@@ -49,8 +49,8 @@ function FileDropZone({ label, accept, file, onChange, required }) {
           onChange={e => e.target.files[0] && onChange(e.target.files[0])} />
         {file ? (
           <div>
-            <CheckCircleIcon style={{ width: 24, color: '#10b981', margin: '0 auto 6px' }} />
-            <div style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>{file.name}</div>
+            <CheckCircleIcon style={{ width: 24, color: 'var(--af-success)', margin: '0 auto 6px' }} />
+            <div style={{ fontSize: 13, color: 'var(--af-success)', fontWeight: 600 }}>{file.name}</div>
             <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2 }}>
               {(file.size / 1024 / 1024).toFixed(2)} Mo — Cliquer pour changer
             </div>
@@ -152,7 +152,7 @@ export default function MerchantKyc() {
             </div>
           )}
           {status === 'rejected' && profile?.kycRejectionReason && (
-            <div style={{ fontSize: 13, color: '#fca5a5', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--af-danger)', marginTop: 2 }}>
               Motif : {profile.kycRejectionReason}
             </div>
           )}
@@ -175,7 +175,7 @@ export default function MerchantKyc() {
               {/* Infos textuelles */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label style={lbl}>Nom du gérant <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={lbl}>Nom du gérant <span style={{ color: 'var(--af-danger)' }}>*</span></label>
                   <input style={inp} value={gerantName}
                     onChange={e => setGerantName(e.target.value)}
                     placeholder="Prénom Nom" />
@@ -212,15 +212,15 @@ export default function MerchantKyc() {
 
               {error && (
                 <div style={{
-                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13,
+                  background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)',
+                  borderRadius: 8, padding: '10px 14px', color: 'var(--af-danger)', fontSize: 13,
                 }}>
                   {error}
                 </div>
               )}
 
               <button type="submit" disabled={submitting} style={{
-                width: '100%', padding: '13px', background: submitting ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-accent), var(--af-brand))',
+                width: '100%', padding: '13px', background: submitting ? 'var(--af-border)' : 'var(--af-accent)',
                 border: 'none', borderRadius: 9, color: submitting ? 'var(--af-text-muted)' : '#fff',
                 fontWeight: 700, cursor: submitting ? 'default' : 'pointer', fontSize: 15,
               }}>
@@ -234,11 +234,11 @@ export default function MerchantKyc() {
       {/* Succès */}
       {success && (
         <div style={{
-          background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)',
+          background: 'var(--af-success-soft)', border: '1px solid var(--af-success)',
           borderRadius: 14, padding: 32, textAlign: 'center',
         }}>
-          <CheckCircleIcon style={{ width: 48, color: '#10b981', margin: '0 auto 14px' }} />
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#10b981', marginBottom: 8 }}>Dossier soumis !</h3>
+          <CheckCircleIcon style={{ width: 48, color: 'var(--af-success)', margin: '0 auto 14px' }} />
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--af-success)', marginBottom: 8 }}>Dossier soumis !</h3>
           <p style={{ color: 'var(--af-text-muted)', fontSize: 14 }}>
             Notre équipe examinera votre dossier sous 24–48h.<br />
             Vous serez notifié par email et SMS dès validation.
@@ -251,8 +251,8 @@ export default function MerchantKyc() {
         <div style={{ background: 'var(--af-surface)', borderRadius: 14, padding: 28, border: '1px solid var(--af-border)' }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--af-text)', marginBottom: 16 }}>Votre dossier</h2>
           <div style={{ color: 'var(--af-text-muted)', fontSize: 13, lineHeight: 1.7 }}>
-            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />RCCM déposé</div>
-            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: '#10b981', verticalAlign: 'middle' }} />CNI du gérant déposée</div>
+            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: 'var(--af-success)', verticalAlign: 'middle' }} />RCCM déposé</div>
+            <div><CheckCircleIcon style={{ width: 14, height: 14, display: 'inline', marginRight: 4, color: 'var(--af-success)', verticalAlign: 'middle' }} />CNI du gérant déposée</div>
             <div style={{ marginTop: 12, color: 'var(--af-text-muted)' }}>
               Si vous avez besoin de modifier votre dossier, contactez notre support.
             </div>

@@ -6,10 +6,14 @@ import { Breadcrumb } from '../../App.jsx'
 import { TOOLTIPS } from '../../lib/tooltips.js'
 
 const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))
-const S_STYLE = { completed: { color: '#10b981', bg: 'rgba(16,185,129,0.1)' }, failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' }, refunded: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' } }
-const LOYALTY_COLOR = { OPEN: '#6B7280', LIVE: '#3B82F6', GOLD: '#F59E0B', ROYAL: '#8B5CF6', ROYAL_ELITE: '#ec4899' }
-const RFM_COLORS = { CHAMPIONS: '#10b981', FIDELES: '#3b82f6', PROMETTEURS: '#8b5cf6', A_RISQUE: '#ef4444', HIBERNANTS: '#F59E0B', PERDUS: '#6B7280' }
-const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: '⚠ À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
+const S_STYLE = {
+  completed: { color: 'var(--af-success)', bg: 'var(--af-success-soft)' },
+  failed: { color: 'var(--af-danger)', bg: 'var(--af-danger-soft)' },
+  pending: { color: 'var(--af-warning)', bg: 'var(--af-warning-soft)' },
+  refunded: { color: 'var(--af-text-muted)', bg: 'var(--af-surface-2)' },
+}
+const RFM_SHORT = { CHAMPIONS: 'Champion', FIDELES: 'Fidèle', PROMETTEURS: 'Prometteur', A_RISQUE: 'À Risque', HIBERNANTS: 'Hibernant', PERDUS: 'Perdu' }
+const RFM_DANGER = new Set(['A_RISQUE', 'PERDUS'])
 
 export default function MerchantTransactions() {
   const [transactions, setTransactions] = useState([])
@@ -81,7 +85,7 @@ export default function MerchantTransactions() {
             { label: 'Opérateur', key: 'operator' },
             { label: 'Date', key: 'initiated_at' },
           ], 'mes-transactions.csv')}
-            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            style={{ padding: '7px 14px', background: 'var(--af-surface-2)', border: '1px solid var(--af-border)', borderRadius: 8, color: 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             ↓ Export CSV
           </button>
         )}
@@ -128,18 +132,18 @@ export default function MerchantTransactions() {
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ fontSize: 13, color: 'var(--af-text)' }}>{tx.client_name || 'Invité'}</div>
                     {tx.client_loyalty_status && (
-                      <div style={{ fontSize: 11, color: LOYALTY_COLOR[tx.client_loyalty_status] || 'var(--af-text-muted)', marginTop: 2 }}>{tx.client_loyalty_status}</div>
+                      <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginTop: 2 }}>{tx.client_loyalty_status}</div>
                     )}
                     {tx.client_rfm_segment && (
-                      <div style={{ fontSize: 10, color: RFM_COLORS[tx.client_rfm_segment] || '#6B7280', marginTop: 2, fontWeight: 600 }}>{RFM_SHORT[tx.client_rfm_segment] || tx.client_rfm_segment}</div>
+                      <div style={{ fontSize: 10, color: RFM_DANGER.has(tx.client_rfm_segment) ? 'var(--af-danger)' : 'var(--af-text-muted)', marginTop: 2, fontWeight: 600 }}>{RFM_SHORT[tx.client_rfm_segment] || tx.client_rfm_segment}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ background: s.bg, color: s.color, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{tx.status}</span>
                   </td>
                   <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: 'var(--af-accent)' }}>{fmt(tx.gross_amount)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#10b981' }}>{fmt(tx.merchant_receives)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, color: LOYALTY_COLOR[tx.client_loyalty_status] || 'var(--af-text-muted)' }}>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: 'var(--af-text)' }}>{fmt(tx.merchant_receives)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--af-text-muted)' }}>
                     {tx.client_rebate_percent}% ({fmt(tx.client_rebate_amount)})
                   </td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--af-text-muted)' }}>
@@ -150,7 +154,7 @@ export default function MerchantTransactions() {
                   <td style={{ padding: '12px 14px' }}>
                     {tx.status === 'completed' && (
                       <button onClick={e => { e.stopPropagation(); setRefundModal(tx); setRefundReason(''); setRefundType('full'); setRefundMsg('') }}
-                        style={{ padding: '4px 8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        style={{ padding: '4px 8px', background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)', borderRadius: 6, color: 'var(--af-danger)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <ArrowUturnLeftIcon style={{ width: 12, height: 12 }} /> Rembourser
                       </button>
                     )}
@@ -171,7 +175,7 @@ export default function MerchantTransactions() {
 
       {/* Demandes de remboursement clients en attente */}
       {pendingRefunds.length > 0 && (
-        <div style={{ marginTop: 28, background: 'var(--af-surface)', borderRadius: 12, border: '1px solid rgba(245,158,11,0.3)', overflow: 'hidden' }}>
+        <div style={{ marginTop: 28, background: 'var(--af-surface)', borderRadius: 12, border: '1px solid var(--af-border)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--af-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--af-accent)' }} />
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--af-accent)' }}>Demandes de remboursement en attente ({pendingRefunds.length})</div>
@@ -195,11 +199,11 @@ export default function MerchantTransactions() {
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => reviewRefund(r.id, 'approve')} disabled={reviewLoading === r.id}
-                        style={{ padding: '5px 12px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 6, color: '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
+                        style={{ padding: '5px 12px', background: 'var(--af-success-soft)', border: '1px solid var(--af-success)', borderRadius: 6, color: 'var(--af-success)', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
                         {reviewLoading === r.id ? '...' : 'Approuver'}
                       </button>
                       <button onClick={() => reviewRefund(r.id, 'reject')} disabled={reviewLoading === r.id}
-                        style={{ padding: '5px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', fontSize: 12, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
+                        style={{ padding: '5px 12px', background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)', borderRadius: 6, color: 'var(--af-danger)', fontSize: 12, cursor: 'pointer', opacity: reviewLoading === r.id ? 0.5 : 1 }}>
                         Rejeter
                       </button>
                     </div>
@@ -231,7 +235,7 @@ export default function MerchantTransactions() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {[['full', 'Remboursement total'], ['partial', 'Partiel']].map(([val, label]) => (
                   <button key={val} onClick={() => setRefundType(val)}
-                    style={{ flex: 1, padding: '8px', border: `2px solid ${refundType === val ? 'var(--af-accent)' : 'var(--af-border)'}`, borderRadius: 8, background: refundType === val ? 'rgba(245,158,11,0.1)' : 'var(--af-surface-3)', color: refundType === val ? 'var(--af-accent)' : 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    style={{ flex: 1, padding: '8px', border: `2px solid ${refundType === val ? 'var(--af-accent)' : 'var(--af-border)'}`, borderRadius: 8, background: refundType === val ? 'var(--af-accent-soft)' : 'var(--af-surface-3)', color: refundType === val ? 'var(--af-accent)' : 'var(--af-text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                     {label}
                   </button>
                 ))}
@@ -253,14 +257,14 @@ export default function MerchantTransactions() {
             </div>
             {refundMsg && (
               <div style={{ padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13, fontWeight: 600,
-                background: refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                color: refundMsg.startsWith('✓') ? '#10b981' : '#ef4444',
-                border: `1px solid ${refundMsg.startsWith('✓') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                background: refundMsg.startsWith('✓') ? 'var(--af-success-soft)' : 'var(--af-danger-soft)',
+                color: refundMsg.startsWith('✓') ? 'var(--af-success)' : 'var(--af-danger)',
+                border: `1px solid ${refundMsg.startsWith('✓') ? 'var(--af-success)' : 'var(--af-danger)'}` }}>
                 {refundMsg}
               </div>
             )}
             <button onClick={submitRefund} disabled={refundLoading}
-              style={{ width: '100%', padding: '11px', background: refundLoading ? 'var(--af-border)' : 'linear-gradient(135deg, var(--af-danger), #B91C1C)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              style={{ width: '100%', padding: '11px', background: refundLoading ? 'var(--af-border)' : 'var(--af-danger)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <ArrowUturnLeftIcon style={{ width: 16, height: 16 }} />
               {refundLoading ? 'Traitement...' : 'Confirmer le remboursement'}
             </button>
@@ -278,24 +282,24 @@ export default function MerchantTransactions() {
             <div style={{ background: 'var(--af-surface-3)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#ef4444' }}>X={selected.merchant_rebate_percent}%</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text)' }}>X={selected.merchant_rebate_percent}%</div>
                   <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Remise accordée</div>
-                  <div style={{ fontSize: 13, color: '#ef4444', marginTop: 4 }}>{fmt(selected.merchant_rebate_amount)} XOF</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>{fmt(selected.merchant_rebate_amount)} XOF</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: LOYALTY_COLOR[selected.client_loyalty_status] || 'var(--af-text-muted)' }}>Y={selected.client_rebate_percent}%</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text-muted)' }}>Y={selected.client_rebate_percent}%</div>
                   <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Remise client</div>
-                  <div style={{ fontSize: 13, color: 'var(--af-accent)', marginTop: 4 }}>{fmt(selected.client_rebate_amount)} XOF</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>{fmt(selected.client_rebate_amount)} XOF</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>Z={selected.platform_commission_percent}%</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--af-text)' }}>Z={selected.platform_commission_percent}%</div>
                   <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>Commission</div>
-                  <div style={{ fontSize: 13, color: '#10b981', marginTop: 4 }}>{fmt(selected.platform_commission_amount)} XOF</div>
+                  <div style={{ fontSize: 13, color: 'var(--af-text-muted)', marginTop: 4 }}>{fmt(selected.platform_commission_amount)} XOF</div>
                 </div>
               </div>
               <div style={{ borderTop: '1px solid var(--af-border)', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Vous recevez</span>
-                <span style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{fmt(selected.merchant_receives)} XOF</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--af-success)' }}>{fmt(selected.merchant_receives)} XOF</span>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

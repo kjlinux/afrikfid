@@ -18,9 +18,9 @@ function Msg({ msg }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
-      background: ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-      border: `1px solid ${ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-      color: ok ? '#10b981' : '#ef4444',
+      background: ok ? 'var(--af-success-soft)' : 'var(--af-danger-soft)',
+      border: `1px solid ${ok ? 'var(--af-success)' : 'var(--af-danger)'}`,
+      color: ok ? 'var(--af-success)' : 'var(--af-danger)',
       borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
     }}>
       {ok ? <CheckCircleIcon style={{ width: 15, height: 15, flexShrink: 0 }} /> : <ExclamationCircleIcon style={{ width: 15, height: 15, flexShrink: 0 }} />}
@@ -116,7 +116,7 @@ export default function MerchantProfile() {
           ].map(([k, v]) => (
             <div key={k} style={{ background: 'var(--af-surface-3)', borderRadius: 8, padding: '10px 14px' }}>
               <div style={{ fontSize: 11, color: 'var(--af-text-muted)', marginBottom: 4 }}>{k}</div>
-              <div style={{ fontSize: 13, color: k === '2FA' ? (totpEnabled ? '#10b981' : '#ef4444') : 'var(--af-text)', fontWeight: 500 }}>{v || '—'}</div>
+              <div style={{ fontSize: 13, color: k === '2FA' ? (totpEnabled ? 'var(--af-success)' : 'var(--af-danger)') : 'var(--af-text)', fontWeight: 500 }}>{v || '—'}</div>
             </div>
           ))}
         </div>
@@ -124,7 +124,7 @@ export default function MerchantProfile() {
 
       <div style={{ background: 'var(--af-surface)', borderRadius: 12, padding: 24, border: '1px solid var(--af-border)', gridColumn: securitySpansAll ? '1 / -1' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <ShieldCheckIcon style={{ width: 18, height: 18, color: '#10b981' }} />
+          <ShieldCheckIcon style={{ width: 18, height: 18, color: 'var(--af-success)' }} />
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--af-text)' }}>Authentification à deux facteurs (2FA)</h2>
         </div>
         <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 20 }}>
@@ -133,10 +133,10 @@ export default function MerchantProfile() {
 
         {totpEnabled ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-              <CheckCircleIcon style={{ width: 18, height: 18, color: '#10b981', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--af-success-soft)', border: '1px solid var(--af-success)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+              <CheckCircleIcon style={{ width: 18, height: 18, color: 'var(--af-success)', flexShrink: 0 }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>2FA activé</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--af-success)' }}>2FA activé</div>
                 <div style={{ fontSize: 12, color: 'var(--af-text-muted)', marginTop: 1 }}>Votre compte est protégé par une double authentification.</div>
               </div>
             </div>
@@ -153,14 +153,14 @@ export default function MerchantProfile() {
                     Annuler
                   </button>
                   <button onClick={disable2FA} disabled={disableLoading || !disablePassword}
-                    style={{ flex: 1, padding: '9px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                    style={{ flex: 1, padding: '9px', background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)', borderRadius: 6, color: 'var(--af-danger)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
                     {disableLoading ? 'Vérification...' : 'Désactiver le 2FA'}
                   </button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setShowDisable(true)}
-                style={{ padding: '9px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                style={{ padding: '9px 16px', background: 'var(--af-danger-soft)', border: '1px solid var(--af-danger)', borderRadius: 8, color: 'var(--af-danger)', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <LockClosedIcon style={{ width: 14, height: 14 }} />Désactiver le 2FA
               </button>
             )}
@@ -170,12 +170,12 @@ export default function MerchantProfile() {
             <Msg msg={setupMsg} />
             {step === 'idle' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'var(--af-accent-soft)', border: '1px solid var(--af-accent)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
                   <ExclamationCircleIcon style={{ width: 18, height: 18, color: 'var(--af-accent)', flexShrink: 0, marginTop: 1 }} />
                   <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Le 2FA n'est pas activé. Activez-le pour sécuriser l'accès à votre compte marchand.</div>
                 </div>
                 <button onClick={startSetup} disabled={setupLoading}
-                  style={{ padding: '10px 20px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  style={{ padding: '10px 20px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <ShieldCheckIcon style={{ width: 16, height: 16 }} />
                   {setupLoading ? 'Initialisation...' : 'Activer le 2FA'}
                 </button>
@@ -209,7 +209,7 @@ export default function MerchantProfile() {
                     placeholder="000000" maxLength={6} autoFocus
                     style={{ ...inp, fontFamily: 'monospace', letterSpacing: 4, fontSize: 18, textAlign: 'center', maxWidth: 140 }} />
                   <button onClick={verifySetup} disabled={setupLoading || totpCode.length !== 6}
-                    style={{ padding: '9px 20px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#10b981', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                    style={{ padding: '9px 20px', background: 'var(--af-accent)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
                     {setupLoading ? 'Vérification...' : 'Confirmer'}
                   </button>
                   <button onClick={() => { setStep('idle'); setQrCode(null); setSecret(null); setTotpCode(''); setSetupMsg(null) }}
@@ -221,13 +221,13 @@ export default function MerchantProfile() {
             )}
             {step === 'done' && backupCodes.length > 0 && (
               <div>
-                <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>2FA activé !</div>
+                <div style={{ background: 'var(--af-success-soft)', border: '1px solid var(--af-success)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--af-success)', marginBottom: 4 }}>2FA activé !</div>
                   <div style={{ fontSize: 12, color: 'var(--af-text-muted)' }}>Conservez ces codes de secours. Chaque code ne peut être utilisé qu'une seule fois.</div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, background: 'var(--af-surface-3)', borderRadius: 8, padding: 16 }}>
                   {backupCodes.map(code => (
-                    <code key={code} style={{ fontSize: 12, color: 'var(--af-accent)', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'rgba(245,158,11,0.08)', borderRadius: 4, textAlign: 'center' }}>{code}</code>
+                    <code key={code} style={{ fontSize: 12, color: 'var(--af-accent)', fontFamily: 'monospace', letterSpacing: 2, padding: '4px 8px', background: 'var(--af-accent-soft)', borderRadius: 4, textAlign: 'center' }}>{code}</code>
                   ))}
                 </div>
               </div>
