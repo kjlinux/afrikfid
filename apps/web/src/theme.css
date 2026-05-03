@@ -339,14 +339,17 @@ button, input, select, textarea { font-family: inherit; }
 .af-navbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   background: var(--af-nav-bg);
   border-bottom: 1px solid var(--af-border);
   padding: 0 24px;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow-x: visible;
 }
-.af-navbar::-webkit-scrollbar { height: 4px; }
+.af-nav-group {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+}
 .af-nav-item {
   display: inline-flex;
   align-items: center;
@@ -411,6 +414,86 @@ button, input, select, textarea { font-family: inherit; }
 .af-nav-dropdown__item:hover {
   background: var(--af-surface-2);
   color: var(--af-accent);
+}
+
+/* Mega-menu panel */
+.af-megamenu-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--af-surface);
+  border-top: 2px solid var(--af-brand);
+  border-bottom: 1px solid var(--af-border);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 49;
+  padding: 24px 32px;
+  animation: af-megamenu-in .15s ease;
+}
+@keyframes af-megamenu-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.af-megamenu-columns {
+  display: flex;
+  gap: 0;
+}
+.af-megamenu-col {
+  flex: 1;
+  padding: 0 24px 0 0;
+  border-right: 1px solid var(--af-border);
+  margin-right: 24px;
+}
+.af-megamenu-col:last-child {
+  border-right: none;
+  margin-right: 0;
+  padding-right: 0;
+}
+.af-megamenu-col-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--af-text-muted);
+  margin-bottom: 10px;
+}
+.af-megamenu-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--af-radius-sm);
+  text-decoration: none;
+  color: var(--af-text);
+  transition: background .12s, color .12s;
+  cursor: pointer;
+}
+.af-megamenu-link:hover {
+  background: var(--af-surface-2);
+  color: var(--af-brand);
+}
+.af-megamenu-link.is-active {
+  background: color-mix(in srgb, var(--af-brand) 10%, transparent);
+  color: var(--af-brand);
+}
+.af-megamenu-link svg {
+  margin-top: 1px;
+  color: var(--af-text-muted);
+  flex-shrink: 0;
+}
+.af-megamenu-link:hover svg, .af-megamenu-link.is-active svg {
+  color: var(--af-brand);
+}
+.af-megamenu-link-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.af-megamenu-link-desc {
+  font-size: 11px;
+  color: var(--af-text-muted);
+  margin-top: 2px;
+  line-height: 1.3;
 }
 .af-nav-dropdown__arrow {
   color: var(--af-accent);

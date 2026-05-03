@@ -44,7 +44,7 @@ export default function Register() {
   const [form, setForm] = useState({
     name: '', email: '', phone: '', country_id: 'CI',
     category: 'retail', website: '',
-    rebate_percent: 5, rebate_mode: 'cashback',
+    rebate_percent: 12, rebate_mode: 'cashback',
     webhook_url: '',
     password: '', password_confirm: '',
     terms: false,
@@ -63,7 +63,6 @@ export default function Register() {
     }
     if (step === 1) {
       if (form.rebate_percent < 1) return setError('Le taux X doit être d\'au moins 1%.')
-      if (form.rebate_percent < 12) return setError('Attention : un taux X inférieur à 12% empêche les clients ROYAL de bénéficier de leur remise complète (Y=12%). Minimum recommandé : 12%.')
       return true
     }
     if (step === 2) {
@@ -233,17 +232,23 @@ export default function Register() {
                 <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginBottom: 8, fontWeight: 600 }}>BARÈME Y% SELON STATUT CLIENT</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
                   {[
-                    { status: 'OPEN', y: 0, color: '#6B7280' },
-                    { status: 'LIVE', y: 5, color: '#3B82F6' },
-                    { status: 'GOLD', y: 8, color: '#F59E0B' },
-                    { status: 'ROYAL', y: 12, color: '#8B5CF6' },
+                    { status: 'OPEN', yMax: 0, color: '#6B7280' },
+                    { status: 'LIVE', yMax: 5, color: '#3B82F6' },
+                    { status: 'GOLD', yMax: 8, color: '#F59E0B' },
+                    { status: 'ROYAL', yMax: 12, color: '#8B5CF6' },
                   ].map(s => {
-                    const z = parseFloat(form.rebate_percent) - s.y
+                    const x = parseFloat(form.rebate_percent) || 0
+                    const y = Math.min(s.yMax, x)
+                    const z = x - y
+                    const capped = y < s.yMax
                     return (
                       <div key={s.status} style={{ background: s.color + '15', border: '1px solid ' + s.color + '40', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: s.color }}>{s.status}</div>
-                        <div style={{ fontSize: 9, color: 'var(--af-text-muted)', marginTop: 2 }}>Y = {s.y}%</div>
-                        <div style={{ fontSize: 9, color: z >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>Z = {z >= 0 ? '+' : ''}{z.toFixed(1)}%</div>
+                        <div style={{ fontSize: 9, color: 'var(--af-text-muted)', marginTop: 2 }}>
+                          Y = {y}%{capped && <span style={{ color: '#F59E0B' }}> ⚠</span>}
+                        </div>
+                        <div style={{ fontSize: 9, color: '#10b981', fontWeight: 600 }}>Z = +{z.toFixed(1)}%</div>
+                        {capped && <div style={{ fontSize: 8, color: '#F59E0B', marginTop: 1 }}>max {s.yMax}%</div>}
                       </div>
                     )
                   })}
@@ -255,21 +260,16 @@ export default function Register() {
 
               <div style={{ marginBottom: 16 }}>
                 <label style={lbl}>Taux de remise X (%) — négocié avec Afrik'Fid *</label>
-                <input style={inp} type="number" min="1" step="0.5"
-                  value={form.rebate_percent} onChange={e => set('rebate_percent', e.target.value)} />
-                <input type="range" min="1" max="50" step="0.5" value={Math.min(form.rebate_percent, 50)}
+                <input style={inp} type="number" min="12" step="0.5"
+                  value={form.rebate_percent} onChange={e => set('rebate_percent', Math.max(12, parseFloat(e.target.value) || 12))} />
+                <input type="range" min="12" max="50" step="0.5" value={Math.max(Math.min(form.rebate_percent, 50), 12)}
                   onChange={e => set('rebate_percent', parseFloat(e.target.value))}
                   style={{ width: '100%', marginTop: 8, accentColor: 'var(--af-accent)' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--af-text-muted)', marginTop: 2 }}>
-                  <span>1%</span>
-                  <span style={{ color: form.rebate_percent < 12 ? '#ef4444' : 'var(--af-accent)', fontWeight: 700 }}>{form.rebate_percent}% (X choisi)</span>
+                  <span>12% (min)</span>
+                  <span style={{ color: form.rebate_percent < 12 ? '#F59E0B' : 'var(--af-accent)', fontWeight: 700 }}>{form.rebate_percent}% (X choisi)</span>
                   <span>50%+</span>
                 </div>
-                {form.rebate_percent < 12 && (
-                  <div style={{ fontSize: 10, color: 'var(--af-accent)', marginTop: 4, background: 'rgba(245,158,11,0.08)', borderRadius: 6, padding: '5px 8px' }}>
-                    ⚠ En dessous de 12%, les clients ROYAL (Y=12%) ne pourront pas être pleinement remboursés — Z deviendrait négatif. Minimum recommandé : 12%.
-                  </div>
-                )}
                 <div style={{ fontSize: 10, color: 'var(--af-text-muted)', marginTop: 6 }}>
                   Ce taux est indicatif et sera validé contractuellement avec l'équipe Afrik'Fid lors de l'activation de votre compte.
                 </div>

@@ -9,7 +9,11 @@
       "PowerShell(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Start-Sleep 1; Start-Process php -ArgumentList \"artisan\",\"serve\",\"--port=8000\" -WorkingDirectory \"C:\\\\Users\\\\GHOST\\\\Documents\\\\afrikfid global\\\\Fidelite\\\\fidelite-api\" -WindowStyle Hidden; Start-Sleep 3; \\(Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue\\))",
       "WebSearch",
       "PowerShell(netstat -ano)",
-      "PowerShell(taskkill /PID 4124 /F)"
+      "PowerShell(taskkill /PID 4124 /F)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\afrikid\\\\apps\\\\web\\\\src\\\\components\" -File -Recurse | Where-Object { $_.Extension -match '\\\\.\\(jsx|js|tsx|ts\\)$' } | Select-Object -ExpandProperty FullName)",
+      "PowerShell($pdfPath = \"c:\\\\laragon\\\\www\\\\afrikid\\\\CDC GLOBALAFRIKFID V3.pdf\"; [System.Reflection.Assembly]::LoadWithPartialName\\(\"System.Windows.Forms\"\\) | Out-Null; Get-Content $pdfPath -Encoding Byte -ReadCount 0 | ForEach-Object { [System.Text.Encoding]::ASCII.GetString\\($_\\) } | Select-String \"STARTER|GROWTH|PREMIUM|package|features|pricing\" -Context 2 | Select-Object -First 100)",
+      "PowerShell(head -30)",
+      "PowerShell(cd \"C:\\\\Users\\\\GHOST\\\\Documents\\\\afrikfid global\\\\Afrikfid\\\\afrikfid-api\"; php artisan tinker --execute=\"print_r\\(DB::select\\('SELECT id, name FROM etat WHERE id = 50'\\)\\); print_r\\(array_map\\(fn\\(\\\\$c\\)=>['Field'=>\\\\$c->Field], DB::select\\('DESCRIBE commande'\\)\\)\\);\")"
     ]
   }
 }

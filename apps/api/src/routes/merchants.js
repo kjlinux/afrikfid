@@ -5,7 +5,7 @@ const bcrypt = require('bcrypt');
 const db = require('../lib/db');
 const { requireAdmin, requireMerchant, generateTokens } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
-const { CreateMerchantSchema, UpdateMerchantSchema, MerchantLoginSchema } = require('../config/schemas');
+const { CreateMerchantSchema, UpdateMerchantSchema, MerchantLoginSchema, MerchantSettingsSchema } = require('../config/schemas');
 const { encrypt, decrypt, hashField } = require('../lib/crypto');
 const {
   notifyKycApproved, notifyKycRejected,
@@ -186,6 +186,11 @@ router.patch('/:id', (req, res, next) => { if (req.params.id === 'me') return ne
   await db.query(`UPDATE merchants SET ${setClause} WHERE id = $${keys.length + 1}`, [...Object.values(updates), req.params.id]);
 
   const merchant = (await db.query('SELECT * FROM merchants WHERE id = $1', [req.params.id])).rows[0];
+  if (updates.kyc_status === 'approved') {
+    notifyKycApproved({ merchant });
+  } else if (updates.kyc_status === 'rejected') {
+    notifyKycRejected({ merchant, reason: req.body.kyc_rejection_reason || null });
+  }
   if (updates.status === 'suspended') {
     notifyAccountSuspended({ merchant, reason: req.body.suspension_reason || null });
   }
@@ -451,10 +456,14 @@ router.post('/me/logo', requireMerchant, (req, res, next) => {
 // PATCH /api/v1/merchants/me/settings — Marchand modifie ses propres paramètres
 // Seuls les champs autorisés au marchand : webhook_url, rebate_mode, allow_guest_mode
 router.patch('/me/settings', requireMerchant, async (req, res) => {
+  const parsed = MerchantSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: parsed.error.errors[0].message });
+  }
   const allowed = ['webhook_url', 'rebate_mode', 'allow_guest_mode', 'logo_url'];
   const updates = {};
   for (const key of allowed) {
-    if (req.body[key] !== undefined) updates[key] = req.body[key];
+    if (parsed.data[key] !== undefined) updates[key] = parsed.data[key];
   }
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'Aucun paramètre modifiable fourni' });

@@ -62,14 +62,12 @@ async function getOrCreateSubscription(merchantId) {
   if (sub) return sub;
 
   const id = uuidv4();
-  const start = new Date();
-  const end = addPeriod(start, 'monthly');
   await db.query(
     `INSERT INTO subscriptions
        (id, merchant_id, package, base_monthly_fee, effective_monthly_fee, status,
         billing_cycle, current_period_start, current_period_end, next_billing_at)
-     VALUES ($1,$2,$3,$4,$4,'active','monthly',$5,$6,$6)`,
-    [id, merchantId, FALLBACK_PACKAGE, PACKAGE_PRICES_FCFA[FALLBACK_PACKAGE], start, end]
+     VALUES ($1,$2,$3,0,0,'active','monthly',NOW(),NULL,NULL)`,
+    [id, merchantId, FALLBACK_PACKAGE]
   );
   return (await db.query(`SELECT * FROM subscriptions WHERE id = $1`, [id])).rows[0];
 }
@@ -97,7 +95,7 @@ function computeProrata(sub, newPackage) {
   const end = new Date(sub.current_period_end).getTime();
   const total = Math.max(end - start, MS_DAY);
   const remaining = Math.max(end - Date.now(), 0);
-  return Math.round(diff * (remaining / total));
+  return Math.ceil(diff * (remaining / total) / 10) * 10;
 }
 
 /**
@@ -113,6 +111,22 @@ async function quoteCheckout(merchantId, { package: newPackage, billing_cycle: c
     throw new Error(`Package invalide: ${newPackage}`);
   }
   const billingCycle = BILLING_CYCLES.includes(cycle) ? cycle : 'monthly';
+
+  if (newPackage === FALLBACK_PACKAGE) {
+    const sub = await getOrCreateSubscription(merchantId);
+    return {
+      subscription_id: sub.id,
+      current_package: sub.package,
+      target_package: newPackage,
+      billing_cycle: billingCycle,
+      kind: 'free',
+      amount: 0,
+      currency: 'XOF',
+      period_start: null,
+      period_end: null,
+      description: 'Plan Starter Boost — gratuit',
+    };
+  }
 
   const sub = await getOrCreateSubscription(merchantId);
   const queued = await listQueuedPeriods(sub.id);
@@ -371,38 +385,34 @@ async function expireAndAdvance(sub) {
     return { changed: true, newPackage: next.package, downgraded: oldPackage !== next.package };
   }
 
-  // Aucune période en file → downgrade STARTER_BOOST
+  // Aucune période en file → downgrade STARTER_BOOST (plan gratuit, pas d'expiration)
   if (oldPackage === FALLBACK_PACKAGE) {
-    // Déjà au plan de base : prolonger la période d'un mois (le marchand reste actif gratuitement)
-    const start = new Date();
-    const end = addPeriod(start, 'monthly');
+    // Déjà sur le plan gratuit : supprimer la date d'expiration résiduelle
     await db.query(
       `UPDATE subscriptions
-         SET current_period_start = $1, current_period_end = $2, next_billing_at = $2, updated_at = NOW()
-       WHERE id = $3`,
-      [start, end, sub.id]
+         SET current_period_end = NULL, next_billing_at = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [sub.id]
     );
     return { changed: true, newPackage: FALLBACK_PACKAGE, downgraded: false };
   }
 
-  const start = new Date();
-  const end = addPeriod(start, 'monthly');
   await db.query(
     `UPDATE subscriptions
        SET package = $1, billing_cycle = 'monthly',
-           current_period_start = $2, current_period_end = $3,
-           next_billing_at = $3,
-           base_monthly_fee = $4, effective_monthly_fee = $4,
+           current_period_start = NOW(), current_period_end = NULL,
+           next_billing_at = NULL,
+           base_monthly_fee = 0, effective_monthly_fee = 0,
            status = 'active', updated_at = NOW()
-     WHERE id = $5`,
-    [FALLBACK_PACKAGE, start, end, PACKAGE_PRICES_FCFA[FALLBACK_PACKAGE], sub.id]
+     WHERE id = $2`,
+    [FALLBACK_PACKAGE, sub.id]
   );
   await db.query(`UPDATE merchants SET package = $1 WHERE id = $2`, [FALLBACK_PACKAGE, sub.merchant_id]);
   await logPackageChange({
     subscriptionId: sub.id, merchantId: sub.merchant_id,
     oldPackage, newPackage: FALLBACK_PACKAGE,
     changedBy: 'system_downgrade', actorId: 'system',
-    reason: 'Abonnement non renouvelé',
+    reason: 'Abonnement non renouvelé — bascule sur plan gratuit',
   });
   return { changed: true, newPackage: FALLBACK_PACKAGE, downgraded: true };
 }

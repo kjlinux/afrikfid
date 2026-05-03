@@ -21,14 +21,18 @@ const mm = require('../lib/adapters/mobile-money');
 
 // ─── Public : grille tarifaire ───────────────────────────────────────────────
 router.get('/packages', (req, res) => {
-  const packages = MERCHANT_PACKAGES.map(pkg => ({
-    code: pkg,
-    label: PACKAGE_LABELS[pkg],
-    monthly: PACKAGE_PRICES_FCFA[pkg],
-    annual: PACKAGE_PRICES_FCFA[pkg] * ANNUAL_PAID_MONTHS,
-    annual_free_months: 1,
-    currency: 'XOF',
-  }));
+  const packages = MERCHANT_PACKAGES.map(pkg => {
+    const isFree = PACKAGE_PRICES_FCFA[pkg] === 0;
+    return {
+      code: pkg,
+      label: PACKAGE_LABELS[pkg],
+      monthly: PACKAGE_PRICES_FCFA[pkg],
+      annual: isFree ? 0 : PACKAGE_PRICES_FCFA[pkg] * ANNUAL_PAID_MONTHS,
+      annual_free_months: isFree ? 0 : 1,
+      is_free: isFree,
+      currency: 'XOF',
+    };
+  });
   res.json({ packages, billing_cycles: BILLING_CYCLES });
 });
 
@@ -77,6 +81,25 @@ router.post('/me/checkout', requireMerchant, validate(SubscriptionCheckoutSchema
     const { provider, phone, operator, package: pkg, billing_cycle, mode } = req.body;
     const quote = await engine.quoteCheckout(req.merchant.id, { package: pkg, billing_cycle, mode });
 
+    if (quote.kind === 'free') {
+      // Plan gratuit : activer directement sans paiement
+      const sub = (await db.query(`SELECT * FROM subscriptions WHERE id = $1`, [quote.subscription_id])).rows[0];
+      if (sub.package !== 'STARTER_BOOST') {
+        await db.query(
+          `UPDATE subscriptions SET package='STARTER_BOOST', base_monthly_fee=0, effective_monthly_fee=0,
+             current_period_end=NULL, next_billing_at=NULL, status='active', updated_at=NOW() WHERE id=$1`,
+          [sub.id]
+        );
+        await db.query(`UPDATE merchants SET package='STARTER_BOOST' WHERE id=$1`, [sub.merchant_id]);
+        await engine.logPackageChange({
+          subscriptionId: sub.id, merchantId: sub.merchant_id,
+          oldPackage: sub.package, newPackage: 'STARTER_BOOST',
+          changedBy: 'merchant_upgrade', actorId: req.merchant.id,
+          reason: 'Bascule vers plan gratuit',
+        });
+      }
+      return res.json({ status: 'activated', package: 'STARTER_BOOST', kind: 'free' });
+    }
     if (quote.amount <= 0) {
       return res.status(400).json({ error: 'Montant nul — aucun paiement requis' });
     }

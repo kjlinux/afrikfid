@@ -58,7 +58,7 @@ export default function AdminMerchants() {
   const [editSaving, setEditSaving] = useState(false)
   const [editMsg, setEditMsg] = useState(null)
   const [kycMerchant, setKycMerchant] = useState(null)
-  const [kycForm, setKycForm] = useState({ decision: 'approved', rejection_reason: '' })
+  const [kycForm, setKycForm] = useState({ decision: 'approve', rejection_reason: '' })
   const [kycSaving, setKycSaving] = useState(false)
   const [kycError, setKycError] = useState('')
   const [form, setForm] = useState({ name: '', email: '', phone: '', country_id: 'CI', rebate_percent: 10, rebate_mode: 'cashback', category: 'retail', password: 'Merchant@2026!' })
@@ -103,7 +103,7 @@ export default function AdminMerchants() {
       })
       setMsg(`KYC ${kycForm.decision === 'approve' ? 'approuvé' : 'rejeté'} pour ${kycMerchant.name}`)
       setKycMerchant(null)
-      setKycForm({ decision: 'approved', rejection_reason: '' })
+      setKycForm({ decision: 'approve', rejection_reason: '' })
       setKycError('')
       load()
     } catch (err) {
@@ -200,7 +200,7 @@ export default function AdminMerchants() {
                         Détails
                       </button>
                       {m.kycStatus === 'submitted' && (
-                        <button onClick={() => { setKycMerchant(m); setKycForm({ decision: 'approved', rejection_reason: '' }); setKycError('') }}
+                        <button onClick={() => { setKycMerchant(m); setKycForm({ decision: 'approve', rejection_reason: '' }); setKycError('') }}
                           className="af-btn af-btn--primary af-btn--sm">
                           Revue KYC
                         </button>

@@ -1321,6 +1321,34 @@ const MIGRATIONS = [
         ON subscription_notifications(subscription_id, kind, channel, period_end_ref);
     `,
   },
+  {
+    version: 36,
+    name: '036_starter_boost_free',
+    up: `
+      -- STARTER_BOOST devient le plan gratuit de base (0 FCFA, sans expiration)
+      UPDATE subscriptions
+         SET base_monthly_fee = 0,
+             effective_monthly_fee = 0,
+             current_period_end = NULL,
+             next_billing_at = NULL
+       WHERE package = 'STARTER_BOOST';
+    `,
+  },
+  {
+    version: 37,
+    name: '037_marketplace_order_tracking',
+    up: `
+      -- Permet de lier une transaction afrikid à une commande de la marketplace
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS marketplace_commande_id TEXT,
+        ADD COLUMN IF NOT EXISTS source_platform TEXT DEFAULT 'direct',
+        ADD COLUMN IF NOT EXISTS marketplace_merchant_id TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_marketplace
+        ON transactions(marketplace_commande_id)
+        WHERE marketplace_commande_id IS NOT NULL;
+    `,
+  },
 ];
 
 async function getCurrentVersion() {

@@ -62,6 +62,21 @@ const CreateMerchantSchema = z.object({
   password: z.string().min(8, 'Mot de passe minimum 8 caractères').optional(),
 });
 
+const httpsUrl = z.string()
+  .url('URL invalide')
+  .refine(val => val.startsWith('https://'), { message: "L'URL webhook doit commencer par https://" })
+  .refine(val => {
+    try { const u = new URL(val); return u.hostname !== 'localhost' && !u.hostname.match(/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/); }
+    catch { return false; }
+  }, { message: "L'URL webhook doit pointer vers un domaine public accessible" });
+
+const MerchantSettingsSchema = z.object({
+  webhook_url: httpsUrl.optional().or(z.literal('')),
+  rebate_mode: z.enum(REBATE_MODES).optional(),
+  allow_guest_mode: z.boolean().optional(),
+  logo_url: z.string().url().optional(),
+}).refine(data => Object.keys(data).length > 0, { message: 'Aucun paramètre modifiable fourni' });
+
 const UpdateMerchantSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   phone: phoneNumber.optional(),
@@ -191,6 +206,7 @@ const SubscriptionAdminPatchSchema = z.object({
 });
 
 module.exports = {
+  MerchantSettingsSchema,
   WalletPaySchema,
   SubscriptionQuoteSchema,
   SubscriptionCheckoutSchema,

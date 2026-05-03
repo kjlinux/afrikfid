@@ -10,6 +10,7 @@ import {
   LockClosedIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
+  BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline'
 
 const inp = {
@@ -374,7 +375,7 @@ export default function MerchantSettings() {
           <div style={{ width: 80, height: 80, borderRadius: 12, border: '1px solid var(--af-border)', overflow: 'hidden', flexShrink: 0, background: 'var(--af-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {(logoPreview || profile.logoUrl)
               ? <img src={logoPreview || profile.logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: 28, color: 'var(--af-border-strong)' }}>🏪</span>}
+              : <BuildingStorefrontIcon style={{ width: 36, height: 36, color: 'var(--af-border-strong)' }} />}
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 12, color: 'var(--af-text-muted)', marginBottom: 10 }}>

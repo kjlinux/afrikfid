@@ -148,6 +148,7 @@ app.use('/api/v1/campaigns', require('./routes/campaigns'));
 app.use('/api/v1/merchant-intelligence', require('./routes/merchant-intelligence'));
 app.use('/api/v1/loyalty-bridge', require('./routes/loyalty-bridge'));
 app.use('/api/v1/external', require('./routes/external-sync').router);
+app.use('/api/v1/marketplace', require('./routes/marketplace'));
 
 // ─── Fichiers statiques uploadés ──────────────────────────────────────────
 // Cross-Origin-Resource-Policy doit être "cross-origin" pour que le frontend

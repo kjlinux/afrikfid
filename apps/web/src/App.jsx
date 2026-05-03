@@ -213,21 +213,96 @@ function Topbar({ user, logoUrl, onLogout, onHome }) {
   )
 }
 
-// ─── Nav horizontale ─────────────────────────────────────────────────────────
-function Navbar({ items }) {
+// ─── Mega-menu navbar ─────────────────────────────────────────────────────────
+function MegaNavbar({ groups }) {
+  const [openGroup, setOpenGroup] = useState(null)
+  const navRef = useRef(null)
+  const location = useLocation()
+
+  // Ferme le panneau si on clique en dehors
+  useEffect(() => {
+    if (!openGroup) return
+    const close = (e) => {
+      if (navRef.current && !navRef.current.contains(e.target)) setOpenGroup(null)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [openGroup])
+
+  // Ferme le panneau lors d'un changement de route
+  useEffect(() => { setOpenGroup(null) }, [location.pathname])
+
+  const isGroupActive = (group) => {
+    if (!group.columns) return location.pathname === group.path || (!group.end && location.pathname.startsWith(group.path + '/'))
+    return group.columns.some(col =>
+      col.items.some(item => location.pathname === item.path || (!item.end && location.pathname.startsWith(item.path + '/')))
+    )
+  }
+
   return (
-    <nav className="af-navbar">
-      {items.map(item => (
-        <NavLink
-          key={item.path}
-          to={item.path}
-          end={item.end}
-          className={({ isActive }) => 'af-nav-item' + (isActive ? ' is-active' : '')}>
-          {item.Icon && <item.Icon className="af-nav-icon" />}
-          <span>{item.label}</span>
-        </NavLink>
-      ))}
-    </nav>
+    <div ref={navRef} style={{ position: 'relative', zIndex: 50 }}>
+      {/* Barre principale */}
+      <nav className="af-navbar">
+        {groups.map(group => {
+          const active = isGroupActive(group)
+          if (!group.columns) {
+            // Item direct sans dropdown
+            return (
+              <NavLink
+                key={group.path}
+                to={group.path}
+                end={group.end}
+                className={({ isActive }) => 'af-nav-item' + (isActive ? ' is-active' : '')}
+                onClick={() => setOpenGroup(null)}>
+                {group.Icon && <group.Icon className="af-nav-icon" />}
+                <span>{group.label}</span>
+              </NavLink>
+            )
+          }
+          // Groupe avec dropdown
+          const isOpen = openGroup === group.label
+          return (
+            <button
+              key={group.label}
+              className={'af-nav-item af-nav-group' + (active || isOpen ? ' is-active' : '')}
+              onClick={() => setOpenGroup(isOpen ? null : group.label)}>
+              {group.Icon && <group.Icon className="af-nav-icon" />}
+              <span>{group.label}</span>
+              <ChevronDownIcon style={{ width: 12, height: 12, marginLeft: 2, transition: 'transform .2s', transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* Panneau dropdown */}
+      {groups.map(group => {
+        if (!group.columns || openGroup !== group.label) return null
+        return (
+          <div key={group.label} className="af-megamenu-panel">
+            <div className="af-megamenu-columns">
+              {group.columns.map((col, ci) => (
+                <div key={ci} className="af-megamenu-col">
+                  <div className="af-megamenu-col-title">{col.title}</div>
+                  {col.items.map(item => (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      end={item.end}
+                      className={({ isActive }) => 'af-megamenu-link' + (isActive ? ' is-active' : '')}>
+                      {item.Icon && <item.Icon style={{ width: 15, height: 15, flexShrink: 0 }} />}
+                      <div>
+                        <div className="af-megamenu-link-label">{item.label}</div>
+                        {item.desc && <div className="af-megamenu-link-desc">{item.desc}</div>}
+                      </div>
+                    </NavLink>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -236,32 +311,75 @@ function AdminLayout({ children }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const items = [
-    { path: '/admin',                   end: true, label: 'Dashboard',          Icon: ChartBarIcon },
-    { path: '/admin/merchants',         label: 'Marchands',                    Icon: BuildingStorefrontIcon },
-    { path: '/admin/clients',           label: 'Clients',                      Icon: UsersIcon },
-    { path: '/admin/transactions',      label: 'Transactions',                 Icon: CreditCardIcon },
-    { path: '/admin/loyalty',           label: 'Fidélité',                     Icon: StarIcon },
-    { path: '/admin/loyalty-bridge',    label: 'Pont',            Icon: LinkIcon },
-    { path: '/admin/webhooks',          label: 'Webhooks',                     Icon: BellIcon },
-    { path: '/admin/fraud',             label: 'Fraude',                       Icon: ShieldCheckIcon },
-    { path: '/admin/exchange-rates',    label: 'Taux de change',               Icon: ArrowsRightLeftIcon },
-    { path: '/admin/refunds',           label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
-    { path: '/admin/disputes',          label: 'Litiges',                      Icon: ScaleIcon },
-    { path: '/admin/subscriptions',     label: 'Abonnements',                  Icon: CreditCardIcon },
-    { path: '/admin/success-fees',      label: 'Success Fees',                 Icon: ChartBarIcon },
-    { path: '/admin/rfm',               label: 'Segmentation RFM',             Icon: ChartBarIcon },
-    { path: '/admin/campaigns',         label: 'Campagnes',                    Icon: BellAlertIcon },
-    { path: '/admin/abandon-protocol',  label: 'Protocole abandon',            Icon: BellAlertIcon },
-    { path: '/admin/churn-alerts',      label: 'Alertes Churn',                Icon: ShieldCheckIcon },
-    { path: '/admin/audit-logs',        label: "Journal d'audit",              Icon: ClipboardDocumentListIcon },
-    { path: '/admin/profile',           label: 'Profil & Sécurité',            Icon: UserCircleIcon },
+  const groups = [
+    { path: '/admin', end: true, label: 'Dashboard', Icon: ChartBarIcon },
+    {
+      label: 'Opérations', Icon: CreditCardIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Transactions & Paiements',
+          items: [
+            { path: '/admin/transactions',  label: 'Transactions',     desc: 'Historique & filtres',      Icon: CreditCardIcon },
+            { path: '/admin/refunds',       label: 'Remboursements',   desc: 'Suivi des remboursements',  Icon: ArrowUturnLeftIcon },
+            { path: '/admin/disputes',      label: 'Litiges',          desc: 'Gestion des contentieux',   Icon: ScaleIcon },
+            { path: '/admin/exchange-rates',label: 'Taux de change',   desc: 'Multi-devises UEMOA',       Icon: ArrowsRightLeftIcon },
+          ],
+        },
+        {
+          title: 'Marchands & Abonnements',
+          items: [
+            { path: '/admin/merchants',     label: 'Marchands',        desc: 'Liste & onboarding',        Icon: BuildingStorefrontIcon },
+            { path: '/admin/subscriptions', label: 'Abonnements',      desc: 'Plans & facturation',       Icon: CreditCardIcon },
+            { path: '/admin/success-fees',  label: 'Success Fees',     desc: 'Commissions automatiques',  Icon: ChartBarIcon },
+            { path: '/admin/clients',       label: 'Clients',          desc: 'Base clients globale',      Icon: UsersIcon },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Fidélité & CRM', Icon: StarIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Programme fidélité',
+          items: [
+            { path: '/admin/loyalty',          label: 'Fidélité',           desc: 'Config X/Y/Z & statuts',    Icon: StarIcon },
+            { path: '/admin/loyalty-bridge',   label: 'Pont fidélité',      desc: 'Transferts inter-marchands', Icon: LinkIcon },
+            { path: '/admin/rfm',              label: 'Segmentation RFM',   desc: 'Scores & segments clients',  Icon: ChartBarIcon },
+          ],
+        },
+        {
+          title: 'Engagement & Rétention',
+          items: [
+            { path: '/admin/campaigns',        label: 'Campagnes',          desc: 'SMS, e-mail, WhatsApp',      Icon: BellAlertIcon },
+            { path: '/admin/abandon-protocol', label: 'Protocole abandon',  desc: 'Récupération paniers',       Icon: BellAlertIcon },
+            { path: '/admin/churn-alerts',     label: 'Alertes Churn',      desc: 'Prédiction désengagement',   Icon: ShieldCheckIcon },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Sécurité & Audit', Icon: ShieldCheckIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Supervision',
+          items: [
+            { path: '/admin/fraud',       label: 'Fraude',           desc: 'Règles & blacklist',         Icon: ShieldCheckIcon },
+            { path: '/admin/webhooks',    label: 'Webhooks',         desc: 'Dispatching & retry',        Icon: BellIcon },
+            { path: '/admin/audit-logs',  label: "Journal d'audit",  desc: 'Traçabilité des actions',    Icon: ClipboardDocumentListIcon },
+          ],
+        },
+      ],
+    },
+    { path: '/admin/profile', label: 'Profil & Sécurité', Icon: UserCircleIcon },
   ]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--af-bg)', color: 'var(--af-text)', display: 'flex', flexDirection: 'column' }}>
       <Topbar user={user} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/admin')} />
-      <Navbar items={items} />
+      <MegaNavbar groups={groups} />
       <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         {children}
       </main>
@@ -280,24 +398,58 @@ function MerchantLayout({ children }) {
       .catch(() => {})
   }, [user?.id])
 
-  const items = [
-    { path: '/merchant',               end: true, label: 'Dashboard',          Icon: ChartBarIcon },
-    { path: '/merchant/transactions',  label: 'Transactions',                 Icon: CreditCardIcon },
-    { path: '/merchant/links',         label: 'Liens de paiement',            Icon: LinkIcon },
-    { path: '/merchant/clients',       label: 'Clients fidélisés',            Icon: UsersIcon },
-    { path: '/merchant/intelligence',  label: 'Intelligence',                 Icon: ChartBarIcon },
-    { path: '/merchant/campaigns',    label: 'Campagnes',                    Icon: BellAlertIcon },
-    { path: '/merchant/refunds',       label: 'Remboursements',               Icon: ArrowUturnLeftIcon },
-    { path: '/merchant/kyc',           label: 'Vérification KYC',             Icon: ShieldCheckIcon },
-    { path: '/merchant/subscription',  label: 'Abonnement',                   Icon: CreditCardIcon },
-    { path: '/merchant/settings',      label: 'Paramètres',                   Icon: Cog6ToothIcon },
-    { path: '/merchant/profile',       label: 'Profil & Sécurité',            Icon: UserCircleIcon },
+  const groups = [
+    { path: '/merchant', end: true, label: 'Dashboard', Icon: ChartBarIcon },
+    {
+      label: 'Paiements', Icon: CreditCardIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Flux financiers',
+          items: [
+            { path: '/merchant/transactions', label: 'Transactions',      desc: 'Historique & détails',       Icon: CreditCardIcon },
+            { path: '/merchant/links',        label: 'Liens de paiement', desc: 'Créer & partager',           Icon: LinkIcon },
+            { path: '/merchant/refunds',      label: 'Remboursements',    desc: 'Gérer les retours',          Icon: ArrowUturnLeftIcon },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Clients & CRM', Icon: UsersIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Base clients',
+          items: [
+            { path: '/merchant/clients',       label: 'Clients fidélisés', desc: 'Profils & historique',       Icon: UsersIcon },
+            { path: '/merchant/intelligence',  label: 'Intelligence',      desc: 'RFM, churn, analytics',      Icon: ChartBarIcon },
+            { path: '/merchant/campaigns',     label: 'Campagnes',         desc: 'SMS, e-mail, WhatsApp',      Icon: BellAlertIcon },
+            { path: '/merchant/churn-alerts',  label: 'Alertes Churn',     desc: 'Clients à risque',           Icon: ShieldCheckIcon },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Compte', Icon: Cog6ToothIcon,
+      items: true,
+      columns: [
+        {
+          title: 'Mon espace',
+          items: [
+            { path: '/merchant/subscription', label: 'Abonnement',         desc: 'Plan & facturation',         Icon: CreditCardIcon },
+            { path: '/merchant/kyc',          label: 'Vérification KYC',   desc: 'Documents & statut',         Icon: ShieldCheckIcon },
+            { path: '/merchant/settings',     label: 'Paramètres',         desc: 'Config & intégrations',      Icon: Cog6ToothIcon },
+            { path: '/merchant/profile',      label: 'Profil & Sécurité',  desc: 'Mot de passe & 2FA',         Icon: UserCircleIcon },
+          ],
+        },
+      ],
+    },
   ]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--af-bg)', color: 'var(--af-text)', display: 'flex', flexDirection: 'column' }}>
       <Topbar user={user} logoUrl={merchantLogoUrl} onLogout={() => { logout(); navigate('/login') }} onHome={() => navigate('/merchant')} />
-      <Navbar items={items} />
+      <MegaNavbar groups={groups} />
       <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         {children}
       </main>

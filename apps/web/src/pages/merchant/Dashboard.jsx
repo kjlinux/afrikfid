@@ -15,6 +15,7 @@ import {
   ShieldExclamationIcon,
   LinkIcon,
   ClipboardDocumentListIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline'
 
 const PKG_ORDER = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM']
@@ -86,12 +87,12 @@ function FeatureAccessPanel({ pkg }) {
           </div>
         ))}
         {locked.map(f => (
-          <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, opacity: 0.45 }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--af-border-strong)', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: 'var(--af-text-faint)', flex: 1 }}>
+          <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6 }}>
+            <LockClosedIcon style={{ width: 12, height: 12, color: 'var(--af-text-muted)', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--af-text-muted)', flex: 1 }}>
               {f.label}{f.tip && TOOLTIPS[f.tip] && <InfoTooltip text={TOOLTIPS[f.tip]} />}
             </span>
-            <span style={{ fontSize: 10, color: PKG_COLOR[f.min], fontWeight: 700 }}>{PKG_LABEL[f.min]}</span>
+            <span style={{ fontSize: 10, background: 'var(--af-surface-3)', color: 'var(--af-text)', fontWeight: 600, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--af-border)', whiteSpace: 'nowrap' }}>{PKG_LABEL[f.min]}</span>
           </div>
         ))}
       </div>
@@ -261,7 +262,7 @@ export default function MerchantDashboard() {
           ) : (
             <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.3 }}>📊</div>
+                <ChartBarIcon style={{ width: 40, height: 40, marginBottom: 8, opacity: 0.3, color: 'var(--af-text-muted)' }} />
                 <div style={{ fontSize: 13, color: 'var(--af-text-muted)' }}>Aucune donnée sur la période</div>
               </div>
             </div>

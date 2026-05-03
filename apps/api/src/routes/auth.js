@@ -167,6 +167,10 @@ router.post('/merchant/login', loginLimiter, validate(MerchantLoginSchema), asyn
     return res.status(401).json({ error: 'Identifiants invalides' });
   }
 
+  if (merchant.status !== 'active') {
+    return res.status(403).json({ error: 'ACCOUNT_PENDING', message: 'Votre compte est en attente de validation par l\'équipe Afrik\'Fid. Vous recevrez un email dès l\'activation.' });
+  }
+
   // Vérification 2FA marchand si activé — authentification forte)
   if (merchant.totp_enabled && merchant.totp_secret) {
     if (!totp_code) {

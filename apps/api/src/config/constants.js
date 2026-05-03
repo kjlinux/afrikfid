@@ -76,8 +76,9 @@ const POINTS_PER_REWARD_UNIT = 100;   // 1 point récompense = 100 FCFA
 const MERCHANT_PACKAGES = ['STARTER_BOOST', 'STARTER_PLUS', 'GROWTH', 'PREMIUM'];
 
 // ─── Tarifs mensuels FCFA (source unique de vérité) ───────────────────────
+// STARTER_BOOST = 0 : plan gratuit de base, aucun paiement requis
 const PACKAGE_PRICES_FCFA = {
-  STARTER_BOOST: 9900,
+  STARTER_BOOST: 0,
   STARTER_PLUS: 19900,
   GROWTH: 39900,
   PREMIUM: 79900,
